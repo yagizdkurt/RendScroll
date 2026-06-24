@@ -182,7 +182,8 @@ const Editor = (() => {
   let toggleBtn, saveBtn, dirtyDot, toastEl;
 
   function mountControls() {
-    const host = document.getElementById("options") || document.getElementById("sidebar");
+    const host = document.getElementById("topbar-tools") ||
+      document.getElementById("options") || document.getElementById("sidebar");
     const box = document.createElement("div");
     box.className = "editor-controls";
 

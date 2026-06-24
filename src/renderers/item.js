@@ -27,12 +27,14 @@ const ITEM_RARITIES = {
   "3": "Epic",
 };
 
-const ITEM_NON_META_LABELS = new Set(["dm", "özellikler"]);
+const ITEM_NON_META_LABELS = new Set(["dm", "özellikler", "properties"]);
+const ITEM_RARITY_LABELS = new Set(["nadirlik", "rarity"]);
+const ITEM_PROPERTIES_LABELS = new Set(["özellikler", "properties"]);
 
 /* "Yapışık: T" / "Connect: T" flag'i: item'ı bir önceki objeye/yapışık item'a yapıştırır.
    Label kontrolü itemLower()'dan geçmiş haliyle yapılır; değer truthy ise aktif. */
-const ITEM_STUCK_LABELS = new Set(["yapışık", "connect"]);
-const ITEM_STUCK_TRUTHY = new Set(["t", "true"]);
+const ITEM_STUCK_LABELS = new Set(["yapışık", "connect", "combine"]);
+const ITEM_STUCK_TRUTHY = new Set(["t", "true", "yes", "1"]);
 
 function itemIsStuckValue(value) {
   return ITEM_STUCK_TRUTHY.has(itemLower(value.trim()));
@@ -88,7 +90,7 @@ function itemMetaBlock(rows) {
 
     const val = document.createElement("div");
     val.className = "item-meta-value";
-    if (itemLower(label) === "nadirlik") val.appendChild(itemRarityBadge(value));
+    if (ITEM_RARITY_LABELS.has(itemLower(label))) val.appendChild(itemRarityBadge(value));
     else val.textContent = value;
     meta.appendChild(val);
   });
@@ -117,7 +119,8 @@ function itemProperties(labelNode, listNode) {
 }
 
 function isItemPropertiesLabel(node) {
-  return node.tagName === "P" && itemLower(node.textContent.trim()) === "özellikler:";
+  if (node.tagName !== "P") return false;
+  return ITEM_PROPERTIES_LABELS.has(itemLower(node.textContent.trim()).replace(/:\s*$/, ""));
 }
 
 function enhanceItemSections(root) {

@@ -41,6 +41,38 @@
   opacity: 0.4;
   cursor: default;
 }
+/* Top-bar variant: the controls sit inline in the wooden bar, not stacked in
+   the sidebar — drop the sidebar separator and the 50%-width stacking. */
+#topbar .editor-controls {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+#topbar .editor-controls .editor-toggle,
+#topbar .editor-controls .editor-save {
+  flex: 0 0 auto;
+  min-width: 6rem;
+  padding: 8px 18px;
+  text-align: center;
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--parchment-lt, #fdf1dc);
+  background: rgba(255, 235, 200, 0.16);
+  border: 1px solid var(--gold, #c9ad6a);
+}
+#topbar .editor-controls .editor-toggle:hover,
+#topbar .editor-controls .editor-save:not(:disabled):hover {
+  background: rgba(255, 235, 200, 0.26);
+}
+/* Keep the active "Edit" highlight (solid gold) above the default fill. */
+#topbar .editor-controls .editor-toggle.is-on {
+  background: #b9892f;
+  border-color: #d8a743;
+  color: #1a1208;
+}
+
 .editor-dirty {
   flex: 0 0 9px;
   width: 9px;

@@ -13,14 +13,19 @@
 </head>
 <body>
   <aside id="sidebar">
-    <div class="app-title">RendScroll</div>
+    <img class="sidebar-brand" src="src/STDImages/RendScroll2.png" alt="RendScroll">
     <button id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">☰</button>
     <nav id="nav"></nav>
     <section id="options" class="options" aria-label="Options"></section>
   </aside>
-  <main id="reader">
-    <article id="page" class="page"></article>
-  </main>
+  <div id="main-area">
+    <header id="topbar">
+      <div id="topbar-tools"></div>
+    </header>
+    <main id="reader">
+      <article id="page" class="page"></article>
+    </main>
+  </div>
   <script src="src/vendor/marked.min.js"></script>
   <script src="src/rendererOptions.js"></script>
   <script src="src/markdown.js"></script>

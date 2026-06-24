@@ -58,8 +58,8 @@ const ABILITY_LORE_LABELS = new Set(["lore"]);
 
 /* "Yapışık: T" / "Connect: T" flag'i: ability'yi bir önceki obje/item/yapışık
    ability'ye yapıştırır. (Item renderer ile aynı sözcükler.) */
-const ABILITY_STUCK_LABELS = new Set(["yapışık", "connect"]);
-const ABILITY_STUCK_TRUTHY = new Set(["t", "true"]);
+const ABILITY_STUCK_LABELS = new Set(["yapışık", "connect", "combine"]);
+const ABILITY_STUCK_TRUTHY = new Set(["t", "true", "yes", "1"]);
 
 function abilityIsStuckValue(value) {
   return ABILITY_STUCK_TRUTHY.has(abilityLower(value.trim()));
