@@ -7,6 +7,28 @@ function itemLower(s) {
   return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
 }
 
+/* Text phase (runs before marked): inside an Item section, isolate a bare
+   "Side:" line into its own paragraph so the column directive is always its own
+   node, even when written with "Az Enter" right above a value-less label (e.g.
+   "Özellikler:") that would otherwise swallow it out of the meta block. Mirrors
+   the other card normalizers. */
+function normalizeItemMarkdown(text) {
+  const out = [];
+  let inItem = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^###\s+item\s*:/i.test(line)) { inItem = true; out.push(line); continue; }
+    if (/^#{1,3} /.test(line)) { inItem = false; out.push(line); continue; }
+    if (inItem && /^side\s*:/i.test(line.trim())) {
+      if (out.length && out[out.length - 1].trim() !== "") out.push("");
+      out.push(line);
+      out.push("");
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 /* A node ends the current section if it's a new heading/separator OR a card that
    another renderer already produced (e.g. an NPC card placed right before this
    Item). Without the card check the collector would swallow the next card. */
@@ -41,11 +63,7 @@ function itemIsStuckValue(value) {
 }
 
 function itemTitleText(head) {
-  return head.textContent.trim().replace(/^_?\s*item\s*:\s*/i, "").trim();
-}
-
-function itemIsLeft(head) {
-  return head.textContent.trim().startsWith("_");
+  return head.textContent.trim().replace(/^\s*item\s*:\s*/i, "").trim();
 }
 
 function itemMetaLines(node) {
@@ -125,7 +143,7 @@ function isItemPropertiesLabel(node) {
 
 function enhanceItemSections(root) {
   const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    /^_?\s*item\s*:/i.test(h.textContent.trim())
+    /^\s*item\s*:/i.test(h.textContent.trim())
   );
 
   heads.forEach((head) => {
@@ -137,10 +155,10 @@ function enhanceItemSections(root) {
 
     if (!nodes.length) return;
 
-    // Items default to the right column; "### _item: ..." swaps to the left.
-    // The layout step keys off the .item-left marker; card rendering is shared.
+    // Items render in the left column by default; a "Side: R" line (pulled out
+    // of the meta block below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
-    card.className = itemIsLeft(head) ? "item-card item-left" : "item-card";
+    card.className = "item-card";
     let stuck = false;
     let imageRaw = ""; // "Image:" value, pulled out of the meta block when present
 
@@ -169,6 +187,8 @@ function enhanceItemSections(root) {
             if (itemIsStuckValue(row.value)) stuck = true;
           } else if (/^image$/i.test(row.label.trim())) {
             if (row.value.trim()) imageRaw = row.value.trim();
+          } else if (/^side$/i.test(row.label.trim())) {
+            if (cardSideIsRight(row.value)) card.classList.add("card-right");
           } else {
             kept.push(row);
           }

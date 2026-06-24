@@ -50,7 +50,7 @@ function normalizeNpcMarkdown(text) {
     if (/^#{1,3} /.test(line)) { inNpc = false; out.push(line); continue; }
     // Isolate directive/stat lines as their own paragraphs (blank line on both
     // sides) so they don't get glued into neighbouring blockquotes/lists.
-    if (inNpc && (/^bg\s*:/i.test(line.trim()) || /^image\s*:/i.test(line.trim()) || NPC_STAT_LINE.test(line.trim()) || /^checks\s*:\s*$/i.test(line.trim()))) {
+    if (inNpc && (/^bg\s*:/i.test(line.trim()) || /^image\s*:/i.test(line.trim()) || /^side\s*:/i.test(line.trim()) || NPC_STAT_LINE.test(line.trim()) || /^checks\s*:\s*$/i.test(line.trim()))) {
       if (out.length && out[out.length - 1].trim() !== "") out.push("");
       out.push(line);
       out.push("");
@@ -210,6 +210,13 @@ function enhanceNpcSections(root) {
       if (bg) {
         card.style.setProperty("--npc-bg", 'url("' + cardBgUrl(bg[1]) + '")');
         return; // the BG line itself is dropped
+      }
+
+      // "Side: R" moves the card to the right column; the line itself is dropped.
+      const side = node.tagName === "P" && node.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return;
       }
 
       const text = node.tagName === "P" ? node.textContent.trim() : "";

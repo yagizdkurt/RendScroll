@@ -15,8 +15,9 @@
      list   -> repeatable single-line rows   -> "Label:\n- a\n- b"
      checks -> repeatable skill/outcome rows -> "- Skill:\n> 10: result"
      lines  -> textarea (raw markdown)       -> verbatim (the Body catch-all)
-   The engine also appends a shared "Closed" flag, and a left/right "Column"
-   select for types whose column is chosen or overridden with the "_" prefix. */
+   Every card type also carries a "Closed" flag and a left/right "Column" select;
+   the column is serialized as a "Side:" body line ("Side: R" for the right
+   column, nothing for the default left). */
 
 const EditorSchemas = (() => {
   function lower(s) {
@@ -239,8 +240,12 @@ const EditorSchemas = (() => {
   function serialize(schema, values) {
     const eol = "\n"; // outline.frameBlock re-maps to the file's EOL
     let out = "### " + schema.heading(values).trim() + eol;
+    // Column: left is the default and writes nothing; right emits one "Side: R".
+    const hasColumn = schema.fields.some((f) => f.key === "column");
+    if (hasColumn && values.column === "right") out += "Side: R" + eol;
     for (const f of schema.fields) {
-      // title/column/keyword are encoded in the heading, never as body lines.
+      // title/column/keyword are encoded in the heading / Side line above, never
+      // as plain body lines.
       if (f.key === "title" || f.key === "column" || f.key === "keyword") continue;
       const v = values[f.key];
       if (f.kind === "text" || f.kind === "select") {
@@ -292,12 +297,19 @@ const EditorSchemas = (() => {
     const catchAllKinds = new Set(["lines", "checks", "linesWithChecks"]);
     const labeled = schema.fields.filter((f) => f.mdLabel && !catchAllKinds.has(f.kind));
     const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
+    const hasColumn = schema.fields.some((f) => f.key === "column");
     const bodyOut = [];
 
     for (let i = 0; i < body.length; i++) {
       const line = body[i];
       const t = line.trim();
       let matched = false;
+
+      // "Side: R"/"Side: L" sets the column and is consumed (never reaches Body).
+      if (hasColumn) {
+        const sm = t.match(/^side\s*:\s*(.+)$/i);
+        if (sm) { values.column = /^r/i.test(sm[1].trim()) ? "right" : "left"; continue; }
+      }
 
       for (const f of labeled) {
         const lab = lower(f.mdLabel);
@@ -351,35 +363,19 @@ const EditorSchemas = (() => {
   // --- heading helpers -----------------------------------------------------
 
   // Build a heading-content factory + matching parser for a fixed keyword type.
-  function keywordHeading(keyword, supportsColumn) {
+  // Column is no longer encoded in the heading — it is a "Side:" body line
+  // (default left), handled by serialize()/parse().
+  function keywordHeading(keyword) {
     return {
       heading(values) {
-        const u = supportsColumn && values.column === "right" ? "_" : "";
         const title = (values.title || "").trim();
-        return u + keyword + ": " + title;
+        return keyword + ": " + title;
       },
       parseHeading(content, values) {
-        values.column = /^_/.test(content.trim()) ? "right" : "left";
-        const re = new RegExp("^_?\\s*" + keyword + "\\s*:\\s*(.*)$", "i");
+        values.column = "left";
+        const re = new RegExp("^\\s*" + keyword + "\\s*:\\s*(.*)$", "i");
         const m = content.match(re);
-        values.title = m ? m[1].trim() : content.replace(/^_/, "").trim();
-      },
-    };
-  }
-
-  // Right-default cards use "_" as the inverse column override.
-  function rightDefaultHeading(keyword) {
-    return {
-      heading(values) {
-        const u = values.column === "left" ? "_" : "";
-        const title = (values.title || "").trim();
-        return u + keyword + ": " + title;
-      },
-      parseHeading(content, values) {
-        values.column = /^_/.test(content.trim()) ? "left" : "right";
-        const re = new RegExp("^_?\\s*" + keyword + "\\s*:\\s*(.*)$", "i");
-        const m = content.match(re);
-        values.title = m ? m[1].trim() : content.replace(/^_/, "").trim();
+        values.title = m ? m[1].trim() : content.trim();
       },
     };
   }
@@ -391,12 +387,13 @@ const EditorSchemas = (() => {
   const fBg = { key: "bg", label: "BG (watermark)", kind: "text", mdLabel: "BG" };
   const fClosed = { key: "closed", label: "Start collapsed", kind: "flag", mdLabel: "Closed" };
   const fStuck = { key: "stuck", label: "Stick to card above (Yapışık)", kind: "flag", mdLabel: "Yapışık" };
+  // Column is serialized as a "Side:" body line (default left writes nothing,
+  // "right" writes "Side: R"). See serialize()/parse().
   const fColumn = {
     key: "column", label: "Column", kind: "select",
     options: [{ value: "left", label: "Left" }, { value: "right", label: "Right" }],
     default: "left",
   };
-  const fRightDefaultColumn = Object.assign({}, fColumn, { default: "right" });
   const rarityField = (md) => ({
     key: "rarity", label: "Rarity", kind: "select", mdLabel: md,
     options: [
@@ -430,7 +427,7 @@ const EditorSchemas = (() => {
     REGISTRY[type] = Object.assign({ type, label, fields }, headingPair);
   }
 
-  define("npc", "NPC", keywordHeading("NPC", false), [
+  define("npc", "NPC", keywordHeading("NPC"), [
     fTitle,
     { key: "personality", label: "Personality (Kişilik)", kind: "list", mdLabel: "Kişilik" },
     { key: "race", label: "Race", kind: "text", mdLabel: "Race" },
@@ -440,16 +437,17 @@ const EditorSchemas = (() => {
     { key: "hp", label: "HP", kind: "text", mdLabel: "HP" },
     { key: "ac", label: "AC", kind: "text", mdLabel: "AC" },
     fImage, fBg,
+    fColumn,
     fBodyWithChecks("İlk Diyalog: / Sorarsa: / Bildikleri: / dialogue topics / Checks: …", "npc"),
     fClosed,
   ]);
 
-  define("item", "Item", rightDefaultHeading("Item"), [
+  define("item", "Item", keywordHeading("Item"), [
     fTitle,
     { key: "tur", label: "Type (Tür)", kind: "text", mdLabel: "Tür" },
     rarityField("Nadirlik"),
     fImage,
-    fRightDefaultColumn,
+    fColumn,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, extra lines…"),
     fStuck, fClosed,
@@ -457,14 +455,14 @@ const EditorSchemas = (() => {
 
   define("ability", "Ability", {
     heading(values) {
-      const u = ""; // ability is always right (default), no "_" needed
       const kw = values.keyword || "Spell";
-      return u + kw + ": " + (values.title || "").trim();
+      return kw + ": " + (values.title || "").trim();
     },
     parseHeading(content, values) {
-      const m = content.match(/^_?\s*(skill|spell|passive|effect)\s*:\s*(.*)$/i);
+      values.column = "left";
+      const m = content.match(/^\s*(skill|spell|passive|effect)\s*:\s*(.*)$/i);
       values.keyword = m ? m[1].replace(/^\w/, (c) => c.toUpperCase()) : "Spell";
-      values.title = m ? m[2].trim() : content.replace(/^_/, "").trim();
+      values.title = m ? m[2].trim() : content.trim();
     },
   }, [
     {
@@ -478,12 +476,13 @@ const EditorSchemas = (() => {
     { key: "range", label: "Range (Menzil)", kind: "text", mdLabel: "Menzil" },
     { key: "cooldown", label: "Cooldown (Bekleme)", kind: "text", mdLabel: "Bekleme" },
     rarityField("Nadirlik"),
+    fColumn,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, Lore: …"),
     fStuck, fClosed,
   ]);
 
-  define("obj", "Object / POI", keywordHeading("Obje", true), [
+  define("obj", "Object / POI", keywordHeading("Obje"), [
     fTitle,
     fImage, fBg,
     fColumn,
@@ -491,7 +490,7 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
-  define("combat", "Combat (Savaş)", keywordHeading("Savaş", true), [
+  define("combat", "Combat (Savaş)", keywordHeading("Savaş"), [
     fTitle,
     fImage,
     fColumn,
@@ -499,14 +498,14 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
-  define("unexpected", "Unexpected", keywordHeading("Unexpected", true), [
+  define("unexpected", "Unexpected", keywordHeading("Unexpected"), [
     { key: "title", label: "Title (optional)", kind: "text" },
     fColumn,
     fBody("- contingency lines…"),
     fClosed,
   ]);
 
-  define("std", "Standard (STD)", keywordHeading("STD", true), [
+  define("std", "Standard (STD)", keywordHeading("STD"), [
     { key: "title", label: "Title (optional)", kind: "text" },
     fImage,
     fColumn,
@@ -516,9 +515,10 @@ const EditorSchemas = (() => {
 
   define("skillchecks", "Skill Checks", {
     heading() { return "Skill Checks"; },
-    parseHeading() {},
+    parseHeading(content, values) { values.column = "left"; },
   }, [
     fChecks,
+    fColumn,
     fClosed,
   ]);
 

@@ -95,6 +95,8 @@ function setSidebarCollapsed(collapsed) {
 /* Text phase: normalize raw markdown before marked.js. Renderers that need to
    touch the source (not just the DOM) contribute their step here. */
 function toHtml(text) {
+  text = normalizeSkillChecksMarkdown(text);
+  text = normalizeItemMarkdown(text);
   text = normalizeNpcMarkdown(text);
   text = normalizeObjMarkdown(text);
   text = normalizeAbilityMarkdown(text);

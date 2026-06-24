@@ -9,8 +9,8 @@
      ### Passive: İsim      ### Effect: İsim
 
    The keyword used becomes the card's label (SKILL / SPELL / PASSIVE / EFFECT).
-   A leading "_" ("### _Spell:") forces the right column (it is the default
-   anyway, mirroring item cards). Fields:
+   The card renders in the left column by default; a "Side: R" line moves it to
+   the right column. Fields:
 
      Tür: ...                 -> meta row
      Maliyet / Menzil / Bekleme: ...   -> meta rows
@@ -26,7 +26,7 @@ function abilityLower(s) {
   return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
 }
 
-const ABILITY_HEAD = /^_?\s*(skill|spell|passive|effect)\s*:/i;
+const ABILITY_HEAD = /^\s*(skill|spell|passive|effect)\s*:/i;
 
 /* A node ends the current section if it's a new heading/separator OR a card that
    another renderer already produced (e.g. an item card placed right before this
@@ -170,7 +170,7 @@ function normalizeAbilityMarkdown(text) {
       continue;
     }
     if (/^#{1,3} /.test(line)) { inAbility = false; out.push(line); continue; }
-    if (inAbility && /^lore\s*:\s*$/i.test(line.trim())) {
+    if (inAbility && (/^lore\s*:\s*$/i.test(line.trim()) || /^side\s*:/i.test(line.trim()))) {
       if (out.length && out[out.length - 1].trim() !== "") out.push("");
       out.push(line);
       out.push("");
@@ -245,6 +245,8 @@ function enhanceAbilitySections(root) {
             if (abilityIsStuckValue(row.value)) stuck = true;
           } else if (/^image$/i.test(row.label.trim())) {
             if (row.value.trim()) imageRaw = row.value.trim();
+          } else if (/^side$/i.test(row.label.trim())) {
+            if (cardSideIsRight(row.value)) card.classList.add("card-right");
           } else {
             kept.push(row);
           }

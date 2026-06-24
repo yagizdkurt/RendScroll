@@ -10,7 +10,7 @@
 
    Classification mirrors the renderers exactly (src/renderers/*.js) so the
    model agrees with what actually gets drawn:
-     - column: layout.js:layoutIsAside + the "_" column prefix/override
+     - column: layout.js:layoutIsAside (left default + the "Side: R" override)
      - types : each renderer's heading regex
      - docked: item.js / ability.js "Yapışık:|Connect: T" flag
    Knows nothing about the DOM or the sidebar. */
@@ -37,6 +37,7 @@ const EditorOutline = (() => {
   const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
   // item.js / ability.js: stuck if label yapışık|connect and value t|true.
   const STUCK_RE = /^(yapışık|connect)\s*:\s*(t|true)\s*$/;
+  const SIDE_RE = /^side\s*:\s*(.+)$/i;
 
   function isHeading(text) {
     return HEADING_RE.test(text);
@@ -57,39 +58,25 @@ const EditorOutline = (() => {
   function cardType(level, content) {
     const raw = content.trim();
     if (level === 2) {
-      return /^_?\s*(obje|object|poi)\s*:/i.test(raw) ? "obj" : "";
+      return /^\s*(obje|object|poi)\s*:/i.test(raw) ? "obj" : "";
     }
     if (level !== 3) return "";
     const tl = lower(raw);
     if (tl.includes("skill check")) return "skillchecks";
-    if (/^_?\s*item\s*:/i.test(raw)) return "item";
-    if (/^_?\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
-    if (/^_?\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
-    if (/^_?\s*sava[şs]\s*:/i.test(raw)) return "combat";
-    if (/^_?\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
-    if (/^_?std\s*:/i.test(raw)) return "std";
+    if (/^\s*item\s*:/i.test(raw)) return "item";
+    if (/^\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
+    if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
+    if (/^\s*sava[şs]\s*:/i.test(raw)) return "combat";
+    if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
+    if (/^std\s*:/i.test(raw)) return "std";
     if (tl.includes("npc")) return "npc";
-    if (/^_?\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
+    if (/^\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
     return ""; // plain ### section (renders as a normal heading)
   }
 
-  function hasUnderscore(content) {
-    return /^_/.test(content.trimStart());
-  }
-
-  // Default column before docking is considered. Mirrors layoutIsAside():
-  // npc/ability/skillchecks are always right; item defaults right but "_item"
-  // swaps left; obj/combat/unexpected/std go right only with the "_" prefix.
+  // Every card renders in the left column by default; a "Side: R" line in the
+  // body (scanned where the card is built) moves it to the right.
   function defaultColumn(type, content) {
-    if (type === "item") {
-      return hasUnderscore(content) ? "left" : "right";
-    }
-    if (type === "npc" || type === "ability" || type === "skillchecks") {
-      return "right";
-    }
-    if (type === "obj" || type === "combat" || type === "unexpected" || type === "std") {
-      return hasUnderscore(content) ? "right" : "left";
-    }
     return "left";
   }
 
@@ -97,15 +84,15 @@ const EditorOutline = (() => {
   function cardTitle(type, content) {
     const c = content.trim();
     switch (type) {
-      case "npc": return c.replace(/^_?\s*npc\s*:\s*/i, "").trim() || "NPC";
-      case "item": return c.replace(/^_?\s*item\s*:\s*/i, "").trim() || "Item";
-      case "ability": return c.replace(/^_?\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
-      case "obj": return c.replace(/^_?\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
-      case "combat": return c.replace(/^_?\s*sava[şs]\s*:\s*/i, "").trim() || "Savaş";
-      case "unexpected": return c.replace(/^_?\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
-      case "std": return c.replace(/^_?\s*std\s*:\s*/i, "").trim() || "STD";
+      case "npc": return c.replace(/^\s*npc\s*:\s*/i, "").trim() || "NPC";
+      case "item": return c.replace(/^\s*item\s*:\s*/i, "").trim() || "Item";
+      case "ability": return c.replace(/^\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
+      case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
+      case "combat": return c.replace(/^\s*sava[şs]\s*:\s*/i, "").trim() || "Savaş";
+      case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
+      case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
       case "skillchecks": return c.trim();
-      default: return c.replace(/^_\s*/, "").trim();
+      default: return c.trim();
     }
   }
 
@@ -162,16 +149,19 @@ const EditorOutline = (() => {
           type,
           title: cardTitle(type, content),
           level: h.level,
-          underscore: hasUnderscore(content),
           column: defaultColumn(type, content),
           stuck: false,
           start: h.line,
           titleLine: h.line,
           end,
         };
-        // Docking flag: scan the card body for "Yapışık:|Connect: T".
+        // Scan the card body for the docking flag ("Yapışık:|Connect: T") and a
+        // "Side: R" column override (default stays left).
         for (let j = h.line + 1; j < end; j++) {
-          if (STUCK_RE.test(lower(lineText(lines[j])).trim())) { card.stuck = true; break; }
+          const bt = lineText(lines[j]).trim();
+          if (STUCK_RE.test(lower(bt))) card.stuck = true;
+          const sm = bt.match(SIDE_RE);
+          if (sm) card.column = /^r/i.test(sm[1].trim()) ? "right" : "left";
         }
         cur.cards.push(card);
         continue;

@@ -18,6 +18,15 @@ function cardBgUrl(raw) {
 // A whole line that is just "Image: name". The value capture may be empty.
 const CARD_IMAGE_LINE = /^image\s*:\s*(.*)$/i;
 
+/* Column placement: a "Side: R" / "Side: L" line. Cards render in the LEFT
+   column by default; "Side: R" moves a card to the right column (the layout
+   step keys off the .card-right class). Case-insensitive, first letter wins, so
+   "R", "Right", "r" all mean right and anything else means left. */
+const CARD_SIDE_LINE = /^side\s*:\s*(.+)$/i;
+function cardSideIsRight(value) {
+  return /^r/i.test(String(value).trim());
+}
+
 /* Build the portrait frame for a card. The image is applied via the
    --card-portrait CSS variable so style.css owns the look (cover fit, gradient
    fallback, border). Returns null for an empty value so callers never create an

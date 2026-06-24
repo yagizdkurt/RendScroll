@@ -21,8 +21,8 @@
      - each "Label:" line         -> a titled sub-section header, with the list /
                                      content that follows grouped under it
 
-   "### _Savaş: …" renders the SAME card, just placed in the right column
-   (same convention as "### _Obje:" / "### _Unexpected:"). */
+   The card renders in the left column by default; a "Side: R" line moves it to
+   the right column. */
 
 function combatLower(s) {
   return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
@@ -32,10 +32,9 @@ function combatLower(s) {
 // sub-section. Read-aloud (">") and list ("-") lines never match.
 const COMBAT_LABEL_RE = /^[\p{L} ]+:\s*$/u;
 
-// True only for a "### Savaş:" heading (colon form). A leading "_"
-// ("### _Savaş:") just marks it for the right column.
+// True only for a "### Savaş:" heading (colon form).
 function isCombatHead(h) {
-  return /^_?\s*sava[şs]\s*:/.test(combatLower(h.textContent).trim());
+  return /^\s*sava[şs]\s*:/.test(combatLower(h.textContent).trim());
 }
 
 /* A node ends the current section if it's a new heading/separator OR a card that
@@ -61,9 +60,9 @@ function normalizeCombatMarkdown(text) {
   const out = [];
   let inCombat = false;
   for (const line of text.split(/\r?\n/)) {
-    if (/^###\s+_?\s*sava[şs]\s*:/i.test(line)) { inCombat = true; out.push(line); continue; }
+    if (/^###\s+sava[şs]\s*:/i.test(line)) { inCombat = true; out.push(line); continue; }
     if (/^#{1,3} /.test(line)) { inCombat = false; out.push(line); continue; }
-    if (inCombat && (COMBAT_LABEL_RE.test(line.trim()) || /^image\s*:/i.test(line.trim()))) {
+    if (inCombat && (COMBAT_LABEL_RE.test(line.trim()) || /^image\s*:/i.test(line.trim()) || /^side\s*:/i.test(line.trim()))) {
       if (out.length && out[out.length - 1].trim() !== "") out.push("");
       out.push(line);
       out.push("");
@@ -106,15 +105,14 @@ function enhanceCombatSections(root) {
       nodes.push(n);
     }
 
-    // A leading "_" ("### _Savaş:") places the card in the right column.
-    const right = head.textContent.trim().startsWith("_");
-
+    // Combat renders in the left column by default; a "Side: R" line (handled in
+    // the node loop below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
-    card.className = right ? "combat-card combat-right" : "combat-card";
+    card.className = "combat-card";
 
     const title = document.createElement("div");
     title.className = "combat-title";
-    title.textContent = head.textContent.trim().replace(/^_?\s*sava[şs]\s*:\s*/i, "").trim();
+    title.textContent = head.textContent.trim().replace(/^\s*sava[şs]\s*:\s*/i, "").trim();
 
     // Header = title + leading content (before the first "Label:" section),
     // placed beside the portrait when an Image is given; sections flow below.
@@ -138,6 +136,13 @@ function enhanceCombatSections(root) {
       if (image) {
         if (image[1].trim()) imageRaw = image[1].trim();
         return; // the Image line is represented by the portrait frame
+      }
+
+      // "Side: R" moves the card to the right column; the line itself is dropped.
+      const side = node.tagName === "P" && node.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return;
       }
 
       const label = combatLabel(node);

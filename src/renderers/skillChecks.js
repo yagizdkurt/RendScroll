@@ -11,6 +11,28 @@ function scLower(s) {
   return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
 }
 
+/* Text phase (runs before marked): inside a Skill Checks section, isolate a bare
+   "Side:" line into its own paragraph so a card written with "Az Enter" (no blank
+   line before the first check/category) still exposes the Side directive as a
+   standalone node. Without this the line glues to the next line into one
+   paragraph and the renderer can't see it — mirrors the other card normalizers. */
+function normalizeSkillChecksMarkdown(text) {
+  const out = [];
+  let inSc = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^#{2,3}\s+/.test(line) && scLower(line).includes("skill check")) { inSc = true; out.push(line); continue; }
+    if (/^#{1,3} /.test(line)) { inSc = false; out.push(line); continue; }
+    if (inSc && /^side\s*:/i.test(line.trim())) {
+      if (out.length && out[out.length - 1].trim() !== "") out.push("");
+      out.push(line);
+      out.push("");
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 // Difficulty band for a DC value -> badge tint class.
 function scDcClass(dc) {
   if (dc <= 10) return "sc-dc-easy";
@@ -236,6 +258,17 @@ function enhanceSkillChecks(root) {
     const card = document.createElement("div");
     card.className = "sc-card";
 
+    // "Side: R" moves the card to the right column; it is pulled out of the
+    // rendered nodes so it never shows as a stray line.
+    const renderNodes = nodes.filter((n) => {
+      const side = n.tagName === "P" && n.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return false;
+      }
+      return true;
+    });
+
     const title = document.createElement("div");
     title.className = "sc-card-title";
     title.textContent = head.textContent.trim();
@@ -243,7 +276,7 @@ function enhanceSkillChecks(root) {
 
     const box = document.createElement("div");
     box.className = "skillchecks";
-    renderSkillCheckNodes(box, nodes);
+    renderSkillCheckNodes(box, renderNodes);
     card.appendChild(box);
 
     // Replace the heading + its source nodes with the panel.

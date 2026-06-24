@@ -10,11 +10,19 @@ Renderer sayfayı ortadan 2 ye bölüp sağ kolon ve sol kolon olarak ayırır. 
 Render seviyeleri:
 - `# ` Bu bloğun altındakiler bulduğu ilk ## bloğuna kadar full render yapar. Yani kolona ayırmaz.
 - `## Olay: bla bla` Bu bloğun altındakiler sol kolonda renderlanır.
-- `### NPC / Skill Checks` Sağ kolonda renderlanır.
-- `## Obje: bla bla` / `## Object: bla bla` / `## POI: bla bla` Bu bloğun altındakiler sol kolonda renderlanır.
-- `## _Obje: bla bla` / `## _Object: bla bla` / `## _POI: bla bla` Bu bloğun altındakiler sağ kolonda renderlanır.
-- `## Unexpected: bla bla` (veya `Beklenmedik:`) sol kolonda renderlanır.
-- `## _Unexpected: bla bla` (veya `_Beklenmedik:`) sağ kolonda renderlanır.
+- `### NPC / Skill Checks / Item / Savaş / Obje …` Bütün kartlar **varsayılan olarak sol kolonda** renderlanır.
+
+Kolon seçimi (`Side:`):
+- Her kartın **varsayılanı sol kolondur**. Bir kartı sağ kolona almak için kartın içine `Side: R` satırı eklenir.
+- `Side: L` açıkça soldur (varsayılan, yazmaya gerek yok). Değer büyük/küçük harf duyarsızdır ve yalnızca ilk harf önemlidir (`R`/`Right` → sağ, gerisi → sol).
+- `Side:` satırı ekranda görünmez; tüm kart türlerinde çalışır (NPC, Item, Ability, Obje, Savaş, STD, Unexpected, Skill Checks).
+
+```md
+### Obje: Sandık        -> sol kolon (varsayılan)
+
+### Obje: Sandık
+Side: R                 -> sağ kolon
+```
 
 # CHATGPT İÇİN ÖNEMLİ:
 * koymak yerine - kullanarak pointler yap.
@@ -199,9 +207,9 @@ Geçmiş görüntüleri. Tetiklendiği olayın altında. Tam okuma metni (`>`) +
 Kültist / Cult Hunter için o sahneye özel tetikler. Genel mekanik `Tema.md`'de; burada yalnızca bu sahnedeki fırsat/mühür. Sahne geneline yayılıyorsa sahne seviyesinde, tek olaya bağlıysa o olayın altında.
 
 ## item (Eşya / Loot)
-Bir eşya `### item: Ad`, `### Item: Ad` veya `### _item: Ad` ile yazılır. Alanlar: `Tür:`, `Nadirlik:` (1=Common, 2=Rare,
-3=Epic), açıklama (`>`) ve `Özellikler:` listesi. Varsayılan olarak item sağ kolonda,
-ayrı bir kart olarak renderlanır. `### _item: Ad` item'ı sol kolona alır.
+Bir eşya `### item: Ad` veya `### Item: Ad` ile yazılır. Alanlar: `Tür:`, `Nadirlik:` (1=Common, 2=Rare,
+3=Epic), açıklama (`>`) ve `Özellikler:` listesi. Varsayılan olarak item sol kolonda,
+ayrı bir kart olarak renderlanır. `Side: R` satırı item'ı sağ kolona alır.
 
 - `Yapışık: T` (İngilizce eşdeğeri: `Combine: T`) → item'ı **bir önceki objeye** (veya bir önceki yapışık item'a)
   yapıştırır: item, objenin bulunduğu kolona iner ve aralarında boşluk/köşe kalmadan
@@ -229,8 +237,8 @@ Yapışık: T
 
 ## ability (Skill / Spell / Passive / Effect)
 Bir yetenek `### Skill: Ad`, `### Spell: Ad`, `### Passive: Ad` veya `### Effect: Ad` ile
-yazılır (`_` öneki sağ kolona zorlar; zaten varsayılan sağ kolon). Kullanılan **anahtar
-kelime kartın etiketi olur** (`### Spell: Alev Topu` → `SPELL`). Alanlar:
+yazılır. Kullanılan **anahtar kelime kartın etiketi olur** (`### Spell: Alev Topu` → `SPELL`).
+Alanlar:
 - `Tür:` (`Type:`) kategori
 - `Maliyet:` / `Menzil:` / `Bekleme:` (`Cost:` / `Range:` / `Cooldown:`) → meta satırları
 - `Nadirlik:` (`Rarity:`) (1=Common, 2=Rare, 3=Epic) → renkli rozet
@@ -240,8 +248,8 @@ kelime kartın etiketi olur** (`### Spell: Alev Topu` → `SPELL`). Alanlar:
 
 Tüm alan etiketleri Türkçe veya İngilizce yazılabilir.
 
-Görsel tema item kartından farklıdır (indigo/mor arcane). Varsayılan olarak yetenek sağ
-kolonda ayrı bir kart olarak renderlanır.
+Görsel tema item kartından farklıdır (indigo/mor arcane). Varsayılan olarak yetenek sol
+kolonda ayrı bir kart olarak renderlanır; `Side: R` ile sağ kolona alınır.
 
 - `Yapışık: T` (İngilizce eşdeğeri: `Combine: T`) → yeteneği **bir önceki item'a, objeye**
   (veya bir önceki yapışık yeteneğe) yapıştırır: yetenek host'un bulunduğu kolona iner ve
