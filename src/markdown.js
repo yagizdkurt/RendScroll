@@ -11,9 +11,3 @@ async function fetchMarkdown(path) {
 function renderMarkdown(text) {
   return marked.parse(text);
 }
-
-// The first "# Heading" line, or the given fallback.
-function markdownTitle(text, fallback) {
-  const m = text.match(/^#\s+(.+)$/m);
-  return m ? m[1].trim() : fallback;
-}

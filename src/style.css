@@ -99,10 +99,6 @@ body.sidebar-collapsed .app-title{
   display:none;
 }
 
-body.sidebar-collapsed .campaign-title{
-  display:none;
-}
-
 body.sidebar-collapsed #nav button{
   width:100%;
   min-height:2rem;
@@ -121,18 +117,6 @@ body.sidebar-collapsed #nav button::before{
 
 body.sidebar-collapsed #nav button.active::before{
   color:var(--parchment-lt);
-}
-
-.campaign-title{
-  font-family:'Cinzel',serif;
-  font-weight:700;
-  color:var(--gold);
-  font-size:1.35rem;
-  line-height:1.15;
-  text-align:center;
-  margin:0 0 1.2rem;
-  padding-bottom:.9rem;
-  border-bottom:1px solid var(--gold-deep);
 }
 
 #nav{display:flex;flex-direction:column;gap:.4rem;}
@@ -156,6 +140,17 @@ body.sidebar-collapsed #nav button.active::before{
   background:var(--maroon);
   color:var(--parchment-lt);
   border-color:var(--maroon-bar);
+}
+
+.nav-error{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.9rem;
+  line-height:1.25;
+  color:#e8dcc2;
+  border:1px solid var(--gold-deep);
+  border-radius:4px;
+  padding:.65rem .7rem;
+  background:rgba(146,38,16,.22);
 }
 
 /* ---------- Sidebar options ---------- */
@@ -1417,7 +1412,6 @@ body.opt-bold-readaloud .page .sc-text{font-weight:700;}
     height:auto;
     padding:26px 18px;
   }
-  body.sidebar-collapsed .campaign-title{display:block;}
   body.sidebar-collapsed #nav button{
     width:auto;
     min-height:0;

@@ -9,6 +9,7 @@ import http.server
 import importlib.util
 import json
 import os
+import re
 import shutil
 import socketserver
 import subprocess
@@ -22,6 +23,7 @@ import webbrowser
 HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
+CAMPAIGN_DIR = "Campaign"
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -141,8 +143,43 @@ def print_diagnostics(result):
     print_indented(f"Result: {errors} errors, {warnings} warnings", result_color)
 
 
-# Editor saves are only allowed to write markdown inside this directory.
-SAVE_ROOT = "Campaign"
+def campaign_entry_from_filename(filename):
+    stem, _ = os.path.splitext(filename)
+    match = re.match(r"^(\d+)(?:[_\-\s]+(.+))?$", stem)
+    number = int(match.group(1)) if match else None
+    label_source = match.group(2) if match and match.group(2) else stem
+    label = re.sub(r"[_\-]+", " ", label_source).strip()
+    label = re.sub(r"\s+", " ", label) or stem
+    return {
+        "file": filename,
+        "path": f"{CAMPAIGN_DIR}/{filename}",
+        "number": number,
+        "label": label,
+    }
+
+
+def discover_campaign_files(base_dir):
+    campaign_root = os.path.join(base_dir, CAMPAIGN_DIR)
+    entries = []
+    try:
+        names = os.listdir(campaign_root)
+    except OSError:
+        return entries
+
+    for name in names:
+        if name.startswith(".") or not name.lower().endswith(".md"):
+            continue
+        full_path = os.path.join(campaign_root, name)
+        if not os.path.isfile(full_path):
+            continue
+        entries.append(campaign_entry_from_filename(name))
+
+    entries.sort(key=lambda entry: (
+        entry["number"] is None,
+        entry["number"] if entry["number"] is not None else 0,
+        entry["file"].casefold(),
+    ))
+    return entries
 
 
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -157,6 +194,13 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path.split("?", 1)[0] == "/__campaign_files":
+            self._send_json(200, discover_campaign_files(os.getcwd()))
+            return
+
+        super().do_GET()
 
     def do_POST(self):
         # The editor saves scene markdown back to disk via POST /__save.
@@ -174,10 +218,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside SAVE_ROOT (Campaign/). Rejects "..", absolute paths, and
-        # anything escaping the project. CWD is base_dir (see main()).
+        # live inside Campaign/. Rejects "..", absolute paths, and anything
+        # escaping the project. CWD is base_dir (see main()).
         base = os.path.realpath(os.getcwd())
-        save_root = os.path.realpath(os.path.join(base, SAVE_ROOT))
+        save_root = os.path.realpath(os.path.join(base, CAMPAIGN_DIR))
         target = os.path.realpath(os.path.join(base, rel_path))
         try:
             inside = os.path.commonpath([save_root, target]) == save_root

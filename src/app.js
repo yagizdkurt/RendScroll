@@ -4,14 +4,12 @@
    Feature-specific rendering lives in renderers/*.js.
    ============================================================ */
 
-const CAMPAIGN_DIR = "Campaign/";
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const TOP_SCROLL_IMAGE = "src/STDImages/RendScroll1.png";
 
 const nav = document.getElementById("nav");
 const page = document.getElementById("page");
 const sidebarToggle = document.getElementById("sidebar-toggle");
-const campaignTitle = document.querySelector(".campaign-title");
 
 /* Known label lines from the template that should stand out. */
 const FIELD_LABELS = new Set([
@@ -118,11 +116,23 @@ async function load(path) {
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));
 }
 
-async function init() {
-  if (campaignTitle && typeof CAMPAIGN_TITLE === "string") {
-    campaignTitle.textContent = CAMPAIGN_TITLE;
-  }
+function showNavError(message) {
+  nav.innerHTML = "";
+  const error = document.createElement("div");
+  error.className = "nav-error";
+  error.textContent = message;
+  nav.appendChild(error);
+}
 
+async function loadCampaignEntries() {
+  const res = await fetch("/__campaign_files", { cache: "no-store" });
+  if (!res.ok) throw new Error("campaign discovery failed");
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("bad discovery response");
+  return data;
+}
+
+async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
     setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"))
@@ -133,24 +143,22 @@ async function init() {
   const optionsEl = document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
 
-  // Fetch every file once to read its title for the nav button.
-  const entries = await Promise.all(
-    CAMPAIGN_FILES.map(async (file) => {
-      const path = CAMPAIGN_DIR + file;
-      const fallback = file.replace(/\.md$/, "");
-      try {
-        return { path, title: markdownTitle(await fetchMarkdown(path), fallback) };
-      } catch {
-        return { path, title: fallback };
-      }
-    })
-  );
+  let entries;
+  try {
+    entries = await loadCampaignEntries();
+  } catch {
+    showNavError("Campaign files could not be discovered. Start RendScroll with launcher.py.");
+    return;
+  }
 
-  entries.forEach(({ path, title }, index) => {
+  entries.forEach(({ path, number, label }, index) => {
     const btn = document.createElement("button");
-    btn.textContent = title;
+    btn.textContent = label;
     btn.dataset.path = path;
     btn.dataset.navIndex = String(index + 1);
+    if (number !== null && number !== undefined) {
+      btn.dataset.navIndex = String(number);
+    }
     btn.addEventListener("click", () => load(path));
     nav.appendChild(btn);
   });
