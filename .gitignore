@@ -7,13 +7,14 @@
 !README.md
 !launcher.py
 
-# And project folders...
+# And Source folders...
 !src/
 !src/**
-!Campaign/
-!Campaign/**
 !Documentation/
 !Documentation/**
+
+# Campaign folders...
+!Campaign/
 !Images/
 
 *.pyc
