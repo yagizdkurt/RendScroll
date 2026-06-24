@@ -1,0 +1,103 @@
+/* Unexpected ("Beklenmedik") section renderer.
+   A deliberately simple titled card whose only job is to group the
+   contingencies of an event. Invoked with "### Beklenmedik:" or
+   "### Unexpected:" (the colon is required, so the plain
+   "### Beklenmedik Durumlar" sections stay untouched and keep their old look).
+
+   It only wraps the heading and the nodes that follow into one card; it does
+   NOT restructure the content. It never fetches files, never touches the
+   sidebar, and never calls another renderer. */
+
+function unexpectedLower(s) {
+  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+}
+
+// True only for a "### Beklenmedik:" / "### Unexpected:" heading (colon form).
+// A leading "_" ("### _Unexpected:") just marks it for the right column.
+function isUnexpectedHead(h) {
+  return /^_?(beklenmedik|unexpected)\s*:/.test(unexpectedLower(h.textContent).trim());
+}
+
+/* Text phase (runs before marked): inside an Unexpected section, isolate a bare
+   "Image:" line into its own paragraph so it is not glued into a neighbouring
+   list/blockquote and can be lifted out as the card portrait. */
+function normalizeUnexpectedMarkdown(text) {
+  const out = [];
+  let inU = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^###\s+_?\s*(beklenmedik|unexpected)\s*:/i.test(line)) { inU = true; out.push(line); continue; }
+    if (/^#{1,3} /.test(line)) { inU = false; out.push(line); continue; }
+    if (inU && /^image\s*:/i.test(line.trim())) {
+      if (out.length && out[out.length - 1].trim() !== "") out.push("");
+      out.push(line);
+      out.push("");
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+/* A node ends the current section if it's a new heading/separator OR a card that
+   another renderer already produced (NPC/Obje cards are emitted before this
+   one runs, so without this they'd be swallowed into the unexpected card). */
+function unexpectedIsBoundary(n) {
+  if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
+  return n.classList && (
+    n.classList.contains("npc-card") ||
+    n.classList.contains("item-card") ||
+    n.classList.contains("ability-card") ||
+    n.classList.contains("obj-card") ||
+    n.classList.contains("unexpected-card")
+  );
+}
+
+function enhanceUnexpectedSections(root) {
+  const heads = [...root.querySelectorAll("h3")].filter(isUnexpectedHead);
+
+  heads.forEach((head) => {
+    // Stop at the next H2/H3 or an <hr> so the event separator stays standalone.
+    const nodes = [];
+    for (let n = head.nextElementSibling; n && !unexpectedIsBoundary(n); n = n.nextElementSibling) {
+      nodes.push(n);
+    }
+
+    // A leading "_" ("### _Unexpected:") places the card in the right column.
+    const right = head.textContent.trim().startsWith("_");
+
+    const card = document.createElement("div");
+    card.className = right ? "unexpected-card unexpected-right" : "unexpected-card";
+
+    const title = document.createElement("div");
+    title.className = "unexpected-title";
+    const name = head.textContent.trim().replace(/^_?\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim();
+    title.textContent = name || "Beklenmedik Durumlar";
+
+    // Move the content in unchanged — keep it simple. An "Image:" line is lifted
+    // out to become the top-right portrait instead of plain text.
+    let imageRaw = "";
+    nodes.forEach((n) => {
+      const image = n.tagName === "P" && n.textContent.trim().match(CARD_IMAGE_LINE);
+      if (image) {
+        if (image[1].trim()) imageRaw = image[1].trim();
+        return;
+      }
+      card.appendChild(n.cloneNode(true));
+    });
+
+    // Header (title) sits beside the portrait when an Image was given; otherwise
+    // the title is placed on top (no empty portrait reserved).
+    const portrait = cardPortrait(imageRaw);
+    if (portrait) {
+      card.insertBefore(cardFigure(title, portrait), card.firstChild);
+    } else {
+      card.insertBefore(title, card.firstChild);
+    }
+
+    const marker = document.createComment("unexpected-card");
+    head.before(marker);
+    head.remove();
+    nodes.forEach((n) => n.remove());
+    marker.replaceWith(card);
+  });
+}

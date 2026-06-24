@@ -5,16 +5,22 @@
 !.gitignore
 !LICENSE
 !README.md
-!launcher.py
 
-# And Source folders...
+# and top-level source files...
+!launcher.py
+!index.html
+
+# and Source folders...
 !src/
 !src/**
 !Documentation/
 !Documentation/**
 
-# Campaign folders...
+# and campaign folders...
 !Campaign/
+!Campaign/.gitkeep
 !Images/
+!Images/.gitkeep
 
+# but still ignore compiled Python files
 *.pyc

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RendScroll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Alegreya+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/style.css">
+<link rel="stylesheet" href="src/editor/editor.css">
+<link rel="stylesheet" href="src/printer/printer.css">
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="app-title">RendScroll</div>
+    <button id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">☰</button>
+    <h1 class="campaign-title">Lora Tapınağı</h1>
+    <nav id="nav"></nav>
+    <section id="options" class="options" aria-label="Options"></section>
+  </aside>
+  <main id="reader">
+    <article id="page" class="page"></article>
+  </main>
+  <script src="src/vendor/marked.min.js"></script>
+  <script src="src/files.js"></script>
+  <script src="src/rendererOptions.js"></script>
+  <script src="src/markdown.js"></script>
+  <script src="src/renderers/cardImage.js"></script>
+  <script src="src/renderers/skillChecks.js"></script>
+  <script src="src/renderers/npcSections.js"></script>
+  <script src="src/renderers/item.js"></script>
+  <script src="src/renderers/ability.js"></script>
+  <script src="src/renderers/obj.js"></script>
+  <script src="src/renderers/combat.js"></script>
+  <script src="src/renderers/unexpected.js"></script>
+  <script src="src/renderers/std.js"></script>
+  <script src="src/renderers/cardCollapse.js"></script>
+  <script src="src/renderers/layout.js"></script>
+  <script src="src/app.js"></script>
+  <!-- Editor mode (optional layer; reader is untouched when disabled) -->
+  <script src="src/editor/outline.js"></script>
+  <script src="src/editor/save.js"></script>
+  <script src="src/editor/cardSchemas.js"></script>
+  <script src="src/editor/anchors.js"></script>
+  <script src="src/editor/contextMenu.js"></script>
+  <script src="src/editor/form.js"></script>
+  <script src="src/editor/editor.js"></script>
+  <!-- Printer mode (export-only; reads the rendered #page, changes nothing) -->
+  <script src="src/printer/printer.js"></script>
+</body>
+</html>
