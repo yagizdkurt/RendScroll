@@ -130,6 +130,14 @@ body{
   margin-right:auto;
 }
 
+.editor-modal.new-page-modal{
+  width:min(440px,100%);
+}
+
+.new-page-error:empty{
+  display:none;
+}
+
 #sidebar-toggle{
   display:block;
   width:100%;

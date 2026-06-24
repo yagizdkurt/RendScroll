@@ -174,24 +174,128 @@ function mountCampaignEntries(entries) {
   });
 }
 
-function mountNewPageButton() {
-  if (!newPageButton) return;
-  newPageButton.addEventListener("click", async () => {
-    const title = window.prompt("New page title", "New Page");
-    if (title === null) return;
+function removeNewPageDialog(backdrop) {
+  document.removeEventListener("keydown", backdrop._onKeydown);
+  backdrop.remove();
+}
 
-    newPageButton.disabled = true;
+function openNewPageDialog() {
+  if (document.querySelector(".new-page-backdrop")) return;
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "editor-modal-backdrop new-page-backdrop";
+
+  const modal = document.createElement("form");
+  modal.className = "editor-modal new-page-modal";
+  modal.noValidate = true;
+
+  const head = document.createElement("div");
+  head.className = "editor-modal-head";
+  head.textContent = "New Page";
+
+  const body = document.createElement("div");
+  body.className = "editor-modal-body";
+
+  const field = document.createElement("div");
+  field.className = "editor-field";
+
+  const label = document.createElement("label");
+  label.htmlFor = "new-page-title";
+  label.textContent = "Page title";
+
+  const input = document.createElement("input");
+  input.id = "new-page-title";
+  input.type = "text";
+  input.value = "New Page";
+  input.maxLength = 120;
+  input.autocomplete = "off";
+
+  const error = document.createElement("div");
+  error.className = "editor-field-error new-page-error";
+  error.setAttribute("role", "alert");
+
+  field.appendChild(label);
+  field.appendChild(input);
+  field.appendChild(error);
+  body.appendChild(field);
+
+  const foot = document.createElement("div");
+  foot.className = "editor-modal-foot";
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "editor-btn";
+  cancel.textContent = "Cancel";
+
+  const create = document.createElement("button");
+  create.type = "submit";
+  create.className = "editor-btn primary";
+  create.textContent = "Create";
+
+  foot.appendChild(cancel);
+  foot.appendChild(create);
+  modal.appendChild(head);
+  modal.appendChild(body);
+  modal.appendChild(foot);
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+
+  function setBusy(busy) {
+    input.disabled = busy;
+    cancel.disabled = busy;
+    create.disabled = busy;
+    create.textContent = busy ? "Creating..." : "Create";
+    newPageButton.disabled = busy;
+  }
+
+  function close() {
+    newPageButton.disabled = false;
+    removeNewPageDialog(backdrop);
+  }
+
+  backdrop._onKeydown = (e) => {
+    if (e.key === "Escape" && !create.disabled) close();
+  };
+  document.addEventListener("keydown", backdrop._onKeydown);
+
+  cancel.addEventListener("click", close);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop && !create.disabled) close();
+  });
+
+  modal.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = input.value.trim();
+    if (!title) {
+      error.textContent = "Enter a page title.";
+      input.focus();
+      return;
+    }
+
+    error.textContent = "";
+    setBusy(true);
     try {
       const entry = await createCampaignFile(title);
       const entries = await loadCampaignEntries();
       mountCampaignEntries(entries);
       await load(entry.path);
+      close();
     } catch (err) {
-      window.alert(err.message || "Page creation failed.");
-    } finally {
-      newPageButton.disabled = false;
+      error.textContent = err.message || "Page creation failed.";
+      setBusy(false);
+      input.focus();
     }
   });
+
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+}
+
+function mountNewPageButton() {
+  if (!newPageButton) return;
+  newPageButton.addEventListener("click", openNewPageDialog);
 }
 
 async function init() {
