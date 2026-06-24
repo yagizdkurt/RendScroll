@@ -98,6 +98,38 @@ body{
   gap:10px;
 }
 
+.topbar-action{
+  flex:0 0 auto;
+  min-width:7.5rem;
+  height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 16px;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.98rem;
+  font-weight:700;
+  letter-spacing:.02em;
+  color:var(--parchment-lt);
+  background:rgba(255,235,200,.16);
+  border:1px solid var(--gold);
+  border-radius:4px;
+  cursor:pointer;
+}
+
+.topbar-action:hover{
+  background:rgba(255,235,200,.26);
+}
+
+.topbar-action:disabled{
+  opacity:.48;
+  cursor:default;
+}
+
+.topbar-new-page{
+  margin-right:auto;
+}
+
 #sidebar-toggle{
   display:block;
   width:100%;

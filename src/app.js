@@ -10,6 +10,8 @@ const TOP_SCROLL_IMAGE = "src/STDImages/RendScroll1.png";
 const nav = document.getElementById("nav");
 const page = document.getElementById("page");
 const sidebarToggle = document.getElementById("sidebar-toggle");
+const newPageButton = document.getElementById("new-page-button");
+let currentPath = null;
 
 /* Known label lines from the template that should stand out. */
 const FIELD_LABELS = new Set([
@@ -106,6 +108,7 @@ function toHtml(text) {
 
 async function load(path) {
   const text = await fetchMarkdown(path);
+  currentPath = path;
   renderPage(toHtml(text));
   page.parentElement.scrollTop = 0;
   document.querySelectorAll("#nav button").forEach((b) =>
@@ -132,11 +135,69 @@ async function loadCampaignEntries() {
   return data;
 }
 
+async function createCampaignFile(title) {
+  const res = await fetch("/__create_campaign_file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {
+    /* non-JSON body */
+  }
+
+  if (!res.ok || !payload || !payload.ok || !payload.entry) {
+    const detail = payload && payload.error ? payload.error : `HTTP ${res.status}`;
+    throw new Error("Page creation failed: " + detail);
+  }
+  return payload.entry;
+}
+
+function mountCampaignEntries(entries) {
+  nav.innerHTML = "";
+  entries.forEach(({ path, number, label }, index) => {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.dataset.path = path;
+    btn.dataset.navIndex = String(index + 1);
+    if (number !== null && number !== undefined) {
+      btn.dataset.navIndex = String(number);
+    }
+    btn.classList.toggle("active", path === currentPath);
+    btn.addEventListener("click", () => load(path));
+    nav.appendChild(btn);
+  });
+}
+
+function mountNewPageButton() {
+  if (!newPageButton) return;
+  newPageButton.addEventListener("click", async () => {
+    const title = window.prompt("New page title", "New Page");
+    if (title === null) return;
+
+    newPageButton.disabled = true;
+    try {
+      const entry = await createCampaignFile(title);
+      const entries = await loadCampaignEntries();
+      mountCampaignEntries(entries);
+      await load(entry.path);
+    } catch (err) {
+      window.alert(err.message || "Page creation failed.");
+    } finally {
+      newPageButton.disabled = false;
+    }
+  });
+}
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
     setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"))
   );
+  mountNewPageButton();
 
   // Renderer options (persisted toggles) + their sidebar controls.
   RendererOptions.apply();
@@ -151,17 +212,7 @@ async function init() {
     return;
   }
 
-  entries.forEach(({ path, number, label }, index) => {
-    const btn = document.createElement("button");
-    btn.textContent = label;
-    btn.dataset.path = path;
-    btn.dataset.navIndex = String(index + 1);
-    if (number !== null && number !== undefined) {
-      btn.dataset.navIndex = String(number);
-    }
-    btn.addEventListener("click", () => load(path));
-    nav.appendChild(btn);
-  });
+  mountCampaignEntries(entries);
 
   if (entries.length) load(entries[0].path);
 }

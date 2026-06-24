@@ -198,6 +198,35 @@ def discover_campaign_files(base_dir):
     return entries
 
 
+def clean_campaign_title(value):
+    if not isinstance(value, str):
+        return "Untitled"
+    title = re.sub(r"\s+", " ", value).strip()
+    return title[:120] if title else "Untitled"
+
+
+def next_campaign_filename(base_dir):
+    campaign_root = os.path.join(base_dir, CAMPAIGN_DIR)
+    os.makedirs(campaign_root, exist_ok=True)
+
+    next_number = 1
+    try:
+        names = os.listdir(campaign_root)
+    except OSError:
+        names = []
+
+    for name in names:
+        match = re.match(r"^(\d+)(?:[_\-\s].*)?\.md$", name, re.IGNORECASE)
+        if match:
+            next_number = max(next_number, int(match.group(1)) + 1)
+
+    while True:
+        filename = f"{next_number}.md"
+        if not os.path.exists(os.path.join(campaign_root, filename)):
+            return filename
+        next_number += 1
+
+
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-store, must-revalidate")
@@ -219,8 +248,54 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        path = self.path.split("?", 1)[0]
+
+        if path == "/__create_campaign_file":
+            self._create_campaign_file()
+            return
+
+        if path == "/__save":
+            self._save_campaign_file()
+            return
+
+        self._send_json(404, {"ok": False, "error": "unknown endpoint"})
+
+    def _create_campaign_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            title = clean_campaign_title(data.get("title"))
+        except (ValueError, AttributeError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        filename = next_campaign_filename(base)
+        target = os.path.realpath(os.path.join(base, CAMPAIGN_DIR, filename))
+        content = f"# {title}\n\n"
+
+        try:
+            with open(target, "x", encoding="utf-8", newline="\n") as fh:
+                fh.write(content)
+        except FileExistsError:
+            self._send_json(409, {"ok": False, "error": "file already exists"})
+            return
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Created: {os.path.relpath(target, base)}", GREEN), flush=True)
+        self._send_json(
+            200,
+            {
+                "ok": True,
+                "entry": campaign_entry_from_filename(filename, target),
+            },
+        )
+
+    def _save_campaign_file(self):
         # The editor saves scene markdown back to disk via POST /__save.
-        if self.path != "/__save":
+        if self.path.split("?", 1)[0] != "/__save":
             self._send_json(404, {"ok": False, "error": "unknown endpoint"})
             return
 
