@@ -143,11 +143,27 @@ def print_diagnostics(result):
     print_indented(f"Result: {errors} errors, {warnings} warnings", result_color)
 
 
-def campaign_entry_from_filename(filename):
+def markdown_title(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                match = re.match(r"^#\s+(.+?)\s*$", line)
+                if match:
+                    return match.group(1).strip()
+    except OSError:
+        return None
+    return None
+
+
+def campaign_entry_from_filename(filename, full_path):
     stem, _ = os.path.splitext(filename)
     match = re.match(r"^(\d+)(?:[_\-\s]+(.+))?$", stem)
     number = int(match.group(1)) if match else None
-    label_source = match.group(2) if match and match.group(2) else stem
+    label_source = match.group(2) if match and match.group(2) else None
+    if match and label_source is None:
+        label_source = markdown_title(full_path)
+    if label_source is None:
+        label_source = stem
     label = re.sub(r"[_\-]+", " ", label_source).strip()
     label = re.sub(r"\s+", " ", label) or stem
     return {
@@ -172,7 +188,7 @@ def discover_campaign_files(base_dir):
         full_path = os.path.join(campaign_root, name)
         if not os.path.isfile(full_path):
             continue
-        entries.append(campaign_entry_from_filename(name))
+        entries.append(campaign_entry_from_filename(name, full_path))
 
     entries.sort(key=lambda entry: (
         entry["number"] is None,

@@ -91,7 +91,8 @@ That's it — you're at the table.
 
 Add scenes by placing Markdown files directly in the `Campaign/` folder. RendScroll
 finds them automatically; use names like `1_Kapi.md` or `3_Buyuk_Salon.md` to set
-their order in the sidebar.
+their order and label in the sidebar. A number-only name like `1.md` uses the
+file's first `# Title` as its sidebar label.
 
 > Want to write your own scenes? The full grimoire of the format lives in
 > [`Documentation/format.md`](Documentation/format.md).
