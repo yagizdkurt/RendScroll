@@ -1,0 +1,18 @@
+# Ignore everything...
+*
+
+# other than specific top-level files...
+!.gitignore
+!LICENSE
+!README.md
+!launcher.py
+
+# And project folders...
+!src/
+!src/**
+!Campaign/
+!Campaign/**
+!Documentation/
+!Documentation/**
+
+*.pyc
