@@ -14,5 +14,6 @@
 !Campaign/**
 !Documentation/
 !Documentation/**
+!Images/
 
 *.pyc
