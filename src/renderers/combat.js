@@ -24,32 +24,20 @@
    The card renders in the left column by default; a "Side: R" line moves it to
    the right column. */
 
-function combatLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 // A bare "Label:" line (letters/spaces only, ending in a colon) opens a
 // sub-section. Read-aloud (">") and list ("-") lines never match.
 const COMBAT_LABEL_RE = /^[\p{L} ]+:\s*$/u;
 
 // True only for a "### Savaş:" heading (colon form).
 function isCombatHead(h) {
-  return /^\s*sava[şs]\s*:/.test(combatLower(h.textContent).trim());
+  return /^\s*sava[şs]\s*:/.test(rsLower(h.textContent).trim());
 }
 
 /* A node ends the current section if it's a new heading/separator OR a card that
    another renderer already produced, so those don't get swallowed. */
 function combatIsBoundary(n) {
   if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
-  return n.classList && (
-    n.classList.contains("npc-card") ||
-    n.classList.contains("sc-card") ||
-    n.classList.contains("item-card") ||
-    n.classList.contains("ability-card") ||
-    n.classList.contains("obj-card") ||
-    n.classList.contains("unexpected-card") ||
-    n.classList.contains("combat-card")
-  );
+  return isRenderedCard(n);
 }
 
 /* Text phase (runs before marked): inside a Savaş section, isolate each bare
@@ -57,20 +45,15 @@ function combatIsBoundary(n) {
    right after a list item is absorbed as lazy continuation, and a label after a
    "> ..." line is swallowed into the blockquote. */
 function normalizeCombatMarkdown(text) {
-  const out = [];
-  let inCombat = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^###\s+sava[şs]\s*:/i.test(line)) { inCombat = true; out.push(line); continue; }
-    if (/^#{1,3} /.test(line)) { inCombat = false; out.push(line); continue; }
-    if (inCombat && (COMBAT_LABEL_RE.test(line.trim()) || /^image\s*:/i.test(line.trim()) || /^side\s*:/i.test(line.trim()))) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeSectionDirectives(text, {
+    startsSection: (line) => /^###\s+sava[şs]\s*:/i.test(line),
+    endsSection: (line) => /^#{1,3} /.test(line),
+    shouldIsolate: (line) => (
+      COMBAT_LABEL_RE.test(line.trim()) ||
+      /^image\s*:/i.test(line.trim()) ||
+      /^side\s*:/i.test(line.trim())
+    ),
+  });
 }
 
 // A bare "Label:" paragraph becomes a sub-section title; returns the label text
@@ -91,7 +74,7 @@ function combatSectionTitle(text) {
 // A "Checks:" / "Skill Checks:" label opens a skill-check sub-section that
 // renders identically to the Skill Checks panel (and to Obje's Checks).
 function combatIsChecksLabel(label) {
-  return /^(skill\s+)?checks?$/.test(combatLower(label).trim());
+  return /^(skill\s+)?checks?$/.test(rsLower(label).trim());
 }
 
 function enhanceCombatSections(root) {
@@ -168,8 +151,7 @@ function enhanceCombatSections(root) {
         checkNodes.push(node); // collected; rendered together by flushChecks()
         return;
       }
-      const clone = node.cloneNode(true);
-      if (clone.tagName === "BLOCKQUOTE") clone.classList.add("read-aloud");
+      const clone = cloneAsReadAloud(node);
       if (headOpen) headEls.push(clone); // leading content stays beside portrait
       else card.appendChild(clone);
     });
@@ -178,12 +160,7 @@ function enhanceCombatSections(root) {
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
-    const portrait = cardPortrait(imageRaw);
-    if (portrait) {
-      card.insertBefore(cardFigure(headEls, portrait), card.firstChild);
-    } else {
-      for (let j = headEls.length - 1; j >= 0; j--) card.insertBefore(headEls[j], card.firstChild);
-    }
+    insertCardHeader(card, headEls, imageRaw);
 
     const marker = document.createComment("combat-card");
     head.before(marker);

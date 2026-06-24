@@ -20,11 +20,6 @@ const FIELD_LABELS = new Set([
   "amaç:", "öz:", "kültist:", "cult hunter:",
 ]);
 
-/* Turkish-aware lowercase (İ/I). */
-function lower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 function createTopScrollImage() {
   const wrap = document.createElement("div");
   wrap.className = "top-scroll-image";
@@ -45,7 +40,7 @@ function enhanceBaseStyling(root) {
 
   // Section headings get an accent based on their text.
   root.querySelectorAll("h2, h3").forEach((h) => {
-    const t = lower(h.textContent);
+    const t = rsLower(h.textContent);
     if (t.includes("skill check")) h.classList.add("skill-section");
     else if (t.includes("npc")) h.classList.add("npc-section");
     else if (t.includes("savaş")) h.classList.add("combat-section");
@@ -56,7 +51,7 @@ function enhanceBaseStyling(root) {
   // Short "Label:" paragraphs become emphasized field labels.
   root.querySelectorAll("p").forEach((p) => {
     const t = p.textContent.trim();
-    const isKnown = FIELD_LABELS.has(lower(t));
+    const isKnown = FIELD_LABELS.has(rsLower(t));
     const looksLikeLabel = t.endsWith(":") && t.length <= 24 && !t.includes(" ");
     if (isKnown || looksLikeLabel) p.classList.add("field-label");
   });

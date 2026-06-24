@@ -3,30 +3,17 @@
    It never fetches files, never touches the sidebar, and never calls
    another renderer. */
 
-function itemLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 /* Text phase (runs before marked): inside an Item section, isolate a bare
    "Side:" line into its own paragraph so the column directive is always its own
    node, even when written with "Az Enter" right above a value-less label (e.g.
    "Özellikler:") that would otherwise swallow it out of the meta block. Mirrors
    the other card normalizers. */
 function normalizeItemMarkdown(text) {
-  const out = [];
-  let inItem = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^###\s+item\s*:/i.test(line)) { inItem = true; out.push(line); continue; }
-    if (/^#{1,3} /.test(line)) { inItem = false; out.push(line); continue; }
-    if (inItem && /^side\s*:/i.test(line.trim())) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeSectionDirectives(text, {
+    startsSection: (line) => /^###\s+item\s*:/i.test(line),
+    endsSection: (line) => /^#{1,3} /.test(line),
+    shouldIsolate: (line) => /^side\s*:/i.test(line.trim()),
+  });
 }
 
 /* A node ends the current section if it's a new heading/separator OR a card that
@@ -34,13 +21,7 @@ function normalizeItemMarkdown(text) {
    Item). Without the card check the collector would swallow the next card. */
 function itemIsBoundary(n) {
   if (/^(H[23]|HR)$/.test(n.tagName)) return true;
-  return n.classList && (
-    n.classList.contains("npc-card") ||
-    n.classList.contains("item-card") ||
-    n.classList.contains("ability-card") ||
-    n.classList.contains("obj-card") ||
-    n.classList.contains("unexpected-card")
-  );
+  return isRenderedCard(n);
 }
 
 const ITEM_RARITIES = {
@@ -53,67 +34,26 @@ const ITEM_NON_META_LABELS = new Set(["dm", "özellikler", "properties"]);
 const ITEM_RARITY_LABELS = new Set(["nadirlik", "rarity"]);
 const ITEM_PROPERTIES_LABELS = new Set(["özellikler", "properties"]);
 
-/* "Yapışık: T" / "Connect: T" flag'i: item'ı bir önceki objeye/yapışık item'a yapıştırır.
-   Label kontrolü itemLower()'dan geçmiş haliyle yapılır; değer truthy ise aktif. */
+/* "Yapışık: T" / "Connect: T" flag'i: item'ı bir önceki objeye/yapışık item'a yapıştırır. */
 const ITEM_STUCK_LABELS = new Set(["yapışık", "connect", "combine"]);
 const ITEM_STUCK_TRUTHY = new Set(["t", "true", "yes", "1"]);
-
-function itemIsStuckValue(value) {
-  return ITEM_STUCK_TRUTHY.has(itemLower(value.trim()));
-}
 
 function itemTitleText(head) {
   return head.textContent.trim().replace(/^\s*item\s*:\s*/i, "").trim();
 }
 
 function itemMetaLines(node) {
-  if (node.tagName !== "P") return [];
-
-  const lines = node.textContent.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (!lines.length) return [];
-
-  const meta = [];
-  for (const line of lines) {
-    const m = line.match(/^([^:]+):\s*(.+)$/);
-    if (!m) return [];
-
-    const label = m[1].trim();
-    const value = m[2].trim();
-    if (ITEM_NON_META_LABELS.has(itemLower(label))) return [];
-    meta.push({ label, value });
-  }
-
-  return meta;
-}
-
-function itemRarityBadge(value) {
-  const raw = value.trim();
-  const label = ITEM_RARITIES[raw] || raw;
-  const badge = document.createElement("span");
-  badge.className = "item-rarity";
-  if (ITEM_RARITIES[raw]) badge.classList.add("rarity-" + raw);
-  badge.textContent = label;
-  return badge;
+  return parseMetaLines(node, ITEM_NON_META_LABELS);
 }
 
 function itemMetaBlock(rows) {
-  const meta = document.createElement("div");
-  meta.className = "item-meta";
-
-  rows.forEach(({ label, value }) => {
-    const key = document.createElement("div");
-    key.className = "item-meta-label";
-    key.textContent = label;
-    meta.appendChild(key);
-
-    const val = document.createElement("div");
-    val.className = "item-meta-value";
-    if (ITEM_RARITY_LABELS.has(itemLower(label))) val.appendChild(itemRarityBadge(value));
-    else val.textContent = value;
-    meta.appendChild(val);
+  return renderMetaGrid(rows, {
+    className: "item-meta",
+    labelClass: "item-meta-label",
+    valueClass: "item-meta-value",
+    isRarityLabel: (label) => ITEM_RARITY_LABELS.has(rsLower(label)),
+    rarity: { className: "item-rarity", rarities: ITEM_RARITIES },
   });
-
-  return meta;
 }
 
 function itemDescription(node) {
@@ -124,21 +64,15 @@ function itemDescription(node) {
 }
 
 function itemProperties(labelNode, listNode) {
-  const section = document.createElement("div");
-  section.className = "item-properties";
-
-  const title = document.createElement("div");
-  title.className = "item-properties-title";
-  title.textContent = labelNode.textContent.trim().replace(/:\s*$/, "");
-  section.appendChild(title);
-  section.appendChild(listNode.cloneNode(true));
-
-  return section;
+  return renderProperties(labelNode, listNode, {
+    sectionClass: "item-properties",
+    titleClass: "item-properties-title",
+  });
 }
 
 function isItemPropertiesLabel(node) {
   if (node.tagName !== "P") return false;
-  return ITEM_PROPERTIES_LABELS.has(itemLower(node.textContent.trim()).replace(/:\s*$/, ""));
+  return ITEM_PROPERTIES_LABELS.has(rsLower(node.textContent.trim()).replace(/:\s*$/, ""));
 }
 
 function enhanceItemSections(root) {
@@ -181,19 +115,16 @@ function enhanceItemSections(root) {
       if (meta.length) {
         // Yapışık ve Image flag'lerini meta'dan ayıkla; geriye gerçek meta
         // kalırsa onu göster. Image, kartın sağ-üst portresine dönüşür.
-        const kept = [];
-        for (const row of meta) {
-          if (ITEM_STUCK_LABELS.has(itemLower(row.label.trim()))) {
-            if (itemIsStuckValue(row.value)) stuck = true;
-          } else if (/^image$/i.test(row.label.trim())) {
-            if (row.value.trim()) imageRaw = row.value.trim();
-          } else if (/^side$/i.test(row.label.trim())) {
-            if (cardSideIsRight(row.value)) card.classList.add("card-right");
-          } else {
-            kept.push(row);
-          }
-        }
-        if (kept.length) headEls.push(itemMetaBlock(kept));
+        const stuckMeta = extractStuckMeta(meta, ITEM_STUCK_LABELS, ITEM_STUCK_TRUTHY);
+        if (stuckMeta.stuck) stuck = true;
+
+        const imageMeta = extractImageMeta(stuckMeta.rows);
+        if (imageMeta.value) imageRaw = imageMeta.value;
+
+        const sideMeta = extractSideMeta(imageMeta.rows);
+        if (sideMeta.value && cardSideIsRight(sideMeta.value)) card.classList.add("card-right");
+
+        if (sideMeta.rows.length) headEls.push(itemMetaBlock(sideMeta.rows));
       } else if (node.tagName === "BLOCKQUOTE") {
         card.appendChild(itemDescription(node));
       } else if (isItemPropertiesLabel(node) && nodes[i + 1] && nodes[i + 1].tagName === "UL") {
@@ -206,12 +137,7 @@ function enhanceItemSections(root) {
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
-    const portrait = cardPortrait(imageRaw);
-    if (portrait) {
-      card.insertBefore(cardFigure(headEls, portrait), card.firstChild);
-    } else {
-      for (let j = headEls.length - 1; j >= 0; j--) card.insertBefore(headEls[j], card.firstChild);
-    }
+    insertCardHeader(card, headEls, imageRaw);
 
     if (stuck) card.classList.add("item-stuck");
 

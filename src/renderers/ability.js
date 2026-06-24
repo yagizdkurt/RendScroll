@@ -22,10 +22,6 @@
      > ...
      Yapışık: T  (Connect: T) -> snaps onto the preceding item/obje/ability */
 
-function abilityLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 const ABILITY_HEAD = /^\s*(skill|spell|passive|effect)\s*:/i;
 
 /* A node ends the current section if it's a new heading/separator OR a card that
@@ -33,13 +29,7 @@ const ABILITY_HEAD = /^\s*(skill|spell|passive|effect)\s*:/i;
    ability). Without the card check the collector would swallow the next card. */
 function abilityIsBoundary(n) {
   if (/^(H[23]|HR)$/.test(n.tagName)) return true;
-  return n.classList && (
-    n.classList.contains("npc-card") ||
-    n.classList.contains("item-card") ||
-    n.classList.contains("obj-card") ||
-    n.classList.contains("ability-card") ||
-    n.classList.contains("unexpected-card")
-  );
+  return isRenderedCard(n);
 }
 
 const ABILITY_RARITIES = {
@@ -61,10 +51,6 @@ const ABILITY_LORE_LABELS = new Set(["lore"]);
 const ABILITY_STUCK_LABELS = new Set(["yapışık", "connect", "combine"]);
 const ABILITY_STUCK_TRUTHY = new Set(["t", "true", "yes", "1"]);
 
-function abilityIsStuckValue(value) {
-  return ABILITY_STUCK_TRUTHY.has(abilityLower(value.trim()));
-}
-
 /* Keyword captured from the heading -> uppercase label ("Spell" -> "SPELL"). */
 function abilityLabelText(head) {
   const m = head.textContent.trim().match(ABILITY_HEAD);
@@ -76,53 +62,17 @@ function abilityTitleText(head) {
 }
 
 function abilityMetaLines(node) {
-  if (node.tagName !== "P") return [];
-
-  const lines = node.textContent.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (!lines.length) return [];
-
-  const meta = [];
-  for (const line of lines) {
-    const m = line.match(/^([^:]+):\s*(.+)$/);
-    if (!m) return [];
-
-    const label = m[1].trim();
-    const value = m[2].trim();
-    if (ABILITY_NON_META_LABELS.has(abilityLower(label))) return [];
-    meta.push({ label, value });
-  }
-
-  return meta;
-}
-
-function abilityRarityBadge(value) {
-  const raw = value.trim();
-  const label = ABILITY_RARITIES[raw] || raw;
-  const badge = document.createElement("span");
-  badge.className = "ability-rarity";
-  if (ABILITY_RARITIES[raw]) badge.classList.add("rarity-" + raw);
-  badge.textContent = label;
-  return badge;
+  return parseMetaLines(node, ABILITY_NON_META_LABELS);
 }
 
 function abilityMetaBlock(rows) {
-  const meta = document.createElement("div");
-  meta.className = "ability-meta";
-
-  rows.forEach(({ label, value }) => {
-    const key = document.createElement("div");
-    key.className = "ability-meta-label";
-    key.textContent = label;
-    meta.appendChild(key);
-
-    const val = document.createElement("div");
-    val.className = "ability-meta-value";
-    if (ABILITY_RARITY_LABELS.has(abilityLower(label))) val.appendChild(abilityRarityBadge(value));
-    else val.textContent = value;
-    meta.appendChild(val);
+  return renderMetaGrid(rows, {
+    className: "ability-meta",
+    labelClass: "ability-meta-label",
+    valueClass: "ability-meta-value",
+    isRarityLabel: (label) => ABILITY_RARITY_LABELS.has(rsLower(label)),
+    rarity: { className: "ability-rarity", rarities: ABILITY_RARITIES },
   });
-
-  return meta;
 }
 
 function abilityDescription(node) {
@@ -133,27 +83,21 @@ function abilityDescription(node) {
 }
 
 function abilityProperties(labelNode, listNode) {
-  const section = document.createElement("div");
-  section.className = "ability-properties";
-
-  const title = document.createElement("div");
-  title.className = "ability-properties-title";
-  title.textContent = labelNode.textContent.trim().replace(/:\s*$/, "");
-  section.appendChild(title);
-  section.appendChild(listNode.cloneNode(true));
-
-  return section;
+  return renderProperties(labelNode, listNode, {
+    sectionClass: "ability-properties",
+    titleClass: "ability-properties-title",
+  });
 }
 
 function isAbilityPropertiesLabel(node) {
   if (node.tagName !== "P") return false;
-  return ABILITY_PROPERTIES_LABELS.has(abilityLower(node.textContent.trim()).replace(/:\s*$/, ""));
+  return ABILITY_PROPERTIES_LABELS.has(rsLower(node.textContent.trim()).replace(/:\s*$/, ""));
 }
 
 // A bare "Lore:" line switches following nodes into the lore panel.
 function isAbilityLoreLabel(node) {
   if (node.tagName !== "P") return false;
-  return ABILITY_LORE_LABELS.has(abilityLower(node.textContent.trim()).replace(/:\s*$/, ""));
+  return ABILITY_LORE_LABELS.has(rsLower(node.textContent.trim()).replace(/:\s*$/, ""));
 }
 
 /* Text phase (runs before marked): inside an ability section, isolate a bare
@@ -161,24 +105,12 @@ function isAbilityLoreLabel(node) {
    right after a "> ..." line would be swallowed into the blockquote (lazy
    continuation). Mirrors normalizeObjMarkdown. */
 function normalizeAbilityMarkdown(text) {
-  const out = [];
-  let inAbility = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^#{2,3}\s+/.test(line) && ABILITY_HEAD.test(line.replace(/^#{2,3}\s+/, ""))) {
-      inAbility = true;
-      out.push(line);
-      continue;
-    }
-    if (/^#{1,3} /.test(line)) { inAbility = false; out.push(line); continue; }
-    if (inAbility && (/^lore\s*:\s*$/i.test(line.trim()) || /^side\s*:/i.test(line.trim()))) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeSectionDirectives(text, {
+    startsSection: (line) =>
+      /^#{2,3}\s+/.test(line) && ABILITY_HEAD.test(line.replace(/^#{2,3}\s+/, "")),
+    endsSection: (line) => /^#{1,3} /.test(line),
+    shouldIsolate: (line) => /^lore\s*:\s*$/i.test(line.trim()) || /^side\s*:/i.test(line.trim()),
+  });
 }
 
 function enhanceAbilitySections(root) {
@@ -228,9 +160,7 @@ function enhanceAbilitySections(root) {
       }
 
       if (mode === "lore") {
-        const clone = node.cloneNode(true);
-        if (clone.tagName === "BLOCKQUOTE") clone.classList.add("read-aloud");
-        lorePanel.appendChild(clone);
+        lorePanel.appendChild(cloneAsReadAloud(node));
         continue;
       }
 
@@ -239,19 +169,16 @@ function enhanceAbilitySections(root) {
       if (meta.length) {
         // Yapışık ve Image flag'lerini meta'dan ayıkla; geriye gerçek meta
         // kalırsa göster. Image, kartın sağ-üst portresine dönüşür.
-        const kept = [];
-        for (const row of meta) {
-          if (ABILITY_STUCK_LABELS.has(abilityLower(row.label.trim()))) {
-            if (abilityIsStuckValue(row.value)) stuck = true;
-          } else if (/^image$/i.test(row.label.trim())) {
-            if (row.value.trim()) imageRaw = row.value.trim();
-          } else if (/^side$/i.test(row.label.trim())) {
-            if (cardSideIsRight(row.value)) card.classList.add("card-right");
-          } else {
-            kept.push(row);
-          }
-        }
-        if (kept.length) headEls.push(abilityMetaBlock(kept));
+        const stuckMeta = extractStuckMeta(meta, ABILITY_STUCK_LABELS, ABILITY_STUCK_TRUTHY);
+        if (stuckMeta.stuck) stuck = true;
+
+        const imageMeta = extractImageMeta(stuckMeta.rows);
+        if (imageMeta.value) imageRaw = imageMeta.value;
+
+        const sideMeta = extractSideMeta(imageMeta.rows);
+        if (sideMeta.value && cardSideIsRight(sideMeta.value)) card.classList.add("card-right");
+
+        if (sideMeta.rows.length) headEls.push(abilityMetaBlock(sideMeta.rows));
       } else if (node.tagName === "BLOCKQUOTE") {
         card.appendChild(abilityDescription(node));
       } else if (isAbilityPropertiesLabel(node) && nodes[i + 1] && nodes[i + 1].tagName === "UL") {
@@ -264,12 +191,7 @@ function enhanceAbilitySections(root) {
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
-    const portrait = cardPortrait(imageRaw);
-    if (portrait) {
-      card.insertBefore(cardFigure(headEls, portrait), card.firstChild);
-    } else {
-      for (let j = headEls.length - 1; j >= 0; j--) card.insertBefore(headEls[j], card.firstChild);
-    }
+    insertCardHeader(card, headEls, imageRaw);
 
     if (stuck) card.classList.add("ability-stuck");
 
