@@ -161,6 +161,40 @@ body.editor-on .editor-narrative-block:hover > .editor-narrative-tools {
   background: #b9892f;
   color: #1a1208;
 }
+.editor-drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+body.editor-card-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+body.editor-on .editor-card.editor-card-drag-source {
+  opacity: 0.34;
+  outline-style: solid;
+}
+.editor-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1300;
+  pointer-events: none;
+  opacity: 0.92;
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.45));
+  will-change: transform;
+}
+.editor-drag-ghost > .editor-card {
+  margin: 0 0 8px;
+  outline: 1px solid rgba(216, 167, 67, 0.9);
+  outline-offset: 2px;
+}
+.editor-drop-marker {
+  height: 10px;
+  margin: 8px 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(216, 167, 67, 0), #d8a743 14%, #f1ce76 50%, #d8a743 86%, rgba(216, 167, 67, 0));
+  box-shadow: 0 0 0 1px rgba(64, 42, 12, 0.6), 0 0 18px rgba(216, 167, 67, 0.45);
+}
 
 /* --- insert zones --- */
 .editor-insert-zone {

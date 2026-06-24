@@ -115,6 +115,11 @@ const EditorAnchors = (() => {
   // ctx = { eventRef } so insert targets in this column know their event.
   function zipColumn(container, cards, handlers, ctx) {
     if (!container) return;
+    container._editorDropTarget = {
+      afterCardId: cards.length ? cards[cards.length - 1].id : null,
+      column: container.dataset.col || null,
+      eventRef: ctx && ctx.eventRef,
+    };
     const divs = [...container.querySelectorAll(CARD_DIV_SELECTOR)];
     cards.forEach((card, i) => {
       const el = divs[i];
@@ -144,6 +149,9 @@ const EditorAnchors = (() => {
     el.classList.add("editor-card");
     const tools = document.createElement("div");
     tools.className = "editor-card-tools";
+    if (handlers.beginCardDrag) {
+      tools.appendChild(dragBtn(card.id, handlers));
+    }
     tools.appendChild(toolBtn("✎", "Edit", () => handlers.editCard(card.id)));
     tools.appendChild(toolBtn("↑", "Move up", () => handlers.moveCard(card.id, -1)));
     tools.appendChild(toolBtn("↓", "Move down", () => handlers.moveCard(card.id, 1)));
@@ -155,6 +163,13 @@ const EditorAnchors = (() => {
       e.stopPropagation();
       handlers.cardMenu(card.id, e.clientX, e.clientY);
     });
+  }
+
+  function dragBtn(id, handlers) {
+    const b = toolBtn("↕", "Drag", () => {});
+    b.classList.add("editor-drag-handle");
+    b.addEventListener("pointerdown", (e) => handlers.beginCardDrag(id, e));
+    return b;
   }
 
   function decoratePlainBlock(el, block, handlers) {
@@ -261,6 +276,7 @@ const EditorAnchors = (() => {
       decoratePlainBlock(el, block, handlers);
       const ev = model.events.find((e) => e.headingStart === block.headingLine);
       if (el && ev && ev.cards.length === 0 && !el.querySelector(":scope > .editor-insert-zone")) {
+        el._editorDropTarget = { afterCardId: null, column: null, eventRef: ev };
         el.appendChild(insertZone({ afterCardId: null, eventRef: ev }, handlers));
       }
       if (el && ev && handlers.insertChapter) {

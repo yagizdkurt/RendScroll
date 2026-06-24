@@ -35,8 +35,8 @@ const EditorOutline = (() => {
 
   const HEADING_RE = /^(#{1,6})\s+(.*)$/;
   const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
-  // item.js / ability.js: stuck if label yapışık|connect and value t|true.
-  const STUCK_RE = /^(yapışık|connect)\s*:\s*(t|true)\s*$/;
+  // item.js / ability.js: stuck if label yapışık|connect|combine and truthy.
+  const STUCK_RE = /^(yapışık|connect|combine)\s*:\s*(t|true|yes|1)\s*$/;
   const SIDE_RE = /^side\s*:\s*(.+)$/i;
 
   function isHeading(text) {
@@ -78,6 +78,18 @@ const EditorOutline = (() => {
   // body (scanned where the card is built) moves it to the right.
   function defaultColumn(type, content) {
     return "left";
+  }
+
+  // Mirror of layout.js:canDockUnder for model cards.
+  function canDock(card, host) {
+    if (!host) return false;
+    if (card.type === "item" && card.stuck) {
+      return host.type === "obj" || (host.type === "item" && host.stuck);
+    }
+    if (card.type === "ability" && card.stuck) {
+      return host.type === "item" || host.type === "obj" || (host.type === "ability" && host.stuck);
+    }
+    return false;
   }
 
   // Card title text (what the renderer shows), used for menus/labels.
@@ -309,6 +321,144 @@ const EditorOutline = (() => {
     return (model.narrativeBlocks || []).find((b) => b.id === id) || null;
   }
 
+  function cardHrGroup(model, ev, card) {
+    const hrs = (model.hrLines || []).filter((h) => h > ev.start && h < ev.end);
+    let key = 0;
+    for (const h of hrs) if (h < card.start) key++;
+    return ev.cards.filter((c) => {
+      let ck = 0;
+      for (const h of hrs) if (h < c.start) ck++;
+      return ck === key;
+    });
+  }
+
+  // Return the visual dock stack that contains `id`: root host plus every
+  // immediately docked descendant in the same event/<hr> group.
+  function connectedCardGroup(model, id) {
+    const found = findCard(model, id);
+    if (!found) return null;
+    const siblings = cardHrGroup(model, found.event, found.card);
+    const at = siblings.findIndex((c) => c.id === id);
+    if (at < 0) return null;
+
+    let first = at;
+    while (first > 0 && canDock(siblings[first], siblings[first - 1])) first--;
+
+    let last = at;
+    if (first < at) last = at;
+    for (let i = Math.max(first, at); i + 1 < siblings.length; i++) {
+      if (!canDock(siblings[i + 1], siblings[i])) break;
+      last = i + 1;
+    }
+    // When the dragged card was a child, include the root's full descendant chain.
+    if (first < at) {
+      last = first;
+      for (let i = first; i + 1 < siblings.length; i++) {
+        if (!canDock(siblings[i + 1], siblings[i])) break;
+        last = i + 1;
+      }
+    }
+
+    const cards = siblings.slice(first, last + 1);
+    return {
+      event: found.event,
+      root: cards[0],
+      cards,
+      ids: cards.map((c) => c.id),
+      start: cards[0].start,
+      end: cards[cards.length - 1].end,
+    };
+  }
+
+  function lineEnding(line, fallback) {
+    const m = String(line || "").match(/(\r?\n)$/);
+    return m ? m[1] : fallback;
+  }
+
+  function rewriteRootColumn(model, groupText, group, column) {
+    if (column !== "left" && column !== "right") return groupText;
+    const lines = splitLines(groupText);
+    const rootLineCount = group.root.end - group.start;
+    if (!lines.length || rootLineCount <= 0) return groupText;
+
+    const out = [];
+    let wroteSide = false;
+    for (let i = 0; i < lines.length; i++) {
+      const inRootBody = i > 0 && i < rootLineCount;
+      if (inRootBody && SIDE_RE.test(lineText(lines[i]).trim())) {
+        if (column === "right" && !wroteSide) {
+          out.push("Side: R" + lineEnding(lines[i], model.eol));
+          wroteSide = true;
+        }
+        continue;
+      }
+      out.push(lines[i]);
+      if (i === 0 && column === "right" && !wroteSide) {
+        out.push("Side: R" + model.eol);
+        wroteSide = true;
+      }
+    }
+    return out.join("");
+  }
+
+  function eventInsertLine(ev) {
+    if (!ev) return 0;
+    if (ev.cards && ev.cards.length) return ev.cards[ev.cards.length - 1].end;
+    return ev.end;
+  }
+
+  function dropLine(model, target) {
+    if (!target) return null;
+    if (target.beforeCardId != null) {
+      const found = findCard(model, target.beforeCardId);
+      return found ? found.card.start : null;
+    }
+    if (target.afterCardId != null) {
+      const found = findCard(model, target.afterCardId);
+      return found ? found.card.end : null;
+    }
+    if (target.eventRef) return eventInsertLine(target.eventRef);
+    return null;
+  }
+
+  function sameIds(a, b) {
+    return String(a) === String(b);
+  }
+
+  function targetTouchesGroup(target, group) {
+    if (!target || !group) return false;
+    return group.ids.some((id) =>
+      sameIds(id, target.beforeCardId) || sameIds(id, target.afterCardId)
+    );
+  }
+
+  function moveCardGroup(model, id, target) {
+    const group = connectedCardGroup(model, id);
+    if (!group) return model;
+
+    const lineIndex = dropLine(model, target);
+    if (lineIndex == null) return model;
+
+    const requestedColumn = target && (target.column === "left" || target.column === "right")
+      ? target.column
+      : null;
+    const rawGroupText = model.raw.slice(offsetOf(model, group.start), offsetOf(model, group.end));
+    const groupText = rewriteRootColumn(model, rawGroupText, group, requestedColumn);
+
+    if (lineIndex >= group.start && lineIndex <= group.end) {
+      if (!requestedColumn || requestedColumn === group.root.column) return model;
+      return spliceText(model, group.start, group.end, frameBlock(model, groupText));
+    }
+    if (targetTouchesGroup(target, group)) return model;
+
+    const cutStart = offsetOf(model, group.start);
+    const cutEnd = offsetOf(model, group.end);
+    const without = model.raw.slice(0, cutStart) + model.raw.slice(cutEnd);
+    const cutModel = parse(without);
+    const adjustedLine = lineIndex > group.end ? lineIndex - (group.end - group.start) : lineIndex;
+    return insertAtLine(cutModel, adjustedLine, groupText);
+  }
+
   // Ensure an inserted markdown block is separated from its neighbours by a
   // blank line on each side, using the model's EOL. `block` should be the card's
   // own text (the normalize* passes tolerate single blank-line spacing).
@@ -400,8 +550,10 @@ const EditorOutline = (() => {
     replaceNarrativeBlock,
     narrativeBlock,
     chapterBlock,
+    connectedCardGroup,
+    moveCardGroup,
     // exposed for anchors.js / tests
-    _internals: { cardType, defaultColumn, lower, splitLines },
+    _internals: { cardType, defaultColumn, lower, splitLines, canDock },
   };
 })();
 
