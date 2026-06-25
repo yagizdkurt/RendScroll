@@ -24,34 +24,24 @@
    The skill-check renderer (renderSkillCheckNodes) is reused from
    skillChecks.js so Checks render identically to a Skill Checks section. */
 
-function objLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 /* A node ends the current section if it's a new heading/separator OR a card that
    another renderer already produced (e.g. an NPC card placed right after this
    Obje). Without the card check the collector would swallow the next card. */
 function objIsBoundary(n) {
   if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
-  return n.classList && (
-    n.classList.contains("npc-card") ||
-    n.classList.contains("item-card") ||
-    n.classList.contains("ability-card") ||
-    n.classList.contains("obj-card") ||
-    n.classList.contains("unexpected-card")
-  );
+  return isRenderedCard(n);
 }
 
 /* BG/Image url resolution and the portrait frame are shared across all card
    renderers (renderers/cardImage.js): cardBgUrl(), cardPortrait(). */
 
 function objHeadingMatch(text) {
-  return text.trim().match(/^_?\s*(obje|object|poi)\s*:/i);
+  return text.trim().match(/^\s*(obje|object|poi)\s*:/i);
 }
 
 function objTitleText(head) {
   const raw = head.textContent.trim();
-  const m = raw.match(/^_?\s*(obje|object|poi)\s*:\s*(.*)$/i);
+  const m = raw.match(/^\s*(obje|object|poi)\s*:\s*(.*)$/i);
   if (!m) return raw;
 
   const title = m[2].trim();
@@ -63,30 +53,23 @@ function objTitleText(head) {
    label written right after a "> ..." line would be swallowed into the
    blockquote (lazy continuation) and the following list would glue to it. */
 function normalizeObjMarkdown(text) {
-  const out = [];
-  let inObj = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^#{2,3}\s+/.test(line) && objHeadingMatch(line.replace(/^#{2,3}\s+/, ""))) {
-      inObj = true;
-      out.push(line);
-      continue;
-    }
-    if (/^#{1,3} /.test(line)) { inObj = false; out.push(line); continue; }
-    if (inObj && (/^(checks|loot)\s*:\s*$/i.test(line.trim()) || /^bg\s*:/i.test(line.trim()) || /^image\s*:/i.test(line.trim()))) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeSectionDirectives(text, {
+    startsSection: (line) =>
+      /^#{2,3}\s+/.test(line) && objHeadingMatch(line.replace(/^#{2,3}\s+/, "")),
+    endsSection: (line) => /^#{1,3} /.test(line),
+    shouldIsolate: (line) => (
+      /^(checks|loot)\s*:\s*$/i.test(line.trim()) ||
+      /^bg\s*:/i.test(line.trim()) ||
+      /^image\s*:/i.test(line.trim()) ||
+      /^side\s*:/i.test(line.trim())
+    ),
+  });
 }
 
 // A bare "Checks:" / "Loot:" line becomes its own paragraph -> a mode switch.
 function objMode(node) {
   if (node.tagName !== "P") return "";
-  const t = objLower(node.textContent.trim());
+  const t = rsLower(node.textContent.trim());
   if (t === "checks:") return "checks";
   if (t === "loot:") return "loot";
   return "";
@@ -114,12 +97,10 @@ function enhanceObjSections(root) {
 
     if (!nodes.length) return;
 
-    // "### _Obje: …" renders the SAME card, just placed in the right column.
-    // The layout step keys off the .obj-right marker; everything else is shared.
-    const right = head.textContent.trim().startsWith("_");
-
+    // Obje renders in the left column by default; a "Side: R" line (handled in
+    // the node loop below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
-    card.className = right ? "obj-card obj-right" : "obj-card";
+    card.className = "obj-card";
 
     const title = document.createElement("div");
     title.className = "obj-title";
@@ -151,6 +132,13 @@ function enhanceObjSections(root) {
         return; // the Image line is represented by the portrait frame
       }
 
+      // "Side: R" moves the card to the right column; the line itself is dropped.
+      const side = node.tagName === "P" && node.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return;
+      }
+
       const switchTo = objMode(node);
       if (switchTo) {
         mode = switchTo;
@@ -179,9 +167,7 @@ function enhanceObjSections(root) {
       } else {
         // Description: bare "> ..." blocks become read-aloud DM blocks. These
         // are the leading content, kept beside the portrait in the header.
-        const clone = node.cloneNode(true);
-        if (clone.tagName === "BLOCKQUOTE") clone.classList.add("read-aloud");
-        headEls.push(clone);
+        headEls.push(cloneAsReadAloud(node));
       }
     });
 
@@ -190,12 +176,7 @@ function enhanceObjSections(root) {
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
-    const portrait = cardPortrait(imageRaw);
-    if (portrait) {
-      card.insertBefore(cardFigure(headEls, portrait), card.firstChild);
-    } else {
-      for (let j = headEls.length - 1; j >= 0; j--) card.insertBefore(headEls[j], card.firstChild);
-    }
+    insertCardHeader(card, headEls, imageRaw);
 
     const marker = document.createComment("obj-card");
     head.before(marker);

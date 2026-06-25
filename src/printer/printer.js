@@ -98,14 +98,28 @@
   }
 
   function mountButton() {
-    // Sit alongside the other sidebar options, matching the editor's pattern.
+    // Live in the top bar (falls back to the sidebar if the bar isn't present).
     const host =
-      document.getElementById("options") || document.getElementById("sidebar");
-    if (!host || host.querySelector(".printer-export-group")) return;
+      document.getElementById("topbar-tools") ||
+      document.getElementById("options") ||
+      document.getElementById("sidebar");
+    if (!host || host.querySelector(".printer-export")) return;
 
-    // Subsection wrapper — reuses the sidebar's .opt-* option styling.
+    // Wrapper anchors the popover; print-hide keeps it out of the export.
+    const wrap = document.createElement("div");
+    wrap.className = "printer-export print-hide";
+
+    // Trigger button that opens/closes the export popover.
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "printer-export-toggle";
+    toggle.textContent = "⎙ Export ▾";
+    toggle.setAttribute("aria-expanded", "false");
+    wrap.appendChild(toggle);
+
+    // Popover panel — holds orientation, zoom, and the Export PDF action.
     const group = document.createElement("div");
-    group.className = "opt-group printer-export-group print-hide";
+    group.className = "printer-export-pop";
 
     const caption = document.createElement("span");
     caption.className = "opt-caption";
@@ -177,7 +191,28 @@
     });
     group.appendChild(btn);
 
-    host.appendChild(group);
+    wrap.appendChild(group);
+    host.appendChild(wrap);
+
+    // --- Open / close behavior ---
+    function setOpen(open) {
+      wrap.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+    }
+    toggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      setOpen(!wrap.classList.contains("is-open"));
+    });
+    group.addEventListener("click", function (e) {
+      e.stopPropagation(); // clicks inside keep the popover open
+    });
+    document.addEventListener("click", function () {
+      setOpen(false); // outside click closes
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") setOpen(false);
+    });
+
     applySettings(); // seed the dynamic style with defaults
   }
 

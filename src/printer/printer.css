@@ -3,8 +3,78 @@
    It reads the final DOM in #page and is independent of how that DOM was produced,
    so it keeps working across renderer changes. It changes nothing on screen. */
 
-/* The injected "Export PDF" control: styled to sit with the sidebar options.
-   Hidden from the printout via the generic .print-hide class below. */
+/* Export control lives in the wooden top bar: a trigger button + a popover.
+   The whole thing carries .print-hide so it never reaches the export. */
+.printer-export{
+  position:relative;
+}
+.printer-export-toggle{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:700;
+  font-size:.98rem;
+  letter-spacing:.02em;
+  cursor:pointer;
+  padding:8px 18px;
+  color:var(--parchment-lt, #fdf1dc);
+  background:rgba(255,235,200,.16);
+  border:1px solid var(--gold, #c9ad6a);
+  border-radius:6px;
+}
+.printer-export-toggle:hover{ background:rgba(201,173,106,.22); }
+.printer-export.is-open .printer-export-toggle{
+  background:rgba(201,173,106,.26);
+  border-color:var(--gold, #c9ad6a);
+}
+
+/* Popover panel: a small dark card dropped under the trigger, right-aligned so
+   it never spills off the bar's right edge. Hidden until .is-open. */
+.printer-export-pop{
+  display:none;
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+  z-index:1000;
+  min-width:200px;
+  flex-direction:column;
+  gap:.45rem;
+  padding:.7rem .75rem;
+  background:#241f1b;
+  border:1px solid var(--gold-deep, #9c7e3c);
+  border-radius:8px;
+  box-shadow:0 10px 28px rgba(0,0,0,.55);
+}
+.printer-export.is-open .printer-export-pop{ display:flex; }
+
+/* Orientation buttons inside the popover reuse the sidebar's .opt-* look. */
+.printer-export-pop .opt-caption{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.78rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--gold, #c9ad6a);
+}
+.printer-export-pop .opt-choices{ display:flex; gap:.3rem; }
+.printer-export-pop .opt-choice{
+  flex:1 1 0;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.85rem;
+  text-align:center;
+  color:#e8dcc2;
+  background:transparent;
+  border:1px solid var(--gold-deep, #9c7e3c);
+  border-radius:4px;
+  padding:.32rem .3rem;
+  cursor:pointer;
+}
+.printer-export-pop .opt-choice:hover{ background:rgba(201,173,106,.12); }
+.printer-export-pop .opt-choice.on{
+  color:var(--ink, #1c1410);
+  background:var(--gold, #c9ad6a);
+  border-color:var(--gold, #c9ad6a);
+  font-weight:700;
+}
+
+/* The injected "Export PDF" action button. */
 .printer-export-btn{
   display:block;
   width:100%;
@@ -48,6 +118,8 @@
   @page{ size:A4 portrait; margin:6mm; }
 
   /* --- Hide all app chrome; print only the document --- */
+  #topbar,
+  #topbar-tools,
   #sidebar,
   #sidebar-toggle,
   #options,
@@ -57,6 +129,10 @@
   .print-hide{
     display:none !important;
   }
+
+  /* The sidebar/top bar are gone, so collapse the main-area column to block flow
+     and let the reader/document fill the full page width. */
+  #main-area{ display:block !important; height:auto !important; }
 
   /* --- Reset the reader/page for paper --- */
   html, body{

@@ -3,11 +3,6 @@
    It never fetches files, never touches the sidebar, and never calls
    another renderer. */
 
-// Turkish-aware lowercase (İ/I). Local so this file stays self-contained.
-function npcLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 /* BG/Image url resolution and the portrait frame are shared across all card
    renderers (renderers/cardImage.js): cardBgUrl(), cardPortrait(). */
 
@@ -50,7 +45,7 @@ function normalizeNpcMarkdown(text) {
     if (/^#{1,3} /.test(line)) { inNpc = false; out.push(line); continue; }
     // Isolate directive/stat lines as their own paragraphs (blank line on both
     // sides) so they don't get glued into neighbouring blockquotes/lists.
-    if (inNpc && (/^bg\s*:/i.test(line.trim()) || /^image\s*:/i.test(line.trim()) || NPC_STAT_LINE.test(line.trim()) || /^checks\s*:\s*$/i.test(line.trim()))) {
+    if (inNpc && (/^bg\s*:/i.test(line.trim()) || /^image\s*:/i.test(line.trim()) || /^side\s*:/i.test(line.trim()) || NPC_STAT_LINE.test(line.trim()) || /^checks\s*:\s*$/i.test(line.trim()))) {
       if (out.length && out[out.length - 1].trim() !== "") out.push("");
       out.push(line);
       out.push("");
@@ -69,7 +64,7 @@ function npcIsFieldLabel(node) {
   if (node.tagName !== "P") return false;
 
   const text = node.textContent.trim();
-  return NPC_FIELD_LABELS.has(npcLower(text));
+  return NPC_FIELD_LABELS.has(rsLower(text));
 }
 
 function npcFieldLabel(node) {
@@ -88,10 +83,7 @@ function npcTextFieldLabel(text) {
 
 function npcCloneContent(node) {
   if (npcIsFieldLabel(node)) return npcFieldLabel(node);
-
-  const clone = node.cloneNode(true);
-  if (clone.tagName === "BLOCKQUOTE") clone.classList.add("read-aloud");
-  return clone;
+  return cloneAsReadAloud(node);
 }
 
 function npcStatRow(label, value) {
@@ -129,7 +121,7 @@ function npcSubheadingText(node) {
   if (hashed) return hashed[1].trim();
 
   // Plain "Başlık:" line that is NOT a known NPC field label -> a dialog topic.
-  if (text.endsWith(":") && text.length <= 40 && !NPC_FIELD_LABELS.has(npcLower(text))) {
+  if (text.endsWith(":") && text.length <= 40 && !NPC_FIELD_LABELS.has(rsLower(text))) {
     return text;
   }
 
@@ -145,7 +137,7 @@ function npcSubheading(text) {
 
 // A bare "Checks:" line switches the NPC card into skill-check mode.
 function npcIsChecksLabel(node) {
-  return node.tagName === "P" && /^checks\s*:\s*$/i.test(npcLower(node.textContent.trim()));
+  return node.tagName === "P" && /^checks\s*:\s*$/i.test(rsLower(node.textContent.trim()));
 }
 
 // A small uppercase label above the Checks sub-section (same look as Obje).
@@ -158,7 +150,7 @@ function npcSectionTitle(text) {
 
 function enhanceNpcSections(root) {
   const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    npcLower(h.textContent).includes("npc")
+    rsLower(h.textContent).includes("npc")
   );
 
   heads.forEach((head) => {
@@ -212,8 +204,15 @@ function enhanceNpcSections(root) {
         return; // the BG line itself is dropped
       }
 
+      // "Side: R" moves the card to the right column; the line itself is dropped.
+      const side = node.tagName === "P" && node.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return;
+      }
+
       const text = node.tagName === "P" ? node.textContent.trim() : "";
-      const lowerText = npcLower(text);
+      const lowerText = rsLower(text);
       const image = text.match(CARD_IMAGE_LINE);
       if (image) {
         identityTarget = null;

@@ -33,17 +33,7 @@ const CC_DIRECTIVE = /^closed\s*:\s*(t|f|true|false)?$/i;
    paragraph (blank line on both sides), so a directive written right after a
    "> …" block doesn't get swallowed by lazy continuation. */
 function normalizeClosedMarkdown(text) {
-  const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (CC_DIRECTIVE.test(line.trim())) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeStandaloneDirectives(text, (line) => CC_DIRECTIVE.test(line.trim()));
 }
 
 const CardCollapse = (() => {
@@ -149,17 +139,7 @@ const CC_COLLAPSABLE = /^collaps[ai]ble\s*:\s*(t|f|true|false)?$/i;
    own paragraph, mirroring normalizeClosedMarkdown, so a directive written right
    after a "> …" block isn't swallowed by lazy continuation. */
 function normalizeCollapsableMarkdown(text) {
-  const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (CC_COLLAPSABLE.test(line.trim())) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeStandaloneDirectives(text, (line) => CC_COLLAPSABLE.test(line.trim()));
 }
 
 /* Early DOM pass (runs on the flat DOM, before feature renderers and layout):

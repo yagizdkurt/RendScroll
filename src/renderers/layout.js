@@ -10,22 +10,12 @@
            ├─ .col-main / .col-divider / .col-aside   one set per event
            └─ .grid-full               each <h1> divider spans both columns */
 
-// A node belongs in the right column if it is one of the right-default feature
-// cards, unless it carries a left override (e.g. "### _item:" -> .item-left),
-// or if it is a left-default section explicitly marked right-column via a
-// leading "_" ("### _Obje:" -> .obj-right).
+// Every card renders in the left column by default; a "Side: R" line makes its
+// renderer tag the card with .card-right, which is the only thing that routes a
+// node to the right (aside) column. Plain narrative content has no class and
+// stays on the left.
 function layoutIsAside(node) {
-  const c = node.classList;
-  return (
-    c.contains("sc-card") ||
-    c.contains("npc-card") ||
-    (c.contains("item-card") && !c.contains("item-left")) ||
-    c.contains("ability-card") ||
-    c.contains("obj-right") ||
-    c.contains("unexpected-right") ||
-    c.contains("combat-right") ||
-    c.contains("std-right")
-  );
+  return !!(node.classList && node.classList.contains("card-right"));
 }
 
 // Whether a "Yapışık" card (node) may dock seamlessly under the last-placed

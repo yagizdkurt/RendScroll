@@ -6,9 +6,17 @@
    It rebuilds each "### …Skill Check…" section into:
      category  ->  skill card  ->  DC rows. */
 
-// Turkish-aware lowercase (İ/I). Local so this file stays self-contained.
-function scLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+/* Text phase (runs before marked): inside a Skill Checks section, isolate a bare
+   "Side:" line into its own paragraph so a card written with "Az Enter" (no blank
+   line before the first check/category) still exposes the Side directive as a
+   standalone node. Without this the line glues to the next line into one
+   paragraph and the renderer can't see it — mirrors the other card normalizers. */
+function normalizeSkillChecksMarkdown(text) {
+  return normalizeSectionDirectives(text, {
+    startsSection: (line) => /^#{2,3}\s+/.test(line) && rsLower(line).includes("skill check"),
+    endsSection: (line) => /^#{1,3} /.test(line),
+    shouldIsolate: (line) => /^side\s*:/i.test(line.trim()),
+  });
 }
 
 // Difficulty band for a DC value -> badge tint class.
@@ -64,8 +72,8 @@ const SC_PASSIVE = /passive|ilk bak/;
 
 // Resolve a raw skill name -> { display, icon, mystic, noDC }.
 function scResolveSkill(name) {
-  const lname = scLower(name);
-  // English table keys use dotted "i"; scLower turns a capital "I" into dotless
+  const lname = rsLower(name);
+  // English table keys use dotted "i"; rsLower turns a capital "I" into dotless
   // "ı" (Investigation -> ınvestigation), so normalize it back for lookups.
   const key = lname.replace(/ı/g, "i");
 
@@ -208,9 +216,7 @@ function renderSkillCheckNodes(box, nodes) {
     } else if (node.tagName === "BLOCKQUOTE") {
       grid = null;
       // Standalone description (read to players) — keep it as a read-aloud box.
-      const clone = node.cloneNode(true);
-      clone.classList.add("read-aloud");
-      box.appendChild(clone);
+      box.appendChild(cloneAsReadAloud(node));
     } else {
       grid = null;
       box.appendChild(node.cloneNode(true));
@@ -221,7 +227,7 @@ function renderSkillCheckNodes(box, nodes) {
 // Rebuild every Skill Checks section under the given root.
 function enhanceSkillChecks(root) {
   const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    scLower(h.textContent).includes("skill check")
+    rsLower(h.textContent).includes("skill check")
   );
 
   heads.forEach((head) => {
@@ -236,6 +242,17 @@ function enhanceSkillChecks(root) {
     const card = document.createElement("div");
     card.className = "sc-card";
 
+    // "Side: R" moves the card to the right column; it is pulled out of the
+    // rendered nodes so it never shows as a stray line.
+    const renderNodes = nodes.filter((n) => {
+      const side = n.tagName === "P" && n.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return false;
+      }
+      return true;
+    });
+
     const title = document.createElement("div");
     title.className = "sc-card-title";
     title.textContent = head.textContent.trim();
@@ -243,7 +260,7 @@ function enhanceSkillChecks(root) {
 
     const box = document.createElement("div");
     box.className = "skillchecks";
-    renderSkillCheckNodes(box, nodes);
+    renderSkillCheckNodes(box, renderNodes);
     card.appendChild(box);
 
     // Replace the heading + its source nodes with the panel.

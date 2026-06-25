@@ -37,9 +37,9 @@ No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 - **The page reads itself, in play order.** Scenes flow top to bottom, event by
   event — no flipping between sections mid-encounter to find what happens next.
 
-- **Two columns that know their jobs.** The **left tells the story**; the **right is
-  your toolbox** — NPCs, skill checks, loot, and stat blocks waiting exactly where
-  your eyes land when you need them.
+- **Two columns, your call.** Everything flows down the **left** by default; send any
+  card to the **right** — your toolbox lane for NPCs, skill checks, loot, and stat
+  blocks — with a single `Side: R` line, so it waits exactly where your eyes land.
 
 - **Never read the wrong line again.** What players hear *glows apart* from your
   secret DM notes. Read-aloud text is clean and unmistakable; your hidden truths stay

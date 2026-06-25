@@ -9,6 +9,7 @@ import http.server
 import importlib.util
 import json
 import os
+import re
 import shutil
 import socketserver
 import subprocess
@@ -22,6 +23,7 @@ import webbrowser
 HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
+CAMPAIGN_DIR = "Campaign"
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -141,8 +143,88 @@ def print_diagnostics(result):
     print_indented(f"Result: {errors} errors, {warnings} warnings", result_color)
 
 
-# Editor saves are only allowed to write markdown inside this directory.
-SAVE_ROOT = "Campaign"
+def markdown_title(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                match = re.match(r"^#\s+(.+?)\s*$", line)
+                if match:
+                    return match.group(1).strip()
+    except OSError:
+        return None
+    return None
+
+
+def campaign_entry_from_filename(filename, full_path):
+    stem, _ = os.path.splitext(filename)
+    match = re.match(r"^(\d+)(?:[_\-\s]+(.+))?$", stem)
+    number = int(match.group(1)) if match else None
+    label_source = match.group(2) if match and match.group(2) else None
+    if match and label_source is None:
+        label_source = markdown_title(full_path)
+    if label_source is None:
+        label_source = stem
+    label = re.sub(r"[_\-]+", " ", label_source).strip()
+    label = re.sub(r"\s+", " ", label) or stem
+    return {
+        "file": filename,
+        "path": f"{CAMPAIGN_DIR}/{filename}",
+        "number": number,
+        "label": label,
+    }
+
+
+def discover_campaign_files(base_dir):
+    campaign_root = os.path.join(base_dir, CAMPAIGN_DIR)
+    entries = []
+    try:
+        names = os.listdir(campaign_root)
+    except OSError:
+        return entries
+
+    for name in names:
+        if name.startswith(".") or not name.lower().endswith(".md"):
+            continue
+        full_path = os.path.join(campaign_root, name)
+        if not os.path.isfile(full_path):
+            continue
+        entries.append(campaign_entry_from_filename(name, full_path))
+
+    entries.sort(key=lambda entry: (
+        entry["number"] is None,
+        entry["number"] if entry["number"] is not None else 0,
+        entry["file"].casefold(),
+    ))
+    return entries
+
+
+def clean_campaign_title(value):
+    if not isinstance(value, str):
+        return "Untitled"
+    title = re.sub(r"\s+", " ", value).strip()
+    return title[:120] if title else "Untitled"
+
+
+def next_campaign_filename(base_dir):
+    campaign_root = os.path.join(base_dir, CAMPAIGN_DIR)
+    os.makedirs(campaign_root, exist_ok=True)
+
+    next_number = 1
+    try:
+        names = os.listdir(campaign_root)
+    except OSError:
+        names = []
+
+    for name in names:
+        match = re.match(r"^(\d+)(?:[_\-\s].*)?\.md$", name, re.IGNORECASE)
+        if match:
+            next_number = max(next_number, int(match.group(1)) + 1)
+
+    while True:
+        filename = f"{next_number}.md"
+        if not os.path.exists(os.path.join(campaign_root, filename)):
+            return filename
+        next_number += 1
 
 
 class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -158,9 +240,62 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_GET(self):
+        if self.path.split("?", 1)[0] == "/__campaign_files":
+            self._send_json(200, discover_campaign_files(os.getcwd()))
+            return
+
+        super().do_GET()
+
     def do_POST(self):
+        path = self.path.split("?", 1)[0]
+
+        if path == "/__create_campaign_file":
+            self._create_campaign_file()
+            return
+
+        if path == "/__save":
+            self._save_campaign_file()
+            return
+
+        self._send_json(404, {"ok": False, "error": "unknown endpoint"})
+
+    def _create_campaign_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            title = clean_campaign_title(data.get("title"))
+        except (ValueError, AttributeError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        filename = next_campaign_filename(base)
+        target = os.path.realpath(os.path.join(base, CAMPAIGN_DIR, filename))
+        content = f"# {title}\n\n"
+
+        try:
+            with open(target, "x", encoding="utf-8", newline="\n") as fh:
+                fh.write(content)
+        except FileExistsError:
+            self._send_json(409, {"ok": False, "error": "file already exists"})
+            return
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Created: {os.path.relpath(target, base)}", GREEN), flush=True)
+        self._send_json(
+            200,
+            {
+                "ok": True,
+                "entry": campaign_entry_from_filename(filename, target),
+            },
+        )
+
+    def _save_campaign_file(self):
         # The editor saves scene markdown back to disk via POST /__save.
-        if self.path != "/__save":
+        if self.path.split("?", 1)[0] != "/__save":
             self._send_json(404, {"ok": False, "error": "unknown endpoint"})
             return
 
@@ -174,10 +309,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside SAVE_ROOT (Campaign/). Rejects "..", absolute paths, and
-        # anything escaping the project. CWD is base_dir (see main()).
+        # live inside Campaign/. Rejects "..", absolute paths, and anything
+        # escaping the project. CWD is base_dir (see main()).
         base = os.path.realpath(os.getcwd())
-        save_root = os.path.realpath(os.path.join(base, SAVE_ROOT))
+        save_root = os.path.realpath(os.path.join(base, CAMPAIGN_DIR))
         target = os.path.realpath(os.path.join(base, rel_path))
         try:
             inside = os.path.commonpath([save_root, target]) == save_root

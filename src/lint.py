@@ -8,7 +8,6 @@ the JS files remain the source of truth for the rules:
 
   src/renderers/skillChecks.js -> standard skill / ability / spell tables
   src/renderers/cardImage.js   -> Image:/BG: path resolution
-  src/files.js                 -> the campaign file list the app loads
 
 Stdlib only. Errors are red, warnings are yellow, all-clear is green.
 """
@@ -19,6 +18,7 @@ import sys
 
 # This script lives in src/, so the project root is its parent directory.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CAMPAIGN_DIR = "Campaign"
 
 # --- console color (enable ANSI on the Windows console, then define helpers) --
 os.system("")  # turns on VT processing so the escape codes render in cmd/conhost
@@ -103,7 +103,7 @@ def lint_file(name, text, issues, image_refs):
 
     # 4. Missing "# title".
     if not re.search(r"^#\s+.+$", text, re.M):
-        issues.append(("warn", name, 1, "no '# title' — sidebar uses the filename"))
+        issues.append(("warn", name, 1, "no '# title'"))
 
     for i, raw in enumerate(lines):
         line = i + 1
@@ -165,15 +165,30 @@ def check_images(image_refs, issues):
                 issues.append(("error", fname, line, f"image not found: {value} ({path})"))
 
 
+def campaign_sort_key(filename):
+    stem, _ = os.path.splitext(filename)
+    match = re.match(r"^(\d+)(?:[_\-\s]+.+)?$", stem)
+    number = int(match.group(1)) if match else None
+    return (
+        number is None,
+        number if number is not None else 0,
+        filename.casefold(),
+    )
+
+
 def load_file_list():
-    """Read CAMPAIGN_FILES / CAMPAIGN_DIR from src/files.js so we lint exactly
-    what the app loads (showcase.md etc. are skipped if not listed)."""
-    src = open(os.path.join(ROOT, "src", "files.js"), encoding="utf-8").read()
-    dir_m = re.search(r'CAMPAIGN_DIR\s*=\s*"([^"]+)"', src)
-    campaign_dir = dir_m.group(1) if dir_m else "Campaign/"
-    block = re.search(r"CAMPAIGN_FILES\s*=\s*\[(.*?)\]", src, re.S)
-    files = re.findall(r'"([^"]+\.md)"', block.group(1)) if block else []
-    return files, campaign_dir
+    """Discover top-level Campaign/*.md files, matching the app's file discovery."""
+    campaign_root = os.path.join(ROOT, CAMPAIGN_DIR)
+    try:
+        files = [
+            name for name in os.listdir(campaign_root)
+            if not name.startswith(".")
+            and name.lower().endswith(".md")
+            and os.path.isfile(os.path.join(campaign_root, name))
+        ]
+    except OSError:
+        files = []
+    return sorted(files, key=campaign_sort_key), CAMPAIGN_DIR
 
 
 def collect_diagnostics():

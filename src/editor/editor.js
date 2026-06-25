@@ -52,6 +52,12 @@ const Editor = (() => {
     applyModel(swapBlocks(state.model, a, b));
   }
 
+  function moveCardGroup(id, target) {
+    if (!state.enabled || !state.model) return;
+    const next = EditorOutline.moveCardGroup(state.model, id, target);
+    if (next !== state.model) applyModel(next);
+  }
+
   // Insert markdown `block` for a new card relative to a target descriptor.
   // target = { afterCardId, eventRef } resolved by the caller (menu/anchors).
   function insertCardBlock(block, target) {
@@ -102,6 +108,16 @@ const Editor = (() => {
   const handlers = {
     deleteCard,
     moveCard,
+    beginCardDrag(id, pointerEvent) {
+      if (!state.enabled || !state.model || typeof EditorDragDrop === "undefined") return;
+      EditorDragDrop.begin({
+        page,
+        model: state.model,
+        cardId: id,
+        pointerEvent,
+        onDrop: (target) => moveCardGroup(id, target),
+      });
+    },
     editCard(id) {
       const found = EditorOutline.findCard(state.model, id);
       if (found && typeof EditorForm !== "undefined") {
@@ -182,7 +198,8 @@ const Editor = (() => {
   let toggleBtn, saveBtn, dirtyDot, toastEl;
 
   function mountControls() {
-    const host = document.getElementById("options") || document.getElementById("sidebar");
+    const host = document.getElementById("topbar-tools") ||
+      document.getElementById("options") || document.getElementById("sidebar");
     const box = document.createElement("div");
     box.className = "editor-controls";
 
@@ -215,6 +232,7 @@ const Editor = (() => {
   }
 
   function setEnabled(on) {
+    if (!on && typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
     state.enabled = on;
     document.body.classList.toggle("editor-on", on);
     if (on) decorate();
@@ -223,10 +241,12 @@ const Editor = (() => {
   }
 
   function clearDecorations() {
+    if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
     page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-narrative-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
     page.querySelectorAll("[data-block-id]").forEach((n) => {
       n.removeAttribute("data-block-id");
       n.classList.remove("editor-card");
+      n.classList.remove("editor-card-drag-source");
     });
     page.querySelectorAll("[data-plain-block-id]").forEach((n) => {
       n.removeAttribute("data-plain-block-id");
@@ -265,6 +285,7 @@ const Editor = (() => {
     page = document.getElementById("page");
     mountControls();
     document.addEventListener("scene:loaded", (e) => {
+      if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
       state.path = e.detail.path;
       state.model = EditorOutline.parse(e.detail.text);
       markDirty(false);

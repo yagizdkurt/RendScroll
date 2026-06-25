@@ -8,34 +8,20 @@
    NOT restructure the content. It never fetches files, never touches the
    sidebar, and never calls another renderer. */
 
-function unexpectedLower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
-
 // True only for a "### Beklenmedik:" / "### Unexpected:" heading (colon form).
-// A leading "_" ("### _Unexpected:") just marks it for the right column.
 function isUnexpectedHead(h) {
-  return /^_?(beklenmedik|unexpected)\s*:/.test(unexpectedLower(h.textContent).trim());
+  return /^(beklenmedik|unexpected)\s*:/.test(rsLower(h.textContent).trim());
 }
 
 /* Text phase (runs before marked): inside an Unexpected section, isolate a bare
    "Image:" line into its own paragraph so it is not glued into a neighbouring
    list/blockquote and can be lifted out as the card portrait. */
 function normalizeUnexpectedMarkdown(text) {
-  const out = [];
-  let inU = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^###\s+_?\s*(beklenmedik|unexpected)\s*:/i.test(line)) { inU = true; out.push(line); continue; }
-    if (/^#{1,3} /.test(line)) { inU = false; out.push(line); continue; }
-    if (inU && /^image\s*:/i.test(line.trim())) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
+  return normalizeSectionDirectives(text, {
+    startsSection: (line) => /^###\s+(beklenmedik|unexpected)\s*:/i.test(line),
+    endsSection: (line) => /^#{1,3} /.test(line),
+    shouldIsolate: (line) => /^image\s*:/i.test(line.trim()) || /^side\s*:/i.test(line.trim()),
+  });
 }
 
 /* A node ends the current section if it's a new heading/separator OR a card that
@@ -43,13 +29,7 @@ function normalizeUnexpectedMarkdown(text) {
    one runs, so without this they'd be swallowed into the unexpected card). */
 function unexpectedIsBoundary(n) {
   if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
-  return n.classList && (
-    n.classList.contains("npc-card") ||
-    n.classList.contains("item-card") ||
-    n.classList.contains("ability-card") ||
-    n.classList.contains("obj-card") ||
-    n.classList.contains("unexpected-card")
-  );
+  return isRenderedCard(n);
 }
 
 function enhanceUnexpectedSections(root) {
@@ -62,15 +42,14 @@ function enhanceUnexpectedSections(root) {
       nodes.push(n);
     }
 
-    // A leading "_" ("### _Unexpected:") places the card in the right column.
-    const right = head.textContent.trim().startsWith("_");
-
+    // Unexpected renders in the left column by default; a "Side: R" line (handled
+    // in the node loop below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
-    card.className = right ? "unexpected-card unexpected-right" : "unexpected-card";
+    card.className = "unexpected-card";
 
     const title = document.createElement("div");
     title.className = "unexpected-title";
-    const name = head.textContent.trim().replace(/^_?\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim();
+    const name = head.textContent.trim().replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim();
     title.textContent = name || "Beklenmedik Durumlar";
 
     // Move the content in unchanged — keep it simple. An "Image:" line is lifted
@@ -82,17 +61,18 @@ function enhanceUnexpectedSections(root) {
         if (image[1].trim()) imageRaw = image[1].trim();
         return;
       }
+      // "Side: R" moves the card to the right column; the line itself is dropped.
+      const side = n.tagName === "P" && n.textContent.trim().match(CARD_SIDE_LINE);
+      if (side) {
+        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+        return;
+      }
       card.appendChild(n.cloneNode(true));
     });
 
     // Header (title) sits beside the portrait when an Image was given; otherwise
     // the title is placed on top (no empty portrait reserved).
-    const portrait = cardPortrait(imageRaw);
-    if (portrait) {
-      card.insertBefore(cardFigure(title, portrait), card.firstChild);
-    } else {
-      card.insertBefore(title, card.firstChild);
-    }
+    insertCardHeader(card, title, imageRaw);
 
     const marker = document.createComment("unexpected-card");
     head.before(marker);

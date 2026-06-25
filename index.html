@@ -13,20 +13,29 @@
 </head>
 <body>
   <aside id="sidebar">
-    <div class="app-title">RendScroll</div>
+    <img class="sidebar-brand" src="src/STDImages/RendScroll2.png" alt="RendScroll">
     <button id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">☰</button>
-    <h1 class="campaign-title">Lora Tapınağı</h1>
     <nav id="nav"></nav>
     <section id="options" class="options" aria-label="Options"></section>
   </aside>
-  <main id="reader">
-    <article id="page" class="page"></article>
-  </main>
+  <div id="main-area">
+    <header id="topbar">
+      <button id="new-page-button" class="topbar-action topbar-new-page" type="button">+ New Page</button>
+      <div id="topbar-tools"></div>
+    </header>
+    <main id="reader">
+      <article id="page" class="page"></article>
+    </main>
+  </div>
   <script src="src/vendor/marked.min.js"></script>
-  <script src="src/files.js"></script>
   <script src="src/rendererOptions.js"></script>
+  <script src="src/utils/text.js"></script>
+  <script src="src/utils/dom.js"></script>
+  <script src="src/utils/markdown.js"></script>
   <script src="src/markdown.js"></script>
   <script src="src/renderers/cardImage.js"></script>
+  <script src="src/renderers/shared/cardMeta.js"></script>
+  <script src="src/renderers/shared/cardParts.js"></script>
   <script src="src/renderers/skillChecks.js"></script>
   <script src="src/renderers/npcSections.js"></script>
   <script src="src/renderers/item.js"></script>
@@ -43,6 +52,7 @@
   <script src="src/editor/save.js"></script>
   <script src="src/editor/cardSchemas.js"></script>
   <script src="src/editor/anchors.js"></script>
+  <script src="src/editor/dragDrop.js"></script>
   <script src="src/editor/contextMenu.js"></script>
   <script src="src/editor/form.js"></script>
   <script src="src/editor/editor.js"></script>

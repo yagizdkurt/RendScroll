@@ -4,14 +4,14 @@
    Feature-specific rendering lives in renderers/*.js.
    ============================================================ */
 
-const CAMPAIGN_DIR = "Campaign/";
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const TOP_SCROLL_IMAGE = "src/STDImages/RendScroll1.png";
 
 const nav = document.getElementById("nav");
 const page = document.getElementById("page");
 const sidebarToggle = document.getElementById("sidebar-toggle");
-const campaignTitle = document.querySelector(".campaign-title");
+const newPageButton = document.getElementById("new-page-button");
+let currentPath = null;
 
 /* Known label lines from the template that should stand out. */
 const FIELD_LABELS = new Set([
@@ -19,11 +19,6 @@ const FIELD_LABELS = new Set([
   "stat:", "taktik:", "genel:", "cesetler:", "köpek:", "sandıklar:",
   "amaç:", "öz:", "kültist:", "cult hunter:",
 ]);
-
-/* Turkish-aware lowercase (İ/I). */
-function lower(s) {
-  return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-}
 
 function createTopScrollImage() {
   const wrap = document.createElement("div");
@@ -45,7 +40,7 @@ function enhanceBaseStyling(root) {
 
   // Section headings get an accent based on their text.
   root.querySelectorAll("h2, h3").forEach((h) => {
-    const t = lower(h.textContent);
+    const t = rsLower(h.textContent);
     if (t.includes("skill check")) h.classList.add("skill-section");
     else if (t.includes("npc")) h.classList.add("npc-section");
     else if (t.includes("savaş")) h.classList.add("combat-section");
@@ -56,7 +51,7 @@ function enhanceBaseStyling(root) {
   // Short "Label:" paragraphs become emphasized field labels.
   root.querySelectorAll("p").forEach((p) => {
     const t = p.textContent.trim();
-    const isKnown = FIELD_LABELS.has(lower(t));
+    const isKnown = FIELD_LABELS.has(rsLower(t));
     const looksLikeLabel = t.endsWith(":") && t.length <= 24 && !t.includes(" ");
     if (isKnown || looksLikeLabel) p.classList.add("field-label");
   });
@@ -95,6 +90,8 @@ function setSidebarCollapsed(collapsed) {
 /* Text phase: normalize raw markdown before marked.js. Renderers that need to
    touch the source (not just the DOM) contribute their step here. */
 function toHtml(text) {
+  text = normalizeSkillChecksMarkdown(text);
+  text = normalizeItemMarkdown(text);
   text = normalizeNpcMarkdown(text);
   text = normalizeObjMarkdown(text);
   text = normalizeAbilityMarkdown(text);
@@ -108,6 +105,7 @@ function toHtml(text) {
 
 async function load(path) {
   const text = await fetchMarkdown(path);
+  currentPath = path;
   renderPage(toHtml(text));
   page.parentElement.scrollTop = 0;
   document.querySelectorAll("#nav button").forEach((b) =>
@@ -118,42 +116,204 @@ async function load(path) {
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));
 }
 
-async function init() {
-  if (campaignTitle && typeof CAMPAIGN_TITLE === "string") {
-    campaignTitle.textContent = CAMPAIGN_TITLE;
+function showNavError(message) {
+  nav.innerHTML = "";
+  const error = document.createElement("div");
+  error.className = "nav-error";
+  error.textContent = message;
+  nav.appendChild(error);
+}
+
+async function loadCampaignEntries() {
+  const res = await fetch("/__campaign_files", { cache: "no-store" });
+  if (!res.ok) throw new Error("campaign discovery failed");
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("bad discovery response");
+  return data;
+}
+
+async function createCampaignFile(title) {
+  const res = await fetch("/__create_campaign_file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {
+    /* non-JSON body */
   }
 
+  if (!res.ok || !payload || !payload.ok || !payload.entry) {
+    const detail = payload && payload.error ? payload.error : `HTTP ${res.status}`;
+    throw new Error("Page creation failed: " + detail);
+  }
+  return payload.entry;
+}
+
+function mountCampaignEntries(entries) {
+  nav.innerHTML = "";
+  entries.forEach(({ path, number, label }, index) => {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.dataset.path = path;
+    btn.dataset.navIndex = String(index + 1);
+    if (number !== null && number !== undefined) {
+      btn.dataset.navIndex = String(number);
+    }
+    btn.classList.toggle("active", path === currentPath);
+    btn.addEventListener("click", () => load(path));
+    nav.appendChild(btn);
+  });
+}
+
+function removeNewPageDialog(backdrop) {
+  document.removeEventListener("keydown", backdrop._onKeydown);
+  backdrop.remove();
+}
+
+function openNewPageDialog() {
+  if (document.querySelector(".new-page-backdrop")) return;
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "editor-modal-backdrop new-page-backdrop";
+
+  const modal = document.createElement("form");
+  modal.className = "editor-modal new-page-modal";
+  modal.noValidate = true;
+
+  const head = document.createElement("div");
+  head.className = "editor-modal-head";
+  head.textContent = "New Page";
+
+  const body = document.createElement("div");
+  body.className = "editor-modal-body";
+
+  const field = document.createElement("div");
+  field.className = "editor-field";
+
+  const label = document.createElement("label");
+  label.htmlFor = "new-page-title";
+  label.textContent = "Page title";
+
+  const input = document.createElement("input");
+  input.id = "new-page-title";
+  input.type = "text";
+  input.value = "New Page";
+  input.maxLength = 120;
+  input.autocomplete = "off";
+
+  const error = document.createElement("div");
+  error.className = "editor-field-error new-page-error";
+  error.setAttribute("role", "alert");
+
+  field.appendChild(label);
+  field.appendChild(input);
+  field.appendChild(error);
+  body.appendChild(field);
+
+  const foot = document.createElement("div");
+  foot.className = "editor-modal-foot";
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "editor-btn";
+  cancel.textContent = "Cancel";
+
+  const create = document.createElement("button");
+  create.type = "submit";
+  create.className = "editor-btn primary";
+  create.textContent = "Create";
+
+  foot.appendChild(cancel);
+  foot.appendChild(create);
+  modal.appendChild(head);
+  modal.appendChild(body);
+  modal.appendChild(foot);
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+
+  function setBusy(busy) {
+    input.disabled = busy;
+    cancel.disabled = busy;
+    create.disabled = busy;
+    create.textContent = busy ? "Creating..." : "Create";
+    newPageButton.disabled = busy;
+  }
+
+  function close() {
+    newPageButton.disabled = false;
+    removeNewPageDialog(backdrop);
+  }
+
+  backdrop._onKeydown = (e) => {
+    if (e.key === "Escape" && !create.disabled) close();
+  };
+  document.addEventListener("keydown", backdrop._onKeydown);
+
+  cancel.addEventListener("click", close);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop && !create.disabled) close();
+  });
+
+  modal.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = input.value.trim();
+    if (!title) {
+      error.textContent = "Enter a page title.";
+      input.focus();
+      return;
+    }
+
+    error.textContent = "";
+    setBusy(true);
+    try {
+      const entry = await createCampaignFile(title);
+      const entries = await loadCampaignEntries();
+      mountCampaignEntries(entries);
+      await load(entry.path);
+      close();
+    } catch (err) {
+      error.textContent = err.message || "Page creation failed.";
+      setBusy(false);
+      input.focus();
+    }
+  });
+
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+}
+
+function mountNewPageButton() {
+  if (!newPageButton) return;
+  newPageButton.addEventListener("click", openNewPageDialog);
+}
+
+async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
     setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"))
   );
+  mountNewPageButton();
 
   // Renderer options (persisted toggles) + their sidebar controls.
   RendererOptions.apply();
   const optionsEl = document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
 
-  // Fetch every file once to read its title for the nav button.
-  const entries = await Promise.all(
-    CAMPAIGN_FILES.map(async (file) => {
-      const path = CAMPAIGN_DIR + file;
-      const fallback = file.replace(/\.md$/, "");
-      try {
-        return { path, title: markdownTitle(await fetchMarkdown(path), fallback) };
-      } catch {
-        return { path, title: fallback };
-      }
-    })
-  );
+  let entries;
+  try {
+    entries = await loadCampaignEntries();
+  } catch {
+    showNavError("Campaign files could not be discovered. Start RendScroll with launcher.py.");
+    return;
+  }
 
-  entries.forEach(({ path, title }, index) => {
-    const btn = document.createElement("button");
-    btn.textContent = title;
-    btn.dataset.path = path;
-    btn.dataset.navIndex = String(index + 1);
-    btn.addEventListener("click", () => load(path));
-    nav.appendChild(btn);
-  });
+  mountCampaignEntries(entries);
 
   if (entries.length) load(entries[0].path);
 }
