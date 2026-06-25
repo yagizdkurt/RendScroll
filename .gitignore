@@ -5,6 +5,7 @@
 !.gitignore
 !LICENSE
 !README.md
+!RendScroll.exe
 
 # and top-level source files...
 !launcher.py
