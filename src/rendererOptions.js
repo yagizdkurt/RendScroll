@@ -96,7 +96,7 @@ const RendererOptions = (() => {
       ],
     },
     pageBackground: {
-      section: "Theme", type: "choice", attr: "pagebg", default: "parchment", label: "Page Background",
+      section: "Theme", type: "choice", attr: "pagebg", default: "custom", label: "Page Background",
       choices: [
         { value: "parchment", label: "Parchment" },
         { value: "aged", label: "Aged" },
@@ -106,7 +106,7 @@ const RendererOptions = (() => {
       ],
     },
     pageBackgroundImage: {
-      section: "Theme", type: "image", default: "", label: "Custom Background (PNG)",
+      section: "Theme", type: "image", default: "src/STDImages/parchiment.png", label: "Custom Background (PNG)",
     },
   };
 
