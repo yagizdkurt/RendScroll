@@ -5,7 +5,7 @@
      - type "choice": one value -> data-opt-<attr> on <body>  (CSS keys off it)
 
    Flipping an option re-styles the page instantly (no re-render) and the
-   choice is remembered in localStorage. Sidebar controls are generated from
+   choice is remembered in localStorage. Controls are generated from
    SCHEMA automatically.
 
    To add a new design knob later: add one SCHEMA entry + the matching CSS
@@ -32,12 +32,8 @@ const RendererOptions = (() => {
       ],
     },
     italicReadAloud: {
-      type: "toggle", bodyClass: "opt-italic-readaloud", default: true,
+      type: "toggle", bodyClass: "opt-italic-readaloud", default: false,
       label: "Italic Narration",
-    },
-    boldReadAloud: {
-      type: "toggle", bodyClass: "opt-bold-readaloud", default: true,
-      label: "Bold Narration",
     },
     readAloudAccent: {
       type: "toggle", bodyClass: "opt-readaloud-accent", default: true,
@@ -106,7 +102,7 @@ const RendererOptions = (() => {
     return state[k];
   }
 
-  // ---- Sidebar controls (generated from SCHEMA) ----
+  // ---- Controls (generated from SCHEMA) ----
   function buildToggle(k, opt) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -149,11 +145,57 @@ const RendererOptions = (() => {
     return group;
   }
 
-  function mount(container) {
+  function mountControls(container) {
     for (const k in SCHEMA) {
       const opt = SCHEMA[k];
       container.appendChild(opt.type === "toggle" ? buildToggle(k, opt) : buildChoice(k, opt));
     }
+  }
+
+  function mountPopover(container) {
+    if (container.querySelector(".renderer-options")) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "renderer-options print-hide";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "renderer-options-toggle";
+    toggle.textContent = "Options ▾";
+    toggle.setAttribute("aria-expanded", "false");
+    wrap.appendChild(toggle);
+
+    const panel = document.createElement("div");
+    panel.className = "renderer-options-pop";
+
+    const caption = document.createElement("span");
+    caption.className = "opt-caption";
+    caption.textContent = "Options";
+    panel.appendChild(caption);
+    mountControls(panel);
+
+    wrap.appendChild(panel);
+    container.appendChild(wrap);
+
+    function setOpen(open) {
+      wrap.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+    }
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setOpen(!wrap.classList.contains("is-open"));
+    });
+    panel.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setOpen(false);
+    });
+  }
+
+  function mount(container) {
+    if (!container) return;
+    if (container.id === "topbar-tools") mountPopover(container);
+    else mountControls(container);
   }
 
   return { SCHEMA, get, set, toggle, apply, mount };

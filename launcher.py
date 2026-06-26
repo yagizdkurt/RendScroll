@@ -260,6 +260,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._create_campaign_file()
             return
 
+        if path == "/__delete_campaign_file":
+            self._delete_campaign_file()
+            return
+
         if path == "/__save":
             self._save_campaign_file()
             return
@@ -298,6 +302,41 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "entry": campaign_entry_from_filename(filename, target),
             },
         )
+
+    def _delete_campaign_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            rel_path = data["path"]
+        except (ValueError, KeyError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        delete_root = os.path.realpath(os.path.join(base, CAMPAIGN_DIR))
+        target = os.path.realpath(os.path.join(base, rel_path))
+        try:
+            inside = os.path.commonpath([delete_root, target]) == delete_root
+        except ValueError:
+            inside = False
+        if not inside:
+            self._send_json(403, {"ok": False, "error": "path outside Campaign/"})
+            return
+        if not target.lower().endswith(".md"):
+            self._send_json(403, {"ok": False, "error": "only .md files"})
+            return
+        if not os.path.isfile(target):
+            self._send_json(404, {"ok": False, "error": "file not found"})
+            return
+
+        try:
+            os.remove(target)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Deleted: {os.path.relpath(target, base)}", YELLOW), flush=True)
+        self._send_json(200, {"ok": True})
 
     def _save_campaign_file(self):
         # The editor saves scene markdown back to disk via POST /__save.

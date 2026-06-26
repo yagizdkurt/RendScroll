@@ -239,9 +239,105 @@ async function createCampaignFile(title) {
   return payload.entry;
 }
 
+async function deleteCampaignFile(path) {
+  const res = await fetch("/__delete_campaign_file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {
+    /* non-JSON body */
+  }
+
+  if (!res.ok || !payload || !payload.ok) {
+    const detail = payload && payload.error ? payload.error : `HTTP ${res.status}`;
+    throw new Error("Page deletion failed: " + detail);
+  }
+}
+
+function removeNavContextMenu() {
+  const menu = document.querySelector(".nav-context-menu");
+  if (menu) menu.remove();
+  document.removeEventListener("mousedown", onNavContextMouseDown, true);
+  document.removeEventListener("keydown", onNavContextKey, true);
+  window.removeEventListener("scroll", removeNavContextMenu, true);
+}
+
+function onNavContextMouseDown(e) {
+  const menu = document.querySelector(".nav-context-menu");
+  if (menu && menu.contains(e.target)) return;
+  removeNavContextMenu();
+}
+
+function onNavContextKey(e) {
+  if (e.key === "Escape") removeNavContextMenu();
+}
+
+async function deleteCampaignEntry(entry) {
+  const index = campaignEntries.findIndex((item) => item.path === entry.path);
+  if (!confirm(`Delete "${entry.label}"? This cannot be undone.`)) return;
+
+  try {
+    await deleteCampaignFile(entry.path);
+    const entries = await loadCampaignEntries();
+    campaignEntries = entries;
+
+    if (currentPath === entry.path) {
+      currentPath = null;
+      mountCampaignEntries(entries);
+      if (entries.length) {
+        const next = entries[Math.min(Math.max(index, 0), entries.length - 1)];
+        await load(next.path);
+      } else {
+        page.innerHTML = "";
+        document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path: null, text: "" } }));
+      }
+    } else {
+      mountCampaignEntries(entries);
+    }
+  } catch (err) {
+    alert(err.message || "Page deletion failed.");
+  }
+}
+
+function openNavContextMenu(entry, x, y) {
+  removeNavContextMenu();
+
+  const menu = document.createElement("div");
+  menu.className = "nav-context-menu";
+  menu.setAttribute("role", "menu");
+
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "nav-context-menu-item danger";
+  del.setAttribute("role", "menuitem");
+  del.textContent = "Delete";
+  del.addEventListener("click", () => {
+    removeNavContextMenu();
+    deleteCampaignEntry(entry);
+  });
+  menu.appendChild(del);
+  document.body.appendChild(menu);
+
+  const rect = menu.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - rect.width - 8);
+  const top = Math.min(y, window.innerHeight - rect.height - 8);
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+
+  document.addEventListener("mousedown", onNavContextMouseDown, true);
+  document.addEventListener("keydown", onNavContextKey, true);
+  window.addEventListener("scroll", removeNavContextMenu, true);
+}
+
 function mountCampaignEntries(entries) {
   nav.innerHTML = "";
-  entries.forEach(({ path, number, label }, index) => {
+  entries.forEach((entry, index) => {
+    const { path, number, label } = entry;
     const btn = document.createElement("button");
     btn.textContent = label;
     btn.dataset.path = path;
@@ -251,6 +347,10 @@ function mountCampaignEntries(entries) {
     }
     btn.classList.toggle("active", path === currentPath);
     btn.addEventListener("click", () => load(path));
+    btn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openNavContextMenu(entry, e.clientX, e.clientY);
+    });
     nav.appendChild(btn);
   });
 }
@@ -411,9 +511,9 @@ async function init() {
   );
   mountNewPageButton();
 
-  // Renderer options (persisted toggles) + their sidebar controls.
+  // Renderer options (persisted toggles) + their topbar popover controls.
   RendererOptions.apply();
-  const optionsEl = document.getElementById("options");
+  const optionsEl = document.getElementById("topbar-tools") || document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
 
   let entries;

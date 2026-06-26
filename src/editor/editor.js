@@ -1,6 +1,6 @@
 /* Editor mode controller.
    Owns editor state (on/off, current scene path, the outline model, dirty flag),
-   mounts the sidebar controls, and orchestrates re-render + save. All markdown
+   mounts the editor controls, and orchestrates re-render + save. All markdown
    manipulation goes through EditorOutline; all card<->source mapping through
    EditorAnchors; forms/menus through EditorForm / EditorContextMenu.
 
@@ -198,7 +198,8 @@ const Editor = (() => {
   let toggleBtn, saveBtn, dirtyDot, toastEl;
 
   function mountControls() {
-    const host = document.getElementById("topbar-tools") ||
+    const host = document.getElementById("topbar-primary") ||
+      document.getElementById("topbar-tools") ||
       document.getElementById("options") || document.getElementById("sidebar");
     const box = document.createElement("div");
     box.className = "editor-controls";

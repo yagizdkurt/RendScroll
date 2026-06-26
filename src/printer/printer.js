@@ -192,7 +192,7 @@
     group.appendChild(btn);
 
     wrap.appendChild(group);
-    host.appendChild(wrap);
+    host.insertBefore(wrap, host.firstChild);
 
     // --- Open / close behavior ---
     function setOpen(open) {

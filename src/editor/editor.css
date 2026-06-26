@@ -1,7 +1,7 @@
 /* Editor mode styling. Everything is scoped under `body.editor-on` (set by the
    controller) so the reader view is pixel-identical when editing is off. */
 
-/* --- sidebar controls (always visible) --- */
+/* --- editor controls (always visible) --- */
 .editor-controls {
   display: flex;
   align-items: center;
