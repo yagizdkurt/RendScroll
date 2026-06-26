@@ -55,6 +55,10 @@ const RendScrollParser = (() => {
   const SIDE_RE = /^side\s*:\s*(.+)$/i;
   // Heading-level "Collapsable:" directive (cardCollapse.js markHeadingCollapsable).
   const COLLAPSABLE_RE = /^collaps[ai]ble\s*:\s*(t|f|true|false)?$/i;
+  // Standalone library reference line, e.g. "[item=Gümüş Anahtar]". The type
+  // keyword is ASCII; the name is free-form. Resolved by the renderer against
+  // RefLibrary — the parser only captures the strings (no type knowledge here).
+  const REF_LINE_RE = /^\[([a-z][a-z0-9-]*)=([^\]\r\n]+)\]$/i;
 
   // Universal, cross-card directive lines. Type-specific scalar fields (NPC
   // stats, item Tür/Nadirlik, dialogue topics, …) are intentionally NOT here —
@@ -472,6 +476,20 @@ const RendScrollParser = (() => {
         i++;
         continue;
       }
+      // A standalone library reference is its own block (like a card boundary),
+      // so it never gets folded into a surrounding plain/narrative run.
+      const rm = cur.trim().match(REF_LINE_RE);
+      if (rm) {
+        blocks.push({
+          kind: "ref",
+          refType: rm[1].toLowerCase(),
+          refName: rm[2].trim(),
+          lines: [cur],
+          range: makeRange(offs, i, i + 1),
+        });
+        i++;
+        continue;
+      }
       const isQuote = /^\s*>/.test(cur);
       const runStart = i;
       while (i < end) {
@@ -609,6 +627,9 @@ const RendScrollParser = (() => {
               unknown: b.unknown.map((u) => ({ reason: u.reason, lines: u.lines, range: trimRange(u.range) })),
             };
           }
+          if (b.kind === "ref") {
+            return { kind: "ref", refType: b.refType, refName: b.refName, range: trimRange(b.range) };
+          }
           return { kind: b.kind, lines: b.lines, range: trimRange(b.range) };
         }),
       })),
@@ -635,7 +656,7 @@ const RendScrollParser = (() => {
     isEmbeddedBoundary,
     ensureColon,
     trimOuterBlankLines,
-    regexes: { HEADING_RE, HR_RE, STUCK_RE, SIDE_RE, COLLAPSABLE_RE, CHECK_LABEL_RE, NPC_TOPIC_RE, COMBAT_LABEL_RE },
+    regexes: { HEADING_RE, HR_RE, STUCK_RE, SIDE_RE, COLLAPSABLE_RE, REF_LINE_RE, CHECK_LABEL_RE, NPC_TOPIC_RE, COMBAT_LABEL_RE },
   };
 })();
 

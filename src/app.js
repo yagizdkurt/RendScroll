@@ -154,16 +154,59 @@ function renderSectionHeading(doc, section) {
   return h;
 }
 
+// Card source (heading + body) -> its built card element. Shared by inline cards
+// (renderCardBlock) and resolved library references (renderRefBlock), so a
+// referenced item renders byte-for-byte like an inline one.
+function renderCardFromSource(type, src) {
+  const els = markedToElements(isolateCardSource(type, stripCardTextSize(src)));
+  const builder = CARD_BUILDERS[type];
+  if (!builder) return { cardEl: null, els };
+  const cardEl = builder(els[0], els.slice(1));
+  return { cardEl, els };
+}
+
+// Stamp a card with a normalized reference name so inline [link=…] can find it.
+function stampRefName(el, name) {
+  if (el && el.dataset && name) el.dataset.refName = rsLower(String(name).trim());
+}
+
 // One card block -> the element(s) to append. A builder turns (heading, body
 // nodes) into a card; a missing builder or a null result leaves the raw nodes.
 function renderCardBlock(doc, card) {
-  const builder = CARD_BUILDERS[card.type];
-  const src = stripCardTextSize(cardRawSource(doc, card));
-  const els = markedToElements(isolateCardSource(card.type, src));
-  if (!builder) return els;
-  const cardEl = builder(els[0], els.slice(1));
+  const { cardEl, els } = renderCardFromSource(card.type, cardRawSource(doc, card));
+  if (!cardEl) return els;
   applyCardTextSize(cardEl, cardTextSize(card));
-  return cardEl ? [cardEl] : els;
+  stampRefName(cardEl, card.title);
+  return [cardEl];
+}
+
+const REF_MISSING_LABELS = {
+  "unknown-ref-type": "Unknown reference type",
+  "missing-ref": "Item not found in library",
+};
+
+function refMissingCard(type, name, reason) {
+  const div = document.createElement("div");
+  div.className = "ref-missing";
+  div.textContent = "⚠ " + (REF_MISSING_LABELS[reason] || "Broken reference") +
+    ": [" + type + "=" + name + "]";
+  return div;
+}
+
+// A standalone "[item=Name]" reference block -> the resolved library card, or a
+// warning placeholder when the reference can't be resolved.
+function renderRefBlock(block) {
+  const resolved = (typeof RefLibrary !== "undefined")
+    ? RefLibrary.resolve(block.refType, block.refName)
+    : { ok: false, reason: "missing-ref" };
+  if (!resolved.ok) return [refMissingCard(block.refType, block.refName, resolved.reason)];
+  const { cardEl, els } = renderCardFromSource(resolved.cardType, resolved.source);
+  if (!cardEl) return els.length ? els : [refMissingCard(block.refType, block.refName, "missing-ref")];
+  stampRefName(cardEl, resolved.entry.name);
+  // Mark the card as reference-sourced: the editor excludes it from card
+  // anchoring (it isn't in the outline model) and attaches its own tools.
+  cardEl.dataset.refSource = block.refType + "::" + resolved.entry.name;
+  return [cardEl];
 }
 
 function renderPage(text) {
@@ -197,6 +240,9 @@ function renderPage(text) {
       if (block.kind === "card") {
         flushNonCards();
         renderCardBlock(doc, block).forEach((el) => page.appendChild(el));
+      } else if (block.kind === "ref") {
+        flushNonCards();
+        renderRefBlock(block).forEach((el) => page.appendChild(el));
       } else {
         buffer.push(block);
       }
@@ -599,6 +645,136 @@ window.RendScrollApp = {
   campaignEntries: () => campaignEntries.slice(),
 };
 
+/* ----- inline [link=Name] navigation + preview ---------------------------- */
+
+function findCardByRefName(name) {
+  const key = rsLower(String(name).trim());
+  const sel = (window.CSS && CSS.escape) ? CSS.escape(key) : key.replace(/"/g, '\\"');
+  return page.querySelector('[data-ref-name="' + sel + '"]');
+}
+
+// Open every collapsed card/heading hiding `el`, so a jump never lands on
+// invisible content. Reuses the existing collapse toggles (cardCollapse.js /
+// HeadingCollapse) so collapse state stays consistent.
+function revealElement(el) {
+  let node = el;
+  while (node && node !== page) {
+    if (node.classList && node.classList.contains("is-collapsed")) {
+      const btn = node.querySelector(":scope > .card-head > .card-toggle");
+      if (btn) btn.click();
+    }
+    node = node.parentElement;
+  }
+  let guard = 0;
+  while (el.offsetParent === null && guard++ < 50) {
+    const collapsed = [...page.querySelectorAll(".heading-collapsed")];
+    if (!collapsed.length) break;
+    let toOpen = collapsed[0];
+    for (const h of collapsed) {
+      if (h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) toOpen = h;
+    }
+    const btn = toOpen.querySelector(":scope > .card-toggle");
+    if (!btn) break;
+    btn.click();
+  }
+}
+
+function flashCard(el) {
+  el.classList.add("ref-flash");
+  setTimeout(() => el.classList.remove("ref-flash"), 1200);
+}
+
+function flashBrokenLink(a) {
+  a.classList.add("rs-ref-link-broken");
+  setTimeout(() => a.classList.remove("rs-ref-link-broken"), 1200);
+}
+
+let activePreview = null;
+function closeRefPreview() {
+  if (!activePreview) return;
+  activePreview.remove();
+  activePreview = null;
+  document.removeEventListener("mousedown", onPreviewOutside, true);
+  document.removeEventListener("keydown", onPreviewKey, true);
+}
+function onPreviewOutside(e) {
+  if (activePreview && !activePreview.contains(e.target)) closeRefPreview();
+}
+function onPreviewKey(e) {
+  if (e.key === "Escape") closeRefPreview();
+}
+
+function positionPreview(pop, anchor) {
+  const r = anchor.getBoundingClientRect();
+  const margin = 8;
+  pop.style.position = "fixed";
+  pop.style.visibility = "hidden";
+  pop.style.left = "0px";
+  pop.style.top = "0px";
+  const pr = pop.getBoundingClientRect();
+  let left = Math.min(r.left, window.innerWidth - pr.width - margin);
+  let top = r.bottom + margin;
+  if (top + pr.height > window.innerHeight - margin) top = r.top - pr.height - margin;
+  pop.style.left = Math.max(margin, left) + "px";
+  pop.style.top = Math.max(margin, top) + "px";
+  pop.style.visibility = "";
+}
+
+// Render the referenced library card into a floating popover anchored to the
+// link, for references whose card isn't on the current page.
+function showRefPreview(anchor, type, name) {
+  closeRefPreview();
+  if (typeof RefLibrary === "undefined") return;
+  const resolved = RefLibrary.resolve(type, name);
+  if (!resolved.ok) { flashBrokenLink(anchor); return; }
+  const pop = document.createElement("div");
+  pop.className = "ref-preview-popover";
+  const { cardEl, els } = renderCardFromSource(resolved.cardType, resolved.source);
+  const content = cardEl || (els && els[0]);
+  if (!content) { flashBrokenLink(anchor); return; }
+  pop.appendChild(content);
+  document.body.appendChild(pop);
+  positionPreview(pop, anchor);
+  activePreview = pop;
+  setTimeout(() => {
+    document.addEventListener("mousedown", onPreviewOutside, true);
+    document.addEventListener("keydown", onPreviewKey, true);
+  }, 0);
+}
+
+function activateRefLink(a) {
+  const name = a.dataset.refName || "";
+  const target = findCardByRefName(name);
+  if (target) {
+    revealElement(target);
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    flashCard(target);
+    return;
+  }
+  if (typeof RefLibrary !== "undefined") {
+    const found = RefLibrary.lookupAny(name);
+    if (found) { showRefPreview(a, found.type, found.entry.name); return; }
+  }
+  // Broken: the Debug panel reports it; give a small visual nudge here.
+  flashBrokenLink(a);
+}
+
+function installRefLinkHandler() {
+  page.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest(".rs-ref-link");
+    if (!a || !page.contains(a)) return;
+    e.preventDefault();
+    activateRefLink(a);
+  });
+  page.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const a = e.target.closest && e.target.closest(".rs-ref-link");
+    if (!a) return;
+    e.preventDefault();
+    activateRefLink(a);
+  });
+}
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
@@ -611,6 +787,14 @@ async function init() {
   await RendererOptions.init();
   const optionsEl = document.getElementById("topbar-tools") || document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
+
+  // Load the reference library (Items, …) before the first scene renders, so
+  // `[item=Name]` blocks resolve synchronously inside renderPage. A failure here
+  // (e.g. not launched via launcher.py) just leaves the library empty.
+  if (typeof RefLibrary !== "undefined") {
+    try { await RefLibrary.init(); } catch (_) { /* empty library */ }
+  }
+  installRefLinkHandler();
 
   let entries;
   try {

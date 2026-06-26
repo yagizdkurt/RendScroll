@@ -126,6 +126,26 @@ body.editor-on .editor-narrative-block:hover {
 body.editor-on .editor-card:hover > .editor-card-tools {
   display: flex;
 }
+/* Reference-sourced cards get a distinct dashed outline + their own toolbar. */
+body.editor-on .editor-ref-card {
+  position: relative;
+  outline: 1px dashed rgba(47, 95, 176, 0.55);
+  outline-offset: 2px;
+}
+body.editor-on .editor-ref-card:hover {
+  outline-color: rgba(47, 95, 176, 0.95);
+}
+.editor-ref-tools {
+  display: none;
+  position: absolute;
+  top: -12px;
+  right: 6px;
+  z-index: 6;
+  gap: 2px;
+}
+body.editor-on .editor-ref-card:hover > .editor-ref-tools {
+  display: flex;
+}
 .editor-plain-tools {
   display: none;
   position: absolute;

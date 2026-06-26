@@ -25,6 +25,9 @@ PORT_START = 8000
 PORT_END = 8010
 CAMPAIGN_DIR = "Campaign"
 OPTIONS_CURRENT_FILE = "options.current.json"
+# Reusable reference libraries: a ref type -> the folder its files live in. Items
+# today; npc/monster/location can be added here without touching the endpoints.
+LIBRARY_DIRS = {"item": "Items"}
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -205,6 +208,60 @@ def discover_campaign_files(base_dir):
     return entries
 
 
+def library_entry_from_filename(folder, filename):
+    stem, _ = os.path.splitext(filename)
+    return {"name": stem, "path": f"{folder}/{filename}"}
+
+
+def discover_library_files(base_dir, ref_type, with_content=False):
+    """List (and optionally read) the .md files of a library folder.
+
+    Returns [{name, path[, content]}] sorted by name. Unknown ref types and a
+    missing folder both return an empty list — the library is simply empty."""
+    folder = LIBRARY_DIRS.get(ref_type)
+    if not folder:
+        return []
+    root = os.path.join(base_dir, folder)
+    entries = []
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return entries
+
+    for name in names:
+        if name.startswith(".") or not name.lower().endswith(".md"):
+            continue
+        full_path = os.path.join(root, name)
+        if not os.path.isfile(full_path):
+            continue
+        entry = library_entry_from_filename(folder, name)
+        if with_content:
+            try:
+                with open(full_path, encoding="utf-8") as fh:
+                    entry["content"] = fh.read()
+            except OSError:
+                entry["content"] = ""
+        entries.append(entry)
+
+    entries.sort(key=lambda e: e["name"].casefold())
+    return entries
+
+
+def clean_library_name(value):
+    """Sanitize a client-supplied library file name into a safe stem.
+
+    Rejects anything with path separators, parent refs, or that is empty after
+    collapsing whitespace, so it can never escape the library folder."""
+    if not isinstance(value, str):
+        return None
+    name = re.sub(r"\s+", " ", value).strip()
+    if not name or name in (".", ".."):
+        return None
+    if "/" in name or "\\" in name or "\x00" in name:
+        return None
+    return name[:120]
+
+
 def clean_campaign_title(value):
     if not isinstance(value, str):
         return "Untitled"
@@ -248,17 +305,38 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path.split("?", 1)[0] == "/__campaign_files":
+        path = self.path.split("?", 1)[0]
+        if path == "/__campaign_files":
             self._send_json(200, discover_campaign_files(os.getcwd()))
             return
 
+        if path == "/__library_files":
+            ref_type = self._query_param("type", "item")
+            self._send_json(200, discover_library_files(os.getcwd(), ref_type))
+            return
+
+        if path == "/__library_bundle":
+            ref_type = self._query_param("type", "item")
+            self._send_json(200, discover_library_files(os.getcwd(), ref_type, with_content=True))
+            return
+
         super().do_GET()
+
+    def _query_param(self, key, default=None):
+        from urllib.parse import urlparse, parse_qs
+        qs = parse_qs(urlparse(self.path).query)
+        values = qs.get(key)
+        return values[0] if values else default
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
 
         if path == "/__create_campaign_file":
             self._create_campaign_file()
+            return
+
+        if path == "/__create_library_file":
+            self._create_library_file()
             return
 
         if path == "/__delete_campaign_file":
@@ -308,6 +386,59 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             },
         )
 
+    def _create_library_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            ref_type = str(data.get("type") or "item")
+            name = clean_library_name(data.get("name"))
+            content = data["content"]
+        except (ValueError, KeyError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        folder = LIBRARY_DIRS.get(ref_type)
+        if not folder:
+            self._send_json(400, {"ok": False, "error": f"unknown library type: {ref_type}"})
+            return
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid name"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        os.makedirs(os.path.join(base, folder), exist_ok=True)
+        filename = f"{name}.md"
+        target = os.path.realpath(os.path.join(base, folder, filename))
+
+        try:
+            with open(target, "x", encoding="utf-8", newline="\n") as fh:
+                fh.write(content)
+        except FileExistsError:
+            self._send_json(409, {"ok": False, "error": "item already exists"})
+            return
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Created: {os.path.relpath(target, base)}", GREEN), flush=True)
+        self._send_json(200, {"ok": True, "entry": library_entry_from_filename(folder, filename)})
+
+    def _resolve_writable(self, rel_path):
+        """Resolve `rel_path` to an absolute path only if it stays inside one of
+        the writable roots (Campaign/ + every library folder). Returns the path
+        or None when it escapes them. Shared by save and delete."""
+        base = os.path.realpath(os.getcwd())
+        target = os.path.realpath(os.path.join(base, rel_path))
+        roots = [CAMPAIGN_DIR] + list(LIBRARY_DIRS.values())
+        for root in roots:
+            root_real = os.path.realpath(os.path.join(base, root))
+            try:
+                if os.path.commonpath([root_real, target]) == root_real:
+                    return target
+            except ValueError:
+                continue  # different drive on Windows
+        return None
+
     def _delete_campaign_file(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
@@ -318,14 +449,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         base = os.path.realpath(os.getcwd())
-        delete_root = os.path.realpath(os.path.join(base, CAMPAIGN_DIR))
-        target = os.path.realpath(os.path.join(base, rel_path))
-        try:
-            inside = os.path.commonpath([delete_root, target]) == delete_root
-        except ValueError:
-            inside = False
-        if not inside:
-            self._send_json(403, {"ok": False, "error": "path outside Campaign/"})
+        target = self._resolve_writable(rel_path)
+        if not target:
+            self._send_json(403, {"ok": False, "error": "path outside writable roots"})
             return
         if not target.lower().endswith(".md"):
             self._send_json(403, {"ok": False, "error": "only .md files"})
@@ -359,17 +485,13 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside Campaign/. Rejects "..", absolute paths, and anything
-        # escaping the project. CWD is base_dir (see main()).
+        # live inside a writable root (Campaign/ or a library folder). Rejects
+        # "..", absolute paths, and anything escaping the project. CWD is
+        # base_dir (see main()).
         base = os.path.realpath(os.getcwd())
-        save_root = os.path.realpath(os.path.join(base, CAMPAIGN_DIR))
-        target = os.path.realpath(os.path.join(base, rel_path))
-        try:
-            inside = os.path.commonpath([save_root, target]) == save_root
-        except ValueError:
-            inside = False  # different drive on Windows
-        if not inside:
-            self._send_json(403, {"ok": False, "error": "path outside Campaign/"})
+        target = self._resolve_writable(rel_path)
+        if not target:
+            self._send_json(403, {"ok": False, "error": "path outside writable roots"})
             return
         if not target.lower().endswith(".md"):
             self._send_json(403, {"ok": False, "error": "only .md files"})

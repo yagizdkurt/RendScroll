@@ -60,6 +60,8 @@ const Editor = (() => {
 
   function blockWithTargetColumn(block, target) {
     if (!target || (target.column !== "left" && target.column !== "right")) return block;
+    // A library reference line has no body to take a "Side:" directive.
+    if (/^\s*\[[a-z][a-z0-9-]*=[^\]\r\n]+\]\s*$/i.test(block)) return block;
     return EditorOutline.rewriteBlockColumn(state.model, block, target.column);
   }
 
@@ -111,6 +113,92 @@ const Editor = (() => {
     applyModel(EditorOutline.replaceNarrativeBlock(state.model, block, text));
   }
 
+  // --- library references ([item=Name]) -----------------------------------
+  // Items live once in /Items as standalone files; scenes only reference them, so
+  // the editor never writes an item's body into a scene (see plan §6).
+
+  function ensureTrailingNewline(text) {
+    const t = String(text || "");
+    return /\n$/.test(t) ? t : t + "\n";
+  }
+
+  function itemNameFromBlock(block) {
+    const m = String(block).match(/^###\s+item\s*:\s*(.+?)\s*$/im);
+    return m ? m[1].trim() : "";
+  }
+
+  // New item from the create form -> write /Items/Name.md, insert "[item=Name]".
+  async function createItemToLibrary(block, target) {
+    const name = itemNameFromBlock(block);
+    if (!name || typeof RefLibrary === "undefined") { insertCardBlock(block, target); return; }
+    try {
+      await RefLibrary.createFile("item", name, ensureTrailingNewline(block));
+      insertCardBlock("[item=" + name + "]\n", target);
+      toast("Created library item: " + name);
+    } catch (err) {
+      toast(err.message || "Item create failed", true);
+    }
+  }
+
+  function cardIsItem(id) {
+    const found = EditorOutline.findCard(state.model, id);
+    return !!(found && found.card.type === "item");
+  }
+
+  // Migration: extract an inline item card into /Items and leave "[item=Name]".
+  async function moveItemToLibrary(id) {
+    if (typeof RefLibrary === "undefined") return;
+    const found = EditorOutline.findCard(state.model, id);
+    if (!found || found.card.type !== "item") return;
+    const name = found.card.title;
+    if (!name) { toast("Item has no name", true); return; }
+    const src = EditorOutline.cardSource(state.model, found.card);
+    try {
+      await RefLibrary.createFile("item", name, ensureTrailingNewline(src));
+      applyModel(EditorOutline.replaceCard(state.model, found.card, "[item=" + name + "]\n"));
+      toast("Moved to library: " + name);
+    } catch (err) {
+      toast(err.message || "Move failed", true);
+    }
+  }
+
+  // Edit the underlying library file (from a reference card's "Library" button):
+  // open the item form on the file's source and save back to /Items, so every
+  // scene that references it updates on the next render.
+  function editLibraryItem(type, name) {
+    if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
+    const def = RefLibrary.def(type);
+    const entry = RefLibrary.lookup(type, name);
+    if (!def || !entry) { toast("Library item not found: " + name, true); return; }
+    const libModel = EditorOutline.parse(entry.source);
+    const libCard = libModel.events.flatMap((e) => e.cards)[0];
+    if (!libCard) { toast("Library file has no card", true); return; }
+    const path = def.folder + "/" + name + ".md";
+    EditorForm.openEdit(libCard, libModel, async (block) => {
+      try {
+        await EditorSave.save(path, ensureTrailingNewline(block));
+        await RefLibrary.refresh(type, name);
+        rerender();
+        toast("Saved library item: " + name);
+      } catch (err) {
+        toast(err.message || "Save failed", true);
+      }
+    });
+  }
+
+  // Remove a reference line from the current scene (safe only when unambiguous).
+  function removeRef(type, name) {
+    const p = RendScrollParser;
+    const matches = [];
+    state.model.lines.forEach((ln, i) => {
+      const m = p.lineText(ln).trim().match(p.regexes.REF_LINE_RE);
+      if (m && m[1].toLowerCase() === type && RefLibrary.norm(m[2]) === RefLibrary.norm(name)) matches.push(i);
+    });
+    if (!matches.length) { toast("Reference not found", true); return; }
+    if (matches.length > 1) { toast("Multiple references — edit source to remove", true); return; }
+    applyModel(EditorOutline.spliceText(state.model, matches[0], matches[0] + 1, ""));
+  }
+
   // --- handlers handed to anchors/menus ----------------------------------
 
   const handlers = {
@@ -154,10 +242,19 @@ const Editor = (() => {
       if (typeof EditorContextMenu !== "undefined") EditorContextMenu.openInsert(target, x, y, handlers);
     },
     pickInsert(type, target) {
-      if (typeof EditorForm !== "undefined") {
-        EditorForm.openCreate(type, state.model, (block) => insertCardBlock(block, target));
+      if (typeof EditorForm === "undefined") return;
+      // Items are created into the library and inserted as a reference, never
+      // embedded as a card body in the scene.
+      if (type === "item" && typeof RefLibrary !== "undefined") {
+        EditorForm.openCreate(type, state.model, (block) => createItemToLibrary(block, target));
+        return;
       }
+      EditorForm.openCreate(type, state.model, (block) => insertCardBlock(block, target));
     },
+    moveItemToLibrary,
+    cardIsItem,
+    editLibraryItem,
+    removeRef,
     pickNarrative(target) {
       if (typeof EditorForm !== "undefined") {
         EditorForm.openNarrative(null, state.model, (text) =>
@@ -181,7 +278,41 @@ const Editor = (() => {
   // --- render / save -----------------------------------------------------
 
   function decorate() {
-    if (state.model && state.enabled) EditorAnchors.decorate(page, state.model, handlers);
+    if (state.model && state.enabled) {
+      EditorAnchors.decorate(page, state.model, handlers);
+      decorateRefCards();
+    }
+  }
+
+  // Reference-sourced cards aren't in the outline model, so anchors.js skips them.
+  // Give them their own minimal toolbar: edit the library file, or remove the
+  // reference from this scene.
+  function decorateRefCards() {
+    page.querySelectorAll("[data-ref-source]").forEach((card) => {
+      if (card.querySelector(":scope > .editor-ref-tools")) return;
+      const [type, name] = String(card.dataset.refSource).split("::");
+      card.classList.add("editor-ref-card");
+      const tools = document.createElement("div");
+      tools.className = "editor-ref-tools";
+
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "editor-mini";
+      edit.textContent = "✎ Library";
+      edit.title = "Edit the library item (updates every scene)";
+      edit.addEventListener("click", () => editLibraryItem(type, name));
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "editor-mini";
+      remove.textContent = "✕ Ref";
+      remove.title = "Remove this reference from the scene";
+      remove.addEventListener("click", () => removeRef(type, name));
+
+      tools.appendChild(edit);
+      tools.appendChild(remove);
+      card.appendChild(tools);
+    });
   }
 
   function rerender() {
@@ -251,7 +382,8 @@ const Editor = (() => {
 
   function clearDecorations() {
     if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
-    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-narrative-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
+    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-narrative-tools, .editor-ref-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
+    page.querySelectorAll(".editor-ref-card").forEach((n) => n.classList.remove("editor-ref-card"));
     page.querySelectorAll("[data-block-id]").forEach((n) => {
       n.removeAttribute("data-block-id");
       n.classList.remove("editor-card");

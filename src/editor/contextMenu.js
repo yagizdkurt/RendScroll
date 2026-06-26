@@ -81,7 +81,7 @@ const EditorContextMenu = (() => {
 
     openCard(id, x, y, handlers, ctx) {
       const base = ctx || {};
-      show(x, y, [
+      const nodes = [
         item("Edit…", () => handlers.editCard(id)),
         item("Insert before…", () =>
           handlers.insertMenu(Object.assign({}, base, { beforeCardId: id }), x, y)
@@ -92,9 +92,15 @@ const EditorContextMenu = (() => {
         sep(),
         item("Move up", () => handlers.moveCard(id, -1)),
         item("Move down", () => handlers.moveCard(id, 1)),
-        sep(),
-        item("Delete", () => handlers.deleteCard(id)),
-      ]);
+      ];
+      // Migration affordance: pull an inline item out into the shared library.
+      if (handlers.cardIsItem && handlers.cardIsItem(id) && handlers.moveItemToLibrary) {
+        nodes.push(sep());
+        nodes.push(item("Move to Library", () => handlers.moveItemToLibrary(id)));
+      }
+      nodes.push(sep());
+      nodes.push(item("Delete", () => handlers.deleteCard(id)));
+      show(x, y, nodes);
     },
   };
 })();

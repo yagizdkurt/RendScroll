@@ -22,8 +22,11 @@
 # and campaign folders...
 !Campaign/
 !Campaign/.gitkeep
-!Images/
-!Images/.gitkeep
+!images/
+!images/.gitkeep
+# reusable reference library (Items, …) — committed single source of truth
+!Items/
+!Items/.gitkeep
 
 # but still ignore compiled Python files
 *.pyc

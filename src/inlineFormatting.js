@@ -3,6 +3,20 @@
    normal Markdown parsing inside valid tag bodies. */
 
 const RendScrollInlineFormatting = (() => {
+  function escapeAttr(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Turkish-safe lowercase, matching rsLower() / RefLibrary.norm() so a link's
+  // name resolves against the same key the cards are stamped with.
+  function lower(value) {
+    return String(value == null ? "" : value).replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+  }
+
   const TAGS = {
     size: {
       requiresValue: true,
@@ -14,6 +28,18 @@ const RendScrollInlineFormatting = (() => {
         return '<span class="rs-inline-size" style="font-size:' + px + 'px">' +
           parser.parseInline(token.tokens) +
           "</span>";
+      },
+    },
+    // Inline cross-reference: "[link=Calamity]eski bir kitap[/link]" renders as a
+    // blue clickable span. The click handler (src/app.js) scrolls to the on-page
+    // card with the matching data-ref-name, or previews it from RefLibrary.
+    link: {
+      requiresValue: true,
+      validate() { return true; },
+      render(token, parser) {
+        const name = lower(String(token.value).trim());
+        return '<a class="rs-ref-link" data-ref-name="' + escapeAttr(name) +
+          '" role="link" tabindex="0">' + parser.parseInline(token.tokens) + "</a>";
       },
     },
   };

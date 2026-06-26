@@ -200,19 +200,83 @@ const RendScrollDiagnostics = (() => {
     });
   }
 
+  function refLib() {
+    return typeof RefLibrary !== "undefined" ? RefLibrary : null;
+  }
+
+  function normName(s) {
+    const lib = refLib();
+    if (lib) return lib.norm(s);
+    return String(s == null ? "" : s).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+  }
+
+  // Validate [item=Name] reference blocks, malformed reference lines, and inline
+  // [link=Name] targets against the loaded RefLibrary and this scene's cards.
+  function addReferenceDiagnostics(doc, file, issues) {
+    const p = parser();
+    if (!p) return;
+    const lib = refLib();
+
+    // Names reachable on this page: card titles + ref block names.
+    const onPage = new Set();
+    allCards(doc).forEach((c) => onPage.add(normName(c.title)));
+    doc.sections.forEach((s) => s.blocks.forEach((b) => {
+      if (b.kind === "ref") onPage.add(normName(b.refName));
+    }));
+
+    doc.sections.forEach((section) => {
+      section.blocks.forEach((block) => {
+        if (block.kind !== "ref") return;
+        const line = dispLine(block.range);
+        if (lib && !lib.def(block.refType)) {
+          issues.push(issue("error", file, line, `unknown reference type: [${block.refType}=${block.refName}]`, "unknown-ref-type"));
+        } else if (lib && !lib.has(block.refType, block.refName)) {
+          issues.push(issue("error", file, line, `item not in library: [${block.refType}=${block.refName}]`, "missing-ref"));
+        }
+      });
+    });
+
+    // Reference-shaped lines with an empty name the parser couldn't accept.
+    doc.lines.forEach((rawLine, idx) => {
+      const t = p.lineText(rawLine).trim();
+      if (/^\[[a-z][a-z0-9-]*=\s*\]$/i.test(t)) {
+        issues.push(issue("warn", file, idx + 1, `malformed reference: ${t}`, "malformed-ref"));
+      }
+    });
+
+    // Inline links: broken when the name is neither on this page nor in a library.
+    const linkRe = /\[link=([^\]\r\n]+)\]/ig;
+    doc.lines.forEach((rawLine, idx) => {
+      const text = p.lineText(rawLine);
+      let m;
+      linkRe.lastIndex = 0;
+      while ((m = linkRe.exec(text))) {
+        const name = m[1].trim();
+        const known = onPage.has(normName(name)) || (lib && lib.lookupAny(name));
+        if (!known) issues.push(issue("warn", file, idx + 1, `broken link: [link=${name}]`, "broken-link"));
+      }
+    });
+  }
+
   function computeSceneDiagnostics(doc, options) {
     const file = (options && options.file) || "(none)";
+    const isLibrary = !!(options && options.isLibrary);
     const issues = [];
     if (!doc) return issues;
 
-    const hasH1 = !!doc.title || doc.sections.some((s) => s.level === 1);
-    if (!hasH1) issues.push(issue("warn", file, 1, "no '# title'", "missing-title"));
+    // Library files are single cards (### Item: …), so the page-title check
+    // doesn't apply to them.
+    if (!isLibrary) {
+      const hasH1 = !!doc.title || doc.sections.some((s) => s.level === 1);
+      if (!hasH1) issues.push(issue("warn", file, 1, "no '# title'", "missing-title"));
+    }
 
     addMalformedDirectiveDiagnostics(doc, file, issues);
     addDuplicateDirectiveDiagnostics(doc, file, issues);
     addDockingDiagnostics(doc, file, issues);
     addCheckDiagnostics(doc, file, issues);
     addUnknownHeadingDiagnostics(doc, file, issues);
+    addReferenceDiagnostics(doc, file, issues);
 
     return issues.sort((a, b) => {
       if (a.file !== b.file) return String(a.file).localeCompare(String(b.file));
@@ -256,12 +320,47 @@ const RendScrollDiagnostics = (() => {
       }
     }
 
+    addLibraryDiagnostics(issues);
+
     return {
       files: results,
       issues,
       errors: issues.filter((i) => i.level === "error").length,
       warnings: issues.filter((i) => i.level === "warn").length,
     };
+  }
+
+  // Library-wide checks: duplicate names, circular references, and per-file
+  // linting of each library file (attributed to its own path).
+  function addLibraryDiagnostics(issues) {
+    const lib = refLib();
+    if (!lib) return;
+
+    lib.duplicates().forEach((d) => {
+      issues.push(issue(
+        "warn",
+        d.paths[0] || "(library)",
+        1,
+        `duplicate ${d.type} name "${d.name}" across ${d.paths.length} files: ${d.paths.join(", ")}`,
+        "duplicate-item"
+      ));
+    });
+
+    lib.detectCycles().forEach((ring) => {
+      issues.push(issue("error", "(library)", 1, `circular reference: ${ring.join(" -> ")}`, "circular-ref"));
+    });
+
+    if (!lib.REF_TYPES) return;
+    Object.keys(lib.REF_TYPES).forEach((type) => {
+      lib.entries(type).forEach((entry) => {
+        const parsed = parseScene(entry.source, entry.path);
+        if (parsed.error) {
+          issues.push(issue("error", entry.path, 1, "parse error: " + parsed.error, "parse-error"));
+        } else {
+          issues.push(...computeSceneDiagnostics(parsed.doc, { file: entry.path, isLibrary: true }));
+        }
+      });
+    });
   }
 
   function collectAssetRefs(doc) {
