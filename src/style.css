@@ -175,15 +175,24 @@ body.sidebar-collapsed #sidebar{
 }
 
 body.sidebar-collapsed .sidebar-brand{
-  display:none;
+  visibility:hidden;
+  height:44px;
+  object-fit:contain;
 }
 
 body.sidebar-collapsed #nav button{
   width:100%;
-  min-height:2rem;
+  height:2rem;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   padding:.45rem 0;
   overflow:hidden;
   color:transparent;
+  font-size:0;
+  line-height:0;
+  white-space:nowrap;
   text-align:center;
 }
 
@@ -1585,9 +1594,13 @@ body.opt-readaloud-accent .page blockquote.read-aloud{
   }
   body.sidebar-collapsed #nav button{
     width:auto;
+    height:auto;
     min-height:0;
     padding:.5rem .7rem;
     color:#e8dcc2;
+    font-size:1.02rem;
+    line-height:normal;
+    white-space:normal;
     text-align:left;
   }
   body.sidebar-collapsed #nav button::before{content:none;}
