@@ -342,6 +342,39 @@ const EditorOutline = (() => {
     return out.join("");
   }
 
+  function rewriteBlockColumn(model, blockText, column) {
+    if (column !== "left" && column !== "right") return blockText;
+    const lines = splitLines(String(blockText || ""));
+    if (!lines.length) return blockText;
+
+    const hm = lineText(lines[0]).match(HEADING_RE);
+    if (!hm || !cardType(hm[1].length, hm[2])) return blockText;
+
+    const out = [lines[0]];
+    let wroteSide = false;
+    for (let i = 1; i < lines.length; i++) {
+      const text = lineText(lines[i]).trim();
+      if (HEADING_RE.test(lineText(lines[i]))) {
+        out.push(lines[i]);
+        continue;
+      }
+      if (SIDE_RE.test(text)) {
+        if (column === "right" && !wroteSide) {
+          out.push("Side: R" + lineEnding(lines[i], model.eol));
+          wroteSide = true;
+        }
+        continue;
+      }
+      if (column === "right" && !wroteSide && text !== "") {
+        out.push("Side: R" + model.eol);
+        wroteSide = true;
+      }
+      out.push(lines[i]);
+    }
+    if (column === "right" && !wroteSide) out.push("Side: R" + model.eol);
+    return out.join("");
+  }
+
   function eventInsertLine(ev) {
     if (!ev) return 0;
     if (ev.cards && ev.cards.length) return ev.cards[ev.cards.length - 1].end;
@@ -493,6 +526,7 @@ const EditorOutline = (() => {
     chapterBlock,
     connectedCardGroup,
     moveCardGroup,
+    rewriteBlockColumn,
     // exposed for anchors.js / tests
     _internals: { cardType, defaultColumn, lower, splitLines, canDock },
   };

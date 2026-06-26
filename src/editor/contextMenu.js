@@ -79,11 +79,15 @@ const EditorContextMenu = (() => {
       show(x, y, nodes);
     },
 
-    openCard(id, x, y, handlers) {
+    openCard(id, x, y, handlers, ctx) {
+      const base = ctx || {};
       show(x, y, [
         item("Edit…", () => handlers.editCard(id)),
+        item("Insert before…", () =>
+          handlers.insertMenu(Object.assign({}, base, { beforeCardId: id }), x, y)
+        ),
         item("Insert after…", () =>
-          handlers.insertMenu({ afterCardId: id }, x, y)
+          handlers.insertMenu(Object.assign({}, base, { afterCardId: id }), x, y)
         ),
         sep(),
         item("Move up", () => handlers.moveCard(id, -1)),

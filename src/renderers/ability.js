@@ -114,10 +114,9 @@ function normalizeAbilityMarkdown(text) {
 }
 
 // Build one Ability card from its heading + body nodes (produced by marked from
-// the card's parsed source). Returns the card element, or null when no body.
+// the card's parsed source). A title-only Ability still returns a real card so
+// editor anchors can attach tools to it.
 function buildAbilityCard(head, nodes) {
-    if (!nodes.length) return null;
-
     const card = document.createElement("div");
     card.className = "ability-card";
     let stuck = false;

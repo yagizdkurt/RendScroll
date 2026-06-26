@@ -58,11 +58,19 @@ const Editor = (() => {
     if (next !== state.model) applyModel(next);
   }
 
+  function blockWithTargetColumn(block, target) {
+    if (!target || (target.column !== "left" && target.column !== "right")) return block;
+    return EditorOutline.rewriteBlockColumn(state.model, block, target.column);
+  }
+
   // Insert markdown `block` for a new card relative to a target descriptor.
-  // target = { afterCardId, eventRef } resolved by the caller (menu/anchors).
+  // target = { beforeCardId, afterCardId, eventRef, column } resolved by menus/anchors.
   function insertCardBlock(block, target) {
     let lineIndex;
-    if (target && target.afterCardId != null) {
+    if (target && target.beforeCardId != null) {
+      const found = EditorOutline.findCard(state.model, target.beforeCardId);
+      lineIndex = found ? found.card.start : firstEventEnd();
+    } else if (target && target.afterCardId != null) {
       const found = EditorOutline.findCard(state.model, target.afterCardId);
       lineIndex = found ? found.card.end : firstEventEnd();
     } else if (target && target.eventRef) {
@@ -70,7 +78,7 @@ const Editor = (() => {
     } else {
       lineIndex = firstEventEnd();
     }
-    applyModel(EditorOutline.insertAtLine(state.model, lineIndex, block));
+    applyModel(EditorOutline.insertAtLine(state.model, lineIndex, blockWithTargetColumn(block, target)));
   }
 
   // Insert point at the end of an event's cards (before a trailing <hr>).
@@ -136,10 +144,10 @@ const Editor = (() => {
         EditorForm.openNarrative(block, state.model, (text) => replaceNarrativeBlock(id, text));
       }
     },
-    cardMenu(id, x, y) {
+    cardMenu(id, x, y, ctx) {
       // Listeners persist after toggling off (no re-render), so gate here.
       if (!state.enabled) return;
-      if (typeof EditorContextMenu !== "undefined") EditorContextMenu.openCard(id, x, y, handlers);
+      if (typeof EditorContextMenu !== "undefined") EditorContextMenu.openCard(id, x, y, handlers, ctx);
     },
     insertMenu(target, x, y) {
       if (!state.enabled) return;

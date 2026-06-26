@@ -121,30 +121,73 @@ const EditorAnchors = (() => {
       eventRef: ctx && ctx.eventRef,
     };
     const divs = [...container.querySelectorAll(CARD_DIV_SELECTOR)];
+    if (divs.length !== cards.length) {
+      console.warn(`[editor] card anchor mismatch in ${container.className || "container"}: dom=${divs.length} model=${cards.length}`);
+      if (!container._editorContextMenuBound) bindColumnContextMenu(container, cards, handlers, ctx);
+      container.appendChild(insertZone(container._editorDropTarget, handlers));
+      return;
+    }
     cards.forEach((card, i) => {
       const el = divs[i];
       if (!el) return;
       el.dataset.blockId = String(card.id);
-      decorateCard(el, card, handlers);
+      decorateCard(el, card, handlers, {
+        column: container.dataset.col || null,
+        eventRef: ctx && ctx.eventRef,
+      });
     });
-    const lastCard = cards.length ? cards[cards.length - 1] : null;
-    const target = {
-      afterCardId: lastCard ? lastCard.id : null,
-      column: container.dataset.col || null,
-      eventRef: ctx && ctx.eventRef,
-    };
-    // Right-click anywhere empty in the column opens the insert menu for it.
+    bindColumnContextMenu(container, cards, handlers, ctx);
+    // An explicit insert zone at the end of the column.
+    container.appendChild(insertZone(container._editorDropTarget, handlers));
+  }
+
+  function insertTargetFromPoint(container, cards, y, ctx) {
+    const column = container.dataset.col || null;
+    const base = { column, eventRef: ctx && ctx.eventRef };
+    if (!cards.length) return Object.assign({ afterCardId: null }, base);
+
+    const divs = [...container.querySelectorAll(":scope > .editor-card[data-block-id]")];
+    for (let i = 0; i < Math.min(cards.length, divs.length); i++) {
+      const rect = divs[i].getBoundingClientRect();
+      if (y < rect.top) return Object.assign({ beforeCardId: cards[i].id }, base);
+      if (y <= rect.bottom) {
+        return y < rect.top + rect.height / 2
+          ? Object.assign({ beforeCardId: cards[i].id }, base)
+          : Object.assign({ afterCardId: cards[i].id }, base);
+      }
+      const next = divs[i + 1];
+      if (next && y < next.getBoundingClientRect().top) {
+        const gapMid = rect.bottom + (next.getBoundingClientRect().top - rect.bottom) / 2;
+        return y < gapMid
+          ? Object.assign({ afterCardId: cards[i].id }, base)
+          : Object.assign({ beforeCardId: cards[i + 1].id }, base);
+      }
+    }
+    return Object.assign({ afterCardId: cards[cards.length - 1].id }, base);
+  }
+
+  function bindColumnContextMenu(container, cards, handlers, ctx) {
+    container._editorInsertCards = cards.slice();
+    container._editorInsertCtx = ctx || null;
+    if (container._editorContextMenuBound) return;
+    container._editorContextMenuBound = true;
+    // Right-click anywhere empty in the column opens the insert menu at the
+    // closest source position instead of always appending to the end.
     container.addEventListener("contextmenu", (e) => {
       if (!editorOn()) return; // listeners persist when toggled off
       if (e.target.closest(".editor-card")) return; // a card handles its own menu
       e.preventDefault();
+      const target = insertTargetFromPoint(
+        container,
+        container._editorInsertCards || [],
+        e.clientY,
+        container._editorInsertCtx
+      );
       handlers.insertMenu(target, e.clientX, e.clientY);
     });
-    // An explicit insert zone at the end of the column.
-    container.appendChild(insertZone(target, handlers));
   }
 
-  function decorateCard(el, card, handlers) {
+  function decorateCard(el, card, handlers, ctx) {
     if (el.querySelector(":scope > .editor-card-tools")) return; // idempotent
     el.classList.add("editor-card");
     const tools = document.createElement("div");
@@ -161,7 +204,7 @@ const EditorAnchors = (() => {
       if (!editorOn()) return;
       e.preventDefault();
       e.stopPropagation();
-      handlers.cardMenu(card.id, e.clientX, e.clientY);
+      handlers.cardMenu(card.id, e.clientX, e.clientY, ctx || {});
     });
   }
 

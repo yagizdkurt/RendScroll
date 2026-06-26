@@ -149,11 +149,9 @@ function npcSectionTitle(text) {
 }
 
 // Build one NPC card from its heading + body nodes (produced by marked from the
-// card's parsed source). Returns the card element, or null when there is no body
-// (the bare heading is then left untouched, as the old enhancer did).
+// card's parsed source). A title-only NPC still returns a real card so editor
+// anchors can attach tools to it.
 function buildNpcCard(head, nodes) {
-    if (!nodes.length) return null;
-
     const card = document.createElement("div");
     card.className = "npc-card";
 

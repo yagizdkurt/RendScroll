@@ -76,10 +76,9 @@ function isItemPropertiesLabel(node) {
 }
 
 // Build one Item card from its heading + body nodes (produced by marked from the
-// card's parsed source). Returns the card element, or null when there is no body.
+// card's parsed source). A title-only Item still returns a real card so editor
+// anchors can attach tools to it.
 function buildItemCard(head, nodes) {
-    if (!nodes.length) return null;
-
     // Items render in the left column by default; a "Side: R" line (pulled out
     // of the meta block below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");

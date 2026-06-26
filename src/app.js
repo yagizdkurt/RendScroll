@@ -307,9 +307,74 @@ function onNavContextKey(e) {
   if (e.key === "Escape") removeNavContextMenu();
 }
 
+function confirmDeleteCampaignEntry(entry) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "editor-modal-backdrop nav-delete-backdrop";
+
+    const modal = document.createElement("div");
+    modal.className = "editor-modal nav-delete-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "nav-delete-title");
+
+    const head = document.createElement("div");
+    head.className = "editor-modal-head";
+    head.id = "nav-delete-title";
+    head.textContent = `Delete "${entry.label}"?`;
+
+    const body = document.createElement("div");
+    body.className = "editor-modal-body";
+    const text = document.createElement("p");
+    text.className = "nav-delete-message";
+    text.textContent = "This cannot be undone.";
+    body.appendChild(text);
+
+    const foot = document.createElement("div");
+    foot.className = "editor-modal-foot";
+
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "editor-btn";
+    cancel.textContent = "Cancel";
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "editor-btn danger";
+    del.textContent = "Delete";
+
+    function close(result) {
+      document.removeEventListener("keydown", onKeydown);
+      backdrop.remove();
+      resolve(result);
+    }
+
+    function onKeydown(e) {
+      if (e.key === "Escape") close(false);
+      if (e.key === "Enter") close(true);
+    }
+
+    cancel.addEventListener("click", () => close(false));
+    del.addEventListener("click", () => close(true));
+    backdrop.addEventListener("mousedown", (e) => {
+      if (e.target === backdrop) close(false);
+    });
+
+    foot.appendChild(cancel);
+    foot.appendChild(del);
+    modal.appendChild(head);
+    modal.appendChild(body);
+    modal.appendChild(foot);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    document.addEventListener("keydown", onKeydown);
+    del.focus();
+  });
+}
+
 async function deleteCampaignEntry(entry) {
   const index = campaignEntries.findIndex((item) => item.path === entry.path);
-  if (!confirm(`Delete "${entry.label}"? This cannot be undone.`)) return;
+  if (!(await confirmDeleteCampaignEntry(entry))) return;
 
   try {
     await deleteCampaignFile(entry.path);
