@@ -583,8 +583,8 @@ def chrome_candidates():
     return paths
 
 
-def configure_chrome_print_preferences(profile_dir):
-    """Seed the temporary Chrome profile with clean PDF export defaults."""
+def configure_chrome_preferences(profile_dir):
+    """Seed the temporary Chrome profile with app-specific defaults."""
     default_dir = os.path.join(profile_dir, "Default")
     os.makedirs(default_dir, exist_ok=True)
 
@@ -602,10 +602,16 @@ def configure_chrome_print_preferences(profile_dir):
         "isCssBackgroundEnabled": True,
     }
     preferences = {
+        "intl": {
+            "accept_languages": "tr,tr-TR,en-US,en",
+        },
         "printing": {
             "print_preview_sticky_settings": {
                 "appState": json.dumps(app_state, separators=(",", ":")),
             }
+        },
+        "translate": {
+            "enabled": False,
         }
     }
 
@@ -618,13 +624,16 @@ def open_browser(url):
     for chrome_path in chrome_candidates():
         if os.path.exists(chrome_path):
             profile_dir = tempfile.mkdtemp(prefix="rendscroll-chrome-")
-            configure_chrome_print_preferences(profile_dir)
+            configure_chrome_preferences(profile_dir)
             process = subprocess.Popen([
                 chrome_path,
                 f"--app={url}",
                 f"--user-data-dir={profile_dir}",
                 "--no-first-run",
                 "--disable-first-run-ui",
+                "--disable-translate",
+                "--disable-features=Translate",
+                "--lang=tr",
             ])
             return process, profile_dir, "chrome"
 
