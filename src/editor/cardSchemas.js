@@ -232,6 +232,10 @@ const EditorSchemas = (() => {
     options: [{ value: "left", label: "Left" }, { value: "right", label: "Right" }],
     default: "left",
   };
+  const fTextSize = {
+    key: "textSize", label: "Text Size", kind: "text", mdLabel: "Text Size",
+    inputMode: "numeric", defaultOption: "defaultCardTextSize",
+  };
   const rarityField = (md) => ({
     key: "rarity", label: "Rarity", kind: "select", mdLabel: md,
     options: [
@@ -276,6 +280,7 @@ const EditorSchemas = (() => {
     { key: "ac", label: "AC", kind: "text", mdLabel: "AC" },
     fImage, fBg,
     fColumn,
+    fTextSize,
     fBodyWithChecks("İlk Diyalog: / Sorarsa: / Bildikleri: / dialogue topics / Checks: …", "npc"),
     fClosed,
   ]);
@@ -286,6 +291,7 @@ const EditorSchemas = (() => {
     rarityField("Nadirlik"),
     fImage,
     fColumn,
+    fTextSize,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, extra lines…"),
     fStuck, fClosed,
@@ -315,6 +321,7 @@ const EditorSchemas = (() => {
     { key: "cooldown", label: "Cooldown (Bekleme)", kind: "text", mdLabel: "Bekleme" },
     rarityField("Nadirlik"),
     fColumn,
+    fTextSize,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, Lore: …"),
     fStuck, fClosed,
@@ -324,6 +331,7 @@ const EditorSchemas = (() => {
     fTitle,
     fImage, fBg,
     fColumn,
+    fTextSize,
     fBodyWithChecks("> description, Checks: / Loot: …", "obj"),
     fClosed,
   ]);
@@ -332,6 +340,7 @@ const EditorSchemas = (() => {
     fTitle,
     fImage,
     fColumn,
+    fTextSize,
     fBodyWithChecks("> opening, Stat: / Taktik: …", "combat"),
     fClosed,
   ]);
@@ -339,6 +348,7 @@ const EditorSchemas = (() => {
   define("unexpected", "Unexpected", keywordHeading("Unexpected"), [
     { key: "title", label: "Title (optional)", kind: "text" },
     fColumn,
+    fTextSize,
     fBody("- contingency lines…"),
     fClosed,
   ]);
@@ -347,6 +357,7 @@ const EditorSchemas = (() => {
     { key: "title", label: "Title (optional)", kind: "text" },
     fImage,
     fColumn,
+    fTextSize,
     fBody("> read-aloud / paragraphs…"),
     fClosed,
   ]);
@@ -357,6 +368,7 @@ const EditorSchemas = (() => {
   }, [
     fChecks,
     fColumn,
+    fTextSize,
     fClosed,
   ]);
 

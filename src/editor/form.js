@@ -371,6 +371,7 @@ const EditorForm = (() => {
       input.type = "text";
       input.id = id;
       input.value = value || "";
+      if (field.inputMode) input.inputMode = field.inputMode;
       if (field.hint) input.placeholder = field.hint;
       wrap.appendChild(input);
       getValue = () => input.value;
@@ -713,6 +714,7 @@ const EditorForm = (() => {
     schema.fields.forEach((f) => {
       if (f.kind === "list") v[f.key] = [];
       else if (f.kind === "flag") v[f.key] = false;
+      else if (f.defaultOption && typeof RendererOptions !== "undefined") v[f.key] = RendererOptions.get(f.defaultOption) || "";
       else v[f.key] = f.default != null ? f.default : "";
     });
     return v;

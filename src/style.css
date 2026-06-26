@@ -1570,6 +1570,49 @@ body.opt-readaloud-accent .page blockquote.read-aloud{
    heading is collapsed. */
 .page .is-hidden-by-heading{display:none;}
 
+/* ---------- Inline / card text sizing ---------- */
+.page .rs-inline-size{line-height:1.1;}
+
+.page .sc-card p,
+.page .npc-card p,
+.page .obj-card p,
+.page .item-card p,
+.page .ability-card p,
+.page .combat-card p,
+.page .unexpected-card p,
+.page .std-card p{
+  font-size:calc(1.14rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
+.page .sc-card blockquote.read-aloud p,
+.page .npc-card blockquote.read-aloud p,
+.page .obj-card blockquote.read-aloud p,
+.page .item-card blockquote.read-aloud p,
+.page .ability-card blockquote.read-aloud p,
+.page .combat-card blockquote.read-aloud p,
+.page .unexpected-card blockquote.read-aloud p,
+.page .std-card blockquote.read-aloud p{
+  font-size:calc(1.13rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
+.page .sc-card li,
+.page .npc-card li,
+.page .obj-card li,
+.page .item-card li,
+.page .ability-card li,
+.page .combat-card li,
+.page .unexpected-card li,
+.page .std-card li{
+  font-size:calc(1.1rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
+.page .sc-text,
+.page .item-meta-value,
+.page .ability-meta-value,
+.page .npc-stat-value{
+  font-size:calc(1rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width:760px){
   body{flex-direction:column;}
@@ -1610,7 +1653,25 @@ body.opt-readaloud-accent .page blockquote.read-aloud{
   .page-grid > .col-divider{display:none;}
   .page{padding:34px 24px 44px;}
   .page h1{font-size:2rem;}
-  .page p,.page blockquote.read-aloud p{font-size:1.05rem;}
+  .page p,.page blockquote.read-aloud p{font-size:calc(1.05rem * var(--ro-text));}
+  .page .sc-card p,
+  .page .npc-card p,
+  .page .obj-card p,
+  .page .item-card p,
+  .page .ability-card p,
+  .page .combat-card p,
+  .page .unexpected-card p,
+  .page .std-card p,
+  .page .sc-card blockquote.read-aloud p,
+  .page .npc-card blockquote.read-aloud p,
+  .page .obj-card blockquote.read-aloud p,
+  .page .item-card blockquote.read-aloud p,
+  .page .ability-card blockquote.read-aloud p,
+  .page .combat-card blockquote.read-aloud p,
+  .page .unexpected-card blockquote.read-aloud p,
+  .page .std-card blockquote.read-aloud p{
+    font-size:calc(1.05rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+  }
   /* Stack the header content above a full-width portrait on narrow screens. */
   .page .card-figure{flex-direction:column;}
   .page .card-portrait{flex-basis:auto; width:100%; min-height:10rem;}

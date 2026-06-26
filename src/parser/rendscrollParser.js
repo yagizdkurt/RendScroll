@@ -62,7 +62,7 @@ const RendScrollParser = (() => {
   // as the renderers do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
   const DIRECTIVE_NAMES = new Set([
-    "side", "image", "bg", "closed", "yapışık", "connect", "combine",
+    "side", "image", "bg", "closed", "textsize", "yapışık", "connect", "combine",
   ]);
   const STUCK_NAMES = new Set(["yapışık", "connect", "combine"]);
   const TRUTHY = new Set(["t", "true", "yes", "1", "evet"]);
@@ -322,9 +322,13 @@ const RendScrollParser = (() => {
   function matchDirective(t) {
     const m = t.match(/^([^:]+):\s*(.*)$/);
     if (m) {
-      const name = keywordLower(m[1].trim());
+      const name = keywordLower(m[1].trim()).replace(/[\s_-]+/g, "");
       const value = m[2].trim();
       if (DIRECTIVE_NAMES.has(name)) {
+        if (name === "textsize") {
+          const size = Number(value);
+          if (!/^\d+(?:\.\d+)?$/.test(value) || size < 8 || size > 32) return null;
+        }
         if (value === "") return { kind: "malformed", reason: "directive missing value" };
         return { kind: "directive", name, rawLabel: m[1].trim(), value };
       }

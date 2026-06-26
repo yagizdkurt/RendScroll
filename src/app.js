@@ -83,6 +83,34 @@ const CARD_BUILDERS = {
   std: buildStdCard,
 };
 
+const CARD_TEXT_SIZE_DEFAULT_PX = 18.24; // current .page p default: 1.14rem at 16px
+const CARD_TEXT_SIZE_RE = /^\s*text\s*size\s*:\s*(\d+(?:\.\d+)?)\s*$/i;
+
+function validCardTextSize(value) {
+  const n = Number(value);
+  return /^\d+(?:\.\d+)?$/.test(String(value || "")) && n >= 8 && n <= 32;
+}
+
+function cardTextSize(card) {
+  const d = card.directives.find((x) => x.name === "textsize");
+  return d && validCardTextSize(d.value) ? Number(d.value) : null;
+}
+
+function stripCardTextSize(src) {
+  return String(src || "")
+    .split(/\r?\n/)
+    .filter((line) => {
+      const m = line.match(CARD_TEXT_SIZE_RE);
+      return !(m && validCardTextSize(m[1]));
+    })
+    .join("\n");
+}
+
+function applyCardTextSize(cardEl, size) {
+  if (!cardEl || !cardEl.classList || size == null) return;
+  cardEl.style.setProperty("--rs-card-text-scale", String(size / CARD_TEXT_SIZE_DEFAULT_PX));
+}
+
 /* Per-card source isolation, selected by the parsed card type. Each helper only
    isolates directive/label lines WITHIN its own card (the card source starts with
    its heading), so a card written with "Az Enter" still parses. This is the
@@ -130,9 +158,11 @@ function renderSectionHeading(doc, section) {
 // nodes) into a card; a missing builder or a null result leaves the raw nodes.
 function renderCardBlock(doc, card) {
   const builder = CARD_BUILDERS[card.type];
-  const els = markedToElements(isolateCardSource(card.type, cardRawSource(doc, card)));
+  const src = stripCardTextSize(cardRawSource(doc, card));
+  const els = markedToElements(isolateCardSource(card.type, src));
   if (!builder) return els;
   const cardEl = builder(els[0], els.slice(1));
+  applyCardTextSize(cardEl, cardTextSize(card));
   return cardEl ? [cardEl] : els;
 }
 

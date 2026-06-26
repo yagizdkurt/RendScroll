@@ -16,11 +16,22 @@ const RendererOptions = (() => {
 
   const SCHEMA = {
     textSize: {
-      type: "choice", attr: "textsize", default: "md", label: "Text Size",
+      type: "choice", attr: "textsize", default: "md", label: "Reader Text Scale",
       choices: [
         { value: "sm", label: "Small" },
         { value: "md", label: "Normal" },
         { value: "lg", label: "Large" },
+      ],
+    },
+    defaultCardTextSize: {
+      type: "choice", default: "16", label: "Default Text Size",
+      choices: [
+        { value: "10", label: "10" },
+        { value: "12", label: "12" },
+        { value: "14", label: "14" },
+        { value: "16", label: "16" },
+        { value: "18", label: "18" },
+        { value: "20", label: "20" },
       ],
     },
     pageWidth: {
@@ -74,7 +85,7 @@ const RendererOptions = (() => {
       if (opt.type === "toggle") {
         document.body.classList.toggle(opt.bodyClass, state[k]);
       } else {
-        document.body.setAttribute("data-opt-" + opt.attr, state[k]);
+        if (opt.attr) document.body.setAttribute("data-opt-" + opt.attr, state[k]);
       }
     }
   }
