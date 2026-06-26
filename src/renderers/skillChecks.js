@@ -27,76 +27,9 @@ function scDcClass(dc) {
   return "sc-dc-deadly";
 }
 
-// Ability metadata (key -> { icon, full }). Standard skills carry their
-// governing ability's icon; STR:/INT:/... shorthands render the full name.
-const SC_ABILITY = {
-  str: { icon: "💪", full: "Strength" },
-  dex: { icon: "🏃", full: "Dexterity" },
-  con: { icon: "❤️", full: "Constitution" },
-  int: { icon: "🧠", full: "Intelligence" },
-  wis: { icon: "👁", full: "Wisdom" },
-  cha: { icon: "💬", full: "Charisma" },
-};
-
-// Ability-check shorthands / aliases -> ability key (e.g. "STR:" / "Strength").
-const SC_ABILITY_ALIAS = {
-  str: "str", strength: "str",
-  dex: "dex", dexterity: "dex",
-  con: "con", constitution: "con",
-  int: "int", intelligence: "int",
-  wis: "wis", wisdom: "wis",
-  cha: "cha", charisma: "cha",
-};
-
-// Standard D&D skill -> governing ability (for the leading icon).
-const SC_SKILL_ABILITY = {
-  athletics: "str",
-  acrobatics: "dex", "sleight of hand": "dex", stealth: "dex",
-  arcana: "int", history: "int", investigation: "int", nature: "int", religion: "int",
-  "animal handling": "wis", insight: "wis", medicine: "wis", perception: "wis", survival: "wis",
-  deception: "cha", intimidation: "cha", performance: "cha", persuasion: "cha",
-};
-
-// Info spells: short or full spelling -> { disp (render form), icon, noDC }.
-// disp = null keeps the written name (e.g. Detect Magic). These get a mystic
-// accent. SWD's values are sequence numbers, not DCs (noDC).
-const SC_SPELL = [
-  { re: /^(swd|speak with dead)$/, disp: "SWD", icon: "💀", noDC: true },
-  { re: /^(dt|detect thoughts?)$/, disp: "DT", icon: "🧠", noDC: false },
-  { re: /^(swa|speak with animals?)$/, disp: "SWA", icon: "🐾", noDC: false },
-  { re: /detect magic/, disp: null, icon: "✨", noDC: false },
-];
-
-// Passive Perception / İlk Bakışta -> eye icon + mystic accent.
-const SC_PASSIVE = /passive|ilk bak/;
-
 // Resolve a raw skill name -> { display, icon, mystic, noDC }.
 function scResolveSkill(name) {
-  const lname = rsLower(name);
-  // English table keys use dotted "i"; rsLower turns a capital "I" into dotless
-  // "ı" (Investigation -> ınvestigation), so normalize it back for lookups.
-  const key = lname.replace(/ı/g, "i");
-
-  const spell = SC_SPELL.find((s) => s.re.test(key));
-  if (spell) {
-    return { display: spell.disp || name, icon: spell.icon, mystic: true, noDC: spell.noDC };
-  }
-
-  if (SC_PASSIVE.test(lname)) {
-    return { display: name, icon: "👁", mystic: true, noDC: false };
-  }
-
-  const abilKey = SC_ABILITY_ALIAS[key];
-  if (abilKey) {
-    return { display: SC_ABILITY[abilKey].full, icon: SC_ABILITY[abilKey].icon, mystic: false, noDC: false };
-  }
-
-  const skillAbil = SC_SKILL_ABILITY[key];
-  if (skillAbil) {
-    return { display: name, icon: SC_ABILITY[skillAbil].icon, mystic: false, noDC: false };
-  }
-
-  return { display: name, icon: null, mystic: false, noDC: false };
+  return RendScrollSkillChecks.resolveSkill(name);
 }
 
 // One DC line ("15: text" / "1: text" / "F: text") -> a row with a compact badge.

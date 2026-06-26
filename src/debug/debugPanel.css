@@ -101,6 +101,15 @@
 }
 .rsd-empty { color: #9a8e74; padding: 24px 4px; text-align: center; }
 .rsd-empty.rsd-error { color: #e08a7a; }
+.rsd-loading, .rsd-note {
+  color: #9a8e74;
+  font-size: 12px;
+  padding: 4px 2px 8px;
+}
+.rsd-note {
+  font-family: ui-monospace, Consolas, monospace;
+  line-height: 1.35;
+}
 
 .rsd-section { display: block; }
 .rsd-subhead {
@@ -123,6 +132,14 @@
 .rsd-pill-warn { background: #3d3110; color: #e9d49a; }
 
 /* issues */
+.rsd-issue-group { margin-bottom: 8px; }
+.rsd-file-head {
+  margin: 10px 0 4px;
+  color: var(--gold, #c9ad6a);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  word-break: break-word;
+}
 .rsd-issues { display: flex; flex-direction: column; gap: 3px; }
 .rsd-issue {
   display: grid;
@@ -182,6 +199,12 @@
   border-radius: 6px;
   padding: 10px;
   overflow: auto;
+}
+.rsd-ast-pre {
+  color: #f1c4bd;
+  background: #1f1110;
+  border-color: #6f302b;
+  box-shadow: inset 0 0 0 1px rgba(180, 76, 65, 0.16);
 }
 
 /* assets */

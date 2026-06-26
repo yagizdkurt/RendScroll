@@ -111,9 +111,15 @@ def run_lint():
 
 
 def format_issue_message(msg):
-    if msg.startswith('non-standard check "') and msg.endswith('" (misspell or custom?)'):
-        return "non-standard check: " + msg[len('non-standard check "'):-len('" (misspell or custom?)')]
     return msg
+
+
+def ordered_issue_files(files, issues):
+    ordered = list(files)
+    for _, filename, _, _ in issues:
+        if filename not in ordered:
+            ordered.append(filename)
+    return ordered
 
 
 def print_diagnostics(result):
@@ -126,7 +132,7 @@ def print_diagnostics(result):
 
     if issues:
         print_indented()
-        for filename in files:
+        for filename in ordered_issue_files(files, issues):
             file_issues = sorted((x for x in issues if x[1] == filename), key=lambda x: x[2])
             if not file_issues:
                 continue

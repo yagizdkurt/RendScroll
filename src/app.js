@@ -12,6 +12,7 @@ const page = document.getElementById("page");
 const sidebarToggle = document.getElementById("sidebar-toggle");
 const newPageButton = document.getElementById("new-page-button");
 let currentPath = null;
+let campaignEntries = [];
 
 /* Known label lines from the template that should stand out. */
 const FIELD_LABELS = new Set([
@@ -357,6 +358,7 @@ function openNewPageDialog() {
     try {
       const entry = await createCampaignFile(title);
       const entries = await loadCampaignEntries();
+      campaignEntries = entries;
       mountCampaignEntries(entries);
       await load(entry.path);
       close();
@@ -399,6 +401,7 @@ window.__rsDump = () => {
 window.RendScrollApp = {
   currentSource: () => window.__rsLastSource || "",
   currentPath: () => currentPath,
+  campaignEntries: () => campaignEntries.slice(),
 };
 
 async function init() {
@@ -416,6 +419,7 @@ async function init() {
   let entries;
   try {
     entries = await loadCampaignEntries();
+    campaignEntries = entries;
   } catch {
     showNavError("Campaign files could not be discovered. Start RendScroll with launcher.py.");
     return;
