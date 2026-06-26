@@ -393,6 +393,14 @@ window.__rsDump = () => {
   return json;
 };
 
+/* Small, read-only accessor so tooling (e.g. the Debug panel, src/debug/) can
+   read the same scene state the renderer/editor use, without duplicating the
+   file-fetch logic. Additive — the dev hooks above are unchanged. */
+window.RendScrollApp = {
+  currentSource: () => window.__rsLastSource || "",
+  currentPath: () => currentPath,
+};
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>

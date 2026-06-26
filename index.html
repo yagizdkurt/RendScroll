@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="src/style.css">
 <link rel="stylesheet" href="src/editor/editor.css">
 <link rel="stylesheet" href="src/printer/printer.css">
+<link rel="stylesheet" href="src/debug/debugPanel.css">
 </head>
 <body>
   <aside id="sidebar">
@@ -61,5 +62,7 @@
   <script src="src/editor/editor.js"></script>
   <!-- Printer mode (export-only; reads the rendered #page, changes nothing) -->
   <script src="src/printer/printer.js"></script>
+  <!-- Debug panel (dev-only; read-only parser diagnostics, excluded from print) -->
+  <script src="src/debug/debugPanel.js"></script>
 </body>
 </html>

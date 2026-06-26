@@ -1,0 +1,202 @@
+/* RendScroll Debug Panel styling.
+
+   A developer tool: visually in the RendScroll family (gold/maroon accents, the
+   app's display font for headings) but clearly a dev surface (dark, monospace
+   content). Hidden until .is-open; fully excluded from print/PDF export. */
+
+/* --- toolbar toggle button ------------------------------------------------ */
+#rs-debug-toggle.rsd-toggle-btn {
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  padding: 4px 10px;
+  border: 1px solid var(--gold-deep, #9c7e3c);
+  border-radius: 6px;
+  background: #2a211b;
+  color: var(--gold, #c9ad6a);
+  cursor: pointer;
+}
+#rs-debug-toggle.rsd-toggle-btn:hover { background: #34291f; }
+#rs-debug-toggle.rsd-toggle-btn.is-active {
+  background: var(--gold, #c9ad6a);
+  color: #211a13;
+}
+
+/* --- panel shell ---------------------------------------------------------- */
+#rs-debug-panel {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 480px;
+  max-width: 92vw;
+  height: 100vh;
+  z-index: 4000;
+  flex-direction: column;
+  background: #1b1714;
+  color: #e7ddc7;
+  border-left: 2px solid var(--gold-deep, #9c7e3c);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.45);
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 13px;
+}
+#rs-debug-panel.is-open { display: flex; }
+
+.rsd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #2a211b, #211a14);
+  border-bottom: 1px solid #3a2f24;
+}
+.rsd-title {
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  color: var(--gold, #c9ad6a);
+  letter-spacing: 0.03em;
+}
+.rsd-close {
+  border: none;
+  background: transparent;
+  color: #cdbf9e;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.rsd-close:hover { color: #fff; }
+
+/* --- tabs ----------------------------------------------------------------- */
+.rsd-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+  background: #211a14;
+  border-bottom: 1px solid #3a2f24;
+}
+.rsd-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: #2a211b;
+  color: #c3b491;
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+}
+.rsd-tab:hover { background: #34291f; color: #e7ddc7; }
+.rsd-tab.is-active {
+  background: #1b1714;
+  color: var(--gold, #c9ad6a);
+  border-color: #3a2f24;
+}
+
+/* --- body ----------------------------------------------------------------- */
+.rsd-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 14px;
+}
+.rsd-empty { color: #9a8e74; padding: 24px 4px; text-align: center; }
+.rsd-empty.rsd-error { color: #e08a7a; }
+
+.rsd-section { display: block; }
+.rsd-subhead {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9c8d6f;
+}
+
+/* summary pills */
+.rsd-summary { display: flex; gap: 8px; margin-bottom: 10px; }
+.rsd-pill {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.rsd-pill-err { background: #4a1410; color: #ffb4a3; }
+.rsd-pill-warn { background: #3d3110; color: #e9d49a; }
+
+/* issues */
+.rsd-issues { display: flex; flex-direction: column; gap: 3px; }
+.rsd-issue {
+  display: grid;
+  grid-template-columns: 16px 34px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #221b15;
+}
+.rsd-issue .rsd-icon { text-align: center; }
+.rsd-issue .rsd-line { color: #8f815f; font-variant-numeric: tabular-nums; }
+.rsd-error .rsd-icon, .rsd-error .rsd-msg { color: #f0a08e; }
+.rsd-warn .rsd-icon, .rsd-warn .rsd-msg { color: #e6cd8e; }
+.rsd-ok { color: #94c08a; padding: 6px 2px; }
+.rsd-ok-i { color: #94c08a; }
+.rsd-err-i { color: #f0a08e; }
+
+/* card map */
+.rsd-cardmap, .rsd-assets { display: flex; flex-direction: column; gap: 3px; }
+.rsd-cardrow, .rsd-asset {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 6px;
+  background: #221b15;
+  border-radius: 4px;
+}
+.rsd-tag, .rsd-asset-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: #3a2f22;
+  color: var(--gold, #c9ad6a);
+  white-space: nowrap;
+}
+.rsd-cardtitle { color: #e7ddc7; }
+.rsd-flags { margin-left: auto; color: #8f815f; font-size: 11px; }
+
+/* key/value grid */
+.rsd-kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+.rsd-k { color: #9c8d6f; }
+.rsd-v { color: #e7ddc7; word-break: break-word; }
+
+/* AST dump */
+.rsd-pre {
+  margin: 0;
+  white-space: pre;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #d6e2c8;
+  background: #141210;
+  border: 1px solid #2e261d;
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+}
+
+/* assets */
+.rsd-asset-status { width: 14px; text-align: center; }
+.rsd-asset-val { color: #e7ddc7; }
+.rsd-asset-url {
+  margin-left: auto;
+  color: #8f9c7a;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* --- never print the dev panel ------------------------------------------- */
+@media print {
+  #rs-debug-panel,
+  #rs-debug-toggle { display: none !important; }
+}
