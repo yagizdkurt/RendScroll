@@ -23,6 +23,7 @@ const RendererOptions = (() => {
   const CURRENT_URL = "options.current.json";
   const SAVE_ENDPOINT = "/__save_options";
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // ~2 MB guard for uploaded PNGs
+  const PARCHIMENT_IMAGE_URL = "src/STDImages/parchiment.png";
 
   const SCHEMA = {
     // ---- Reader ----
@@ -96,8 +97,9 @@ const RendererOptions = (() => {
       ],
     },
     pageBackground: {
-      section: "Theme", type: "choice", attr: "pagebg", default: "custom", label: "Page Background",
+      section: "Theme", type: "choice", attr: "pagebg", default: "parchiment", label: "Page Background",
       choices: [
+        { value: "parchiment", label: "Parchiment" },
         { value: "parchment", label: "Parchment" },
         { value: "aged", label: "Aged" },
         { value: "slate", label: "Slate" },
@@ -106,7 +108,7 @@ const RendererOptions = (() => {
       ],
     },
     pageBackgroundImage: {
-      section: "Theme", type: "image", default: "src/STDImages/parchiment.png", label: "Custom Background (PNG)",
+      section: "Theme", type: "image", default: "", label: "Custom Background (PNG)",
     },
   };
 
@@ -193,10 +195,12 @@ const RendererOptions = (() => {
       if (opt.type === "toggle") {
         document.body.classList.toggle(opt.bodyClass, !!state[k]);
       } else if (opt.type === "image") {
-        if (state[k]) document.body.style.setProperty("--page-bg-custom", `url("${state[k]}")`);
+        const image = state.pageBackground === "parchiment" ? PARCHIMENT_IMAGE_URL : state[k];
+        if (image) document.body.style.setProperty("--page-bg-custom", `url("${image}")`);
         else document.body.style.removeProperty("--page-bg-custom");
       } else if (opt.attr) {
-        document.body.setAttribute("data-opt-" + opt.attr, state[k]);
+        const value = k === "pageBackground" && state[k] === "parchiment" ? "custom" : state[k];
+        document.body.setAttribute("data-opt-" + opt.attr, value);
       }
     }
   }
@@ -466,7 +470,9 @@ const RendererOptions = (() => {
     btn.className = "opt-launcher renderer-options-toggle print-hide";
     btn.textContent = "Options ▾";
     btn.addEventListener("click", (e) => { e.stopPropagation(); openModal(); });
-    container.appendChild(btn);
+    const debugToggle = container.querySelector("#rs-debug-toggle");
+    if (debugToggle) container.insertBefore(btn, debugToggle);
+    else container.appendChild(btn);
   }
 
   return { SCHEMA, init, get, set, apply, mount };

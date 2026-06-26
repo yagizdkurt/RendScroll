@@ -307,9 +307,10 @@
       document.getElementById("sidebar");
     if (!host || document.getElementById("rs-debug-toggle")) return;
 
-    const btn = el("button", "rsd-toggle-btn print-hide", "🐞 Debug");
+    const btn = el("button", "rsd-toggle-btn print-hide", "🐞");
     btn.id = "rs-debug-toggle";
     btn.type = "button";
+    btn.setAttribute("aria-label", "Open debug panel");
     btn.title = "Open the RendScroll parser debug panel";
     btn.addEventListener("click", api.toggle);
     host.appendChild(btn);
