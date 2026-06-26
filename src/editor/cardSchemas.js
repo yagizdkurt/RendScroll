@@ -20,9 +20,15 @@
    column, nothing for the default left). */
 
 const EditorSchemas = (() => {
-  function lower(s) {
-    return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-  }
+  // The canonical RendScroll parser owns the check/directive/body parsing helpers
+  // (parseChecks, parseLinesWithChecks, …). Browser: global `RendScrollParser`
+  // (loaded before this file). Node: require it. Delegating here keeps the editor
+  // and the renderer parsing identical by construction.
+  const RSP = (typeof RendScrollParser !== "undefined")
+    ? RendScrollParser
+    : require("../parser/rendscrollParser.js");
+
+  const lower = RSP.lower;
   const TRUTHY = /^(t|true|evet|yes|1)$/i;
 
   const CHECK_SKILL_OPTIONS = [
@@ -57,183 +63,15 @@ const EditorSchemas = (() => {
     "Detect Magic",
   ].map((name) => ({ value: name, label: name }));
 
-  const CHECK_LABEL_RE = /^(skill\s+)?checks?\s*:\s*$/i;
-  const NPC_TOPIC_RE = /^[ \t]*[\wÇĞİÖŞÜçğıöşü][\wÇĞİÖŞÜçğıöşü ]*:[ \t]*$/;
-  const COMBAT_LABEL_RE = /^[A-Za-zÇĞİÖŞÜçğıöşü ]+:\s*$/;
-
-  function trimOuterBlankLines(lines) {
-    const out = lines.slice();
-    while (out.length && out[0].trim() === "") out.shift();
-    while (out.length && out[out.length - 1].trim() === "") out.pop();
-    return out;
-  }
-
-  function ensureColon(text) {
-    const t = String(text || "").trim();
-    return /:\s*$/.test(t) || t.includes(":") ? t : t + ":";
-  }
-
-  function parseOutcome(text) {
-    const f = text.match(/^F:\s*(.*)$/i);
-    if (f) return { kind: "failure", text: f[1].trim() };
-    const dc = text.match(/^(\d+):\s*(.*)$/);
-    if (dc) return { kind: "dc", dc: dc[1], text: dc[2].trim() };
-    return { kind: "plain", text: text.trim() };
-  }
-
-  function serializeOutcome(outcome) {
-    const kind = outcome && outcome.kind ? outcome.kind : "dc";
-    const text = outcome && outcome.text != null ? String(outcome.text).trim() : "";
-    if (!text) return "";
-    if (kind === "failure") return "F: " + text;
-    if (kind === "plain") return text;
-    const dc = outcome && outcome.dc != null ? String(outcome.dc).trim() : "";
-    return (dc || "10") + ": " + text;
-  }
-
-  function parseChecks(text) {
-    const entries = [];
-    let current = null;
-
-    function pushCheck() {
-      if (current) entries.push(current);
-      current = null;
-    }
-
-    String(text || "").split(/\r?\n/).forEach((line) => {
-      const t = line.trim();
-      if (!t) return;
-
-      const item = t.match(/^[-*]\s+(.+)$/);
-      if (item) {
-        pushCheck();
-        current = {
-          kind: "check",
-          skill: item[1].trim().replace(/:\s*$/, ""),
-          outcomes: [],
-        };
-        return;
-      }
-
-      const quote = t.match(/^>\s*(.*)$/);
-      if (quote) {
-        if (!current) {
-          entries.push({ kind: "raw", text: line });
-          return;
-        }
-        current.outcomes.push(parseOutcome(quote[1]));
-        return;
-      }
-
-      pushCheck();
-      if (t.endsWith(":")) entries.push({ kind: "category", label: t.replace(/:\s*$/, "") });
-      else entries.push({ kind: "raw", text: line });
-    });
-
-    pushCheck();
-    return entries;
-  }
-
-  function serializeChecks(entries) {
-    let out = "";
-    (entries || []).forEach((entry) => {
-      if (!entry) return;
-      if (entry.kind === "category") {
-        const label = String(entry.label || "").trim();
-        if (label) out += ensureColon(label) + "\n";
-        return;
-      }
-      if (entry.kind === "raw") {
-        const text = String(entry.text || "").replace(/[ \t\r\n]+$/, "");
-        if (text) out += text + "\n";
-        return;
-      }
-      if (entry.kind !== "check") return;
-      const skill = String(entry.skill || "").trim();
-      if (!skill) return;
-      out += "- " + ensureColon(skill) + "\n";
-      (entry.outcomes || []).forEach((outcome) => {
-        const line = serializeOutcome(outcome);
-        if (line.trim()) out += "> " + line + "\n";
-      });
-    });
-    return out.replace(/[ \t\r\n]+$/, "");
-  }
-
-  function isEmbeddedBoundary(line, mode) {
-    const t = line.trim();
-    if (CHECK_LABEL_RE.test(t)) return true;
-    if (mode === "obj") return /^loot\s*:\s*$/i.test(t);
-    if (mode === "combat") return COMBAT_LABEL_RE.test(t);
-    if (mode === "npc") return NPC_TOPIC_RE.test(t);
-    return false;
-  }
-
-  function parseLinesWithChecks(text, mode) {
-    const segments = [];
-    let textLines = [];
-    let active = null;
-    let checkLines = [];
-
-    function flushText() {
-      const lines = trimOuterBlankLines(textLines);
-      if (lines.length) segments.push({ kind: "text", text: lines.join("\n") });
-      textLines = [];
-    }
-
-    function flushChecks() {
-      if (active) {
-        segments.push({
-          kind: "checksBlock",
-          label: active.label,
-          checks: parseChecks(checkLines.join("\n")),
-        });
-      }
-      active = null;
-      checkLines = [];
-    }
-
-    String(text || "").split(/\r?\n/).forEach((line) => {
-      const t = line.trim();
-      if (active) {
-        if (isEmbeddedBoundary(line, mode)) {
-          flushChecks();
-          if (CHECK_LABEL_RE.test(t)) active = { label: t.replace(/:\s*$/, "") };
-          else textLines.push(line);
-        } else {
-          checkLines.push(line);
-        }
-        return;
-      }
-
-      if (CHECK_LABEL_RE.test(t)) {
-        flushText();
-        active = { label: t.replace(/:\s*$/, "") };
-      } else {
-        textLines.push(line);
-      }
-    });
-
-    flushChecks();
-    flushText();
-    return segments;
-  }
-
-  function serializeLinesWithChecks(segments) {
-    const parts = [];
-    (segments || []).forEach((segment) => {
-      if (!segment) return;
-      if (segment.kind === "checksBlock") {
-        const checks = serializeChecks(segment.checks);
-        const label = ensureColon(segment.label || "Checks");
-        parts.push(checks ? label + "\n" + checks : label);
-      } else {
-        const text = String(segment.text || "").replace(/[ \t\r\n]+$/, "");
-        if (text) parts.push(text);
-      }
-    });
-    return parts.join("\n");
-  }
+  // Check / outcome / body parsing are owned by the canonical core — these used
+  // to be a verbatim copy. Delegating keeps the editor and renderer identical.
+  const ensureColon = RSP.ensureColon;
+  const parseOutcome = RSP.parseOutcome;
+  const serializeOutcome = RSP.serializeOutcome;
+  const parseChecks = RSP.parseChecks;
+  const serializeChecks = RSP.serializeChecks;
+  const parseLinesWithChecks = RSP.parseLinesWithChecks;
+  const serializeLinesWithChecks = RSP.serializeLinesWithChecks;
 
   // --- generic serialize ---------------------------------------------------
 

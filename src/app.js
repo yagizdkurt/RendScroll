@@ -293,6 +293,21 @@ function mountNewPageButton() {
   newPageButton.addEventListener("click", openNewPageDialog);
 }
 
+/* Dev-only: inspect the parsed RendScroll AST for the current scene without
+   touching rendering. In the console: `__rsDump()` prints readable JSON, and
+   `__rsParse()` returns the live document. Caches the raw source each scene load.
+   This is a passive observer of the existing pipeline (Phase 1 of the parser
+   migration); it changes nothing the user sees. */
+document.addEventListener("scene:loaded", (e) => {
+  window.__rsLastSource = e.detail && e.detail.text ? e.detail.text : "";
+});
+window.__rsParse = () => RendScrollParser.parseRendScroll(window.__rsLastSource || "");
+window.__rsDump = () => {
+  const json = RendScrollParser.debugDump(window.__rsParse());
+  console.log(json);
+  return json;
+};
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>

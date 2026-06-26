@@ -16,28 +16,25 @@
    Knows nothing about the DOM or the sidebar. */
 
 const EditorOutline = (() => {
-  // Turkish-aware lowercase (İ/I), matching every renderer's *Lower().
-  function lower(s) {
-    return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-  }
+  // The canonical RendScroll parser owns classification + the line primitives.
+  // Browser: global `RendScrollParser` (loaded before this file). Node: require.
+  const RSP = (typeof RendScrollParser !== "undefined")
+    ? RendScrollParser
+    : require("../parser/rendscrollParser.js");
 
-  // Split into lines that each KEEP their trailing newline, so join("") is the
-  // exact original (handles mixed LF / CRLF across files).
-  function splitLines(md) {
-    if (md === "") return [];
-    return md.match(/[^\n]*\n|[^\n]+$/g) || [];
-  }
+  // Classification + line primitives are delegated to the shared core so the
+  // editor model and the renderer agree by construction (single source of truth).
+  const lower = RSP.lower;
+  const splitLines = RSP.splitLines;
+  const lineText = RSP.lineText;
+  const cardType = RSP.cardType;
+  const cardTitle = RSP.cardTitle;
+  const canDock = RSP.canDock;
 
-  // Strip the trailing line break from a stored line for pattern testing.
-  function lineText(line) {
-    return line.replace(/\r?\n$/, "");
-  }
-
-  const HEADING_RE = /^(#{1,6})\s+(.*)$/;
-  const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
-  // item.js / ability.js: stuck if label yapışık|connect|combine and truthy.
-  const STUCK_RE = /^(yapışık|connect|combine)\s*:\s*(t|true|yes|1)\s*$/;
-  const SIDE_RE = /^side\s*:\s*(.+)$/i;
+  const HEADING_RE = RSP.regexes.HEADING_RE;
+  const HR_RE = RSP.regexes.HR_RE;
+  const STUCK_RE = RSP.regexes.STUCK_RE;
+  const SIDE_RE = RSP.regexes.SIDE_RE;
 
   function isHeading(text) {
     return HEADING_RE.test(text);
@@ -46,66 +43,10 @@ const EditorOutline = (() => {
     return HR_RE.test(text);
   }
 
-  // Heading content (after "## ") -> card type, or "" when the heading is not a
-  // card (it is then an event divider / page title / plain section).
-  // `level` matters: only Obje/Object/POI render as cards at H2 (obj.js queries
-  // h2+h3); every other card type is H3-only.
-  // IMPORTANT: the colon-form types are matched with case-insensitive regex on
-  // the RAW heading (exactly like the renderers, e.g. item.js's /^_?\s*item:/i).
-  // Turkish lower() must NOT be applied first — it maps "I"->"ı" (dotless), which
-  // turns "Item" into "ıtem" and breaks the match. Only the includes-based checks
-  // (npc / skill checks, which the renderers also do on lowered text) use lower().
-  function cardType(level, content) {
-    const raw = content.trim();
-    if (level === 2) {
-      return /^\s*(obje|object|poi)\s*:/i.test(raw) ? "obj" : "";
-    }
-    if (level !== 3) return "";
-    const tl = lower(raw);
-    if (tl.includes("skill check")) return "skillchecks";
-    if (/^\s*item\s*:/i.test(raw)) return "item";
-    if (/^\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
-    if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
-    if (/^\s*sava[şs]\s*:/i.test(raw)) return "combat";
-    if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
-    if (/^std\s*:/i.test(raw)) return "std";
-    if (tl.includes("npc")) return "npc";
-    if (/^\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
-    return ""; // plain ### section (renders as a normal heading)
-  }
-
   // Every card renders in the left column by default; a "Side: R" line in the
   // body (scanned where the card is built) moves it to the right.
   function defaultColumn(type, content) {
     return "left";
-  }
-
-  // Mirror of layout.js:canDockUnder for model cards.
-  function canDock(card, host) {
-    if (!host) return false;
-    if (card.type === "item" && card.stuck) {
-      return host.type === "obj" || (host.type === "item" && host.stuck);
-    }
-    if (card.type === "ability" && card.stuck) {
-      return host.type === "item" || host.type === "obj" || (host.type === "ability" && host.stuck);
-    }
-    return false;
-  }
-
-  // Card title text (what the renderer shows), used for menus/labels.
-  function cardTitle(type, content) {
-    const c = content.trim();
-    switch (type) {
-      case "npc": return c.replace(/^\s*npc\s*:\s*/i, "").trim() || "NPC";
-      case "item": return c.replace(/^\s*item\s*:\s*/i, "").trim() || "Item";
-      case "ability": return c.replace(/^\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
-      case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
-      case "combat": return c.replace(/^\s*sava[şs]\s*:\s*/i, "").trim() || "Savaş";
-      case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
-      case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
-      case "skillchecks": return c.trim();
-      default: return c.trim();
-    }
   }
 
   // --- Parse ---------------------------------------------------------------
