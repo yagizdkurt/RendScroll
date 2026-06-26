@@ -15,9 +15,7 @@
 !src/
 !src/**
 !test/
-!test/editorCardSchemas.test.js
-!test/inlineFormatting.test.js
-!test/textSizeParser.test.js
+!test/**
 !Documentation/
 !Documentation/**
 
