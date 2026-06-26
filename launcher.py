@@ -24,6 +24,7 @@ HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
 CAMPAIGN_DIR = "Campaign"
+OPTIONS_CURRENT_FILE = "options.current.json"
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -268,6 +269,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._save_campaign_file()
             return
 
+        if path == "/__save_options":
+            self._save_options()
+            return
+
         self._send_json(404, {"ok": False, "error": "unknown endpoint"})
 
     def _create_campaign_file(self):
@@ -378,6 +383,36 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         print(paint(f"Saved: {os.path.relpath(target, base)}", GREEN), flush=True)
+        self._send_json(200, {"ok": True})
+
+    def _save_options(self):
+        # The renderer persists the user's customization choices via
+        # POST /__save_options. The target is a fixed top-level file
+        # (options.current.json) — no client-supplied path, so there is no
+        # traversal surface. The file is gitignored (the .gitignore `*` rule),
+        # so personal preferences never land in commits.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        if not isinstance(data, dict):
+            self._send_json(400, {"ok": False, "error": "expected a JSON object"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        target = os.path.join(base, OPTIONS_CURRENT_FILE)
+        try:
+            with open(target, "w", encoding="utf-8", newline="\n") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=2)
+                fh.write("\n")
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Saved: {OPTIONS_CURRENT_FILE}", GREEN), flush=True)
         self._send_json(200, {"ok": True})
 
     def log_request(self, code="-", size="-"):

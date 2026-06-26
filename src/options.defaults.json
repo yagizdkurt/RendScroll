@@ -1,0 +1,13 @@
+{
+  "textSize": "md",
+  "defaultCardTextSize": "16",
+  "pageWidth": "md",
+  "readerLineHeight": "normal",
+  "readerFont": "garamond",
+  "italicReadAloud": false,
+  "readAloudAccent": true,
+  "startClosed": false,
+  "uiTheme": "dark",
+  "pageBackground": "parchment",
+  "pageBackgroundImage": ""
+}

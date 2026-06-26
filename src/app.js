@@ -606,8 +606,9 @@ async function init() {
   );
   mountNewPageButton();
 
-  // Renderer options (persisted toggles) + their topbar popover controls.
-  RendererOptions.apply();
+  // Renderer options: load persisted choices (two-file model) + apply, then
+  // mount the topbar launcher that opens the Options modal.
+  await RendererOptions.init();
   const optionsEl = document.getElementById("topbar-tools") || document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
 

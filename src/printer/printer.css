@@ -153,6 +153,14 @@
     border-radius:0 !important;
   }
 
+  /* Neutralize page-background presets / custom PNG and any UI theme so the
+     export is always clean parchment on paper — never a dark or photo BG. */
+  body[data-opt-pagebg] .page,
+  .page{
+    background-color:var(--parchment) !important;
+    background-image:none !important;
+  }
+
   /* Fallback 50% shrink so more events fit per page. Normally overridden by the
      dynamic Export-subsection style (see printer.js). `zoom` (not
      transform:scale) reflows content in Chromium so pagination and break-inside
