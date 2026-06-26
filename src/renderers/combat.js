@@ -77,17 +77,9 @@ function combatIsChecksLabel(label) {
   return /^(skill\s+)?checks?$/.test(rsLower(label).trim());
 }
 
-function enhanceCombatSections(root) {
-  const heads = [...root.querySelectorAll("h3")].filter(isCombatHead);
-
-  heads.forEach((head) => {
-    // Stop at the next H1/H2/H3 or an <hr> so the scene/event divider that
-    // follows the combat block renders full-width, not inside the card.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !combatIsBoundary(n); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
+// Build one Savaş card from its heading + body nodes (produced by marked from the
+// card's parsed source). Returns the card element.
+function buildCombatCard(head, nodes) {
     // Combat renders in the left column by default; a "Side: R" line (handled in
     // the node loop below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
@@ -162,10 +154,5 @@ function enhanceCombatSections(root) {
     // given, otherwise as plain stacked elements (no empty portrait reserved).
     insertCardHeader(card, headEls, imageRaw);
 
-    const marker = document.createComment("combat-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((n) => n.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }

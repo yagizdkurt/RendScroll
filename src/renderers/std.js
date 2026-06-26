@@ -30,16 +30,9 @@ function stdIsBoundary(n) {
   return isRenderedCard(n);
 }
 
-function enhanceStdSections(root) {
-  const heads = [...root.querySelectorAll("h3")].filter(isStdHead);
-
-  heads.forEach((head) => {
-    // Collect everything until the next heading/separator/card.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !stdIsBoundary(n); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
+// Build one STD card from its heading + body nodes (produced by marked from the
+// card's parsed source). Returns the card element.
+function buildStdCard(head, nodes) {
     // STD renders in the left column by default; a "Side: R" line (handled in
     // the node loop below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
@@ -77,10 +70,5 @@ function enhanceStdSections(root) {
     // just the title is placed on top (no empty portrait reserved).
     insertCardHeader(card, headEls, imageRaw);
 
-    const marker = document.createComment("std-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((n) => n.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }

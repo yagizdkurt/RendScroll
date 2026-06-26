@@ -131,35 +131,11 @@ function enhanceCardCollapse(root) {
    the card rule that hides a collapsed element's children never hits a heading's
    own toggle button. */
 
-// A standalone "Collapsable: T" / "Collapsable: F" directive line placed under a
-// heading. Absent or T -> the heading is collapsible (default); F -> it is not.
-const CC_COLLAPSABLE = /^collaps[ai]ble\s*:\s*(t|f|true|false)?$/i;
-
-/* Text phase (runs before marked): isolate each "Collapsable: …" line into its
-   own paragraph, mirroring normalizeClosedMarkdown, so a directive written right
-   after a "> …" block isn't swallowed by lazy continuation. */
-function normalizeCollapsableMarkdown(text) {
-  return normalizeStandaloneDirectives(text, (line) => CC_COLLAPSABLE.test(line.trim()));
-}
-
-/* Early DOM pass (runs on the flat DOM, before feature renderers and layout):
-   read each heading's "Collapsable: F" directive into a data flag and drop the
-   directive paragraph. The flag rides on the heading element through layout. */
-function markHeadingCollapsable(root) {
-  root.querySelectorAll("h1, h2").forEach((h) => {
-    for (let n = h.nextElementSibling; n && !/^(H[1-3]|HR)$/.test(n.tagName); n = n.nextElementSibling) {
-      if (n.tagName !== "P") continue;
-      const m = n.textContent.trim().match(CC_COLLAPSABLE);
-      if (m) {
-        // Record both directions: "false" opts a heading out, "true" opts the
-        // page title (first H1) in (it is non-collapsible by default).
-        h.dataset.collapsable = /^(f|false)$/i.test(m[1] || "") ? "false" : "true";
-        n.remove();
-        break;
-      }
-    }
-  });
-}
+/* The heading-level "Collapsable: T/F" directive is now read by the parser and
+   carried on the parsed section (RendScrollParser); src/app.js stamps it onto the
+   heading element as `dataset.collapsable` during render. HeadingCollapse below
+   reads that flag exactly as before — the old DOM-scanning markHeadingCollapsable
+   pass and its text-phase normalizer are no longer needed. */
 
 const HeadingCollapse = (() => {
   function startClosed() {

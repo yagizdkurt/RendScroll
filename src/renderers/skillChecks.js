@@ -194,7 +194,7 @@ function scAppendSkill(grid, li) {
 }
 
 // Render a sequence of Skill-Check source nodes into a .skillchecks box.
-// Shared by enhanceSkillChecks and obj.js so both look identical.
+// Shared by buildSkillChecksCard and obj.js so both look identical.
 // A run of consecutive lists shares one grid; a category or any other node
 // breaks the run so the next list starts a fresh grid (and column width).
 function renderSkillCheckNodes(box, nodes) {
@@ -224,50 +224,33 @@ function renderSkillCheckNodes(box, nodes) {
   });
 }
 
-// Rebuild every Skill Checks section under the given root.
-function enhanceSkillChecks(root) {
-  const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    rsLower(h.textContent).includes("skill check")
-  );
+// Build one Skill Checks card from its heading + body nodes (produced by marked
+// from the card's parsed source). Returns the card element.
+function buildSkillChecksCard(head, nodes) {
+  // Outer panel that also holds the "Skill Checks" heading.
+  const card = document.createElement("div");
+  card.className = "sc-card";
 
-  heads.forEach((head) => {
-    // Collect siblings until the next H2/H3 or an <hr> (section boundary).
-    // The trailing event separator must stay a standalone node, not be absorbed.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !/^(H[1-3]|HR)$/.test(n.tagName); n = n.nextElementSibling) {
-      nodes.push(n);
+  // "Side: R" moves the card to the right column; it is pulled out of the
+  // rendered nodes so it never shows as a stray line.
+  const renderNodes = nodes.filter((n) => {
+    const side = n.tagName === "P" && n.textContent.trim().match(CARD_SIDE_LINE);
+    if (side) {
+      if (cardSideIsRight(side[1])) card.classList.add("card-right");
+      return false;
     }
-
-    // Outer panel that also holds the "Skill Checks" heading.
-    const card = document.createElement("div");
-    card.className = "sc-card";
-
-    // "Side: R" moves the card to the right column; it is pulled out of the
-    // rendered nodes so it never shows as a stray line.
-    const renderNodes = nodes.filter((n) => {
-      const side = n.tagName === "P" && n.textContent.trim().match(CARD_SIDE_LINE);
-      if (side) {
-        if (cardSideIsRight(side[1])) card.classList.add("card-right");
-        return false;
-      }
-      return true;
-    });
-
-    const title = document.createElement("div");
-    title.className = "sc-card-title";
-    title.textContent = head.textContent.trim();
-    card.appendChild(title);
-
-    const box = document.createElement("div");
-    box.className = "skillchecks";
-    renderSkillCheckNodes(box, renderNodes);
-    card.appendChild(box);
-
-    // Replace the heading + its source nodes with the panel.
-    const marker = document.createComment("sc-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((n) => n.remove());
-    marker.replaceWith(card);
+    return true;
   });
+
+  const title = document.createElement("div");
+  title.className = "sc-card-title";
+  title.textContent = head.textContent.trim();
+  card.appendChild(title);
+
+  const box = document.createElement("div");
+  box.className = "skillchecks";
+  renderSkillCheckNodes(box, renderNodes);
+  card.appendChild(box);
+
+  return card;
 }

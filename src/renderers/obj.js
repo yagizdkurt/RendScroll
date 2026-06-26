@@ -83,19 +83,10 @@ function objSectionTitle(text) {
   return el;
 }
 
-function enhanceObjSections(root) {
-  const heads = [...root.querySelectorAll("h2, h3")].filter((h) =>
-    objHeadingMatch(h.textContent)
-  );
-
-  heads.forEach((head) => {
-    // Stop at the next H2/H3 or an <hr> so the event separator stays standalone.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !objIsBoundary(n); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
-    if (!nodes.length) return;
+// Build one Obje card from its heading + body nodes (produced by marked from the
+// card's parsed source). Returns the card element, or null when there is no body.
+function buildObjCard(head, nodes) {
+    if (!nodes.length) return null;
 
     // Obje renders in the left column by default; a "Side: R" line (handled in
     // the node loop below) tags the card .card-right so layout moves it.
@@ -178,10 +169,5 @@ function enhanceObjSections(root) {
     // given, otherwise as plain stacked elements (no empty portrait reserved).
     insertCardHeader(card, headEls, imageRaw);
 
-    const marker = document.createComment("obj-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((n) => n.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }

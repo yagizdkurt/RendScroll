@@ -75,19 +75,10 @@ function isItemPropertiesLabel(node) {
   return ITEM_PROPERTIES_LABELS.has(rsLower(node.textContent.trim()).replace(/:\s*$/, ""));
 }
 
-function enhanceItemSections(root) {
-  const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    /^\s*item\s*:/i.test(h.textContent.trim())
-  );
-
-  heads.forEach((head) => {
-    // Stop at the next H2/H3 or an <hr> so the event separator stays standalone.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !itemIsBoundary(n); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
-    if (!nodes.length) return;
+// Build one Item card from its heading + body nodes (produced by marked from the
+// card's parsed source). Returns the card element, or null when there is no body.
+function buildItemCard(head, nodes) {
+    if (!nodes.length) return null;
 
     // Items render in the left column by default; a "Side: R" line (pulled out
     // of the meta block below) tags the card .card-right so layout moves it.
@@ -141,10 +132,5 @@ function enhanceItemSections(root) {
 
     if (stuck) card.classList.add("item-stuck");
 
-    const marker = document.createComment("item-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((node) => node.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }

@@ -148,20 +148,11 @@ function npcSectionTitle(text) {
   return el;
 }
 
-function enhanceNpcSections(root) {
-  const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    rsLower(h.textContent).includes("npc")
-  );
-
-  heads.forEach((head) => {
-    // Collect siblings until the next H2/H3 or an <hr> (section boundary).
-    // The trailing event separator must stay a standalone node, not be absorbed.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !/^(H[23]|HR)$/.test(n.tagName); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
-    if (!nodes.length) return;
+// Build one NPC card from its heading + body nodes (produced by marked from the
+// card's parsed source). Returns the card element, or null when there is no body
+// (the bare heading is then left untouched, as the old enhancer did).
+function buildNpcCard(head, nodes) {
+    if (!nodes.length) return null;
 
     const card = document.createElement("div");
     card.className = "npc-card";
@@ -312,10 +303,5 @@ function enhanceNpcSections(root) {
     if (checksBox) renderSkillCheckNodes(checksBox, checkNodes);
     if (!hasIdentity) identity.remove();
 
-    const marker = document.createComment("npc-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((node) => node.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }

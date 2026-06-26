@@ -32,16 +32,9 @@ function unexpectedIsBoundary(n) {
   return isRenderedCard(n);
 }
 
-function enhanceUnexpectedSections(root) {
-  const heads = [...root.querySelectorAll("h3")].filter(isUnexpectedHead);
-
-  heads.forEach((head) => {
-    // Stop at the next H2/H3 or an <hr> so the event separator stays standalone.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !unexpectedIsBoundary(n); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
+// Build one Beklenmedik/Unexpected card from its heading + body nodes (produced
+// by marked from the card's parsed source). Returns the card element.
+function buildUnexpectedCard(head, nodes) {
     // Unexpected renders in the left column by default; a "Side: R" line (handled
     // in the node loop below) tags the card .card-right so layout moves it.
     const card = document.createElement("div");
@@ -74,10 +67,5 @@ function enhanceUnexpectedSections(root) {
     // the title is placed on top (no empty portrait reserved).
     insertCardHeader(card, title, imageRaw);
 
-    const marker = document.createComment("unexpected-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((n) => n.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }

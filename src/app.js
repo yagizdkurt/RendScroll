@@ -57,24 +57,125 @@ function enhanceBaseStyling(root) {
   });
 }
 
-/* Insert the rendered HTML, then run the independent renderers.
-   Feature renderers run BEFORE base styling so they can claim/replace
-   their own nodes first (e.g. Skill Checks rebuilds its blockquotes). */
-function renderPage(html) {
-  page.innerHTML = html;
-  page.prepend(createTopScrollImage());
-  markHeadingCollapsable(page); // read heading "Collapsable: F" flags on flat DOM
-  enhanceSkillChecks(page);
-  enhanceNpcSections(page);
-  enhanceItemSections(page);
-  enhanceAbilitySections(page);
-  enhanceObjSections(page);
-  enhanceCombatSections(page);
-  enhanceUnexpectedSections(page);
-  enhanceStdSections(page);
+/* Render a scene from raw markdown via the RendScroll parser model.
+
+   Pipeline: parse -> walk the document model -> for each card, render its
+   (per-card normalized) source through marked and hand the heading + body nodes
+   to that card type's builder; non-card blocks render straight through marked.
+   Card discovery is driven by the parser, NOT by scanning a flat HTML DOM — this
+   replaced the old global normalize* + sibling-walking enhancers.
+
+   After the flat card/heading DOM exists, the shared passes run exactly as
+   before: base styling, per-card collapse, the two-column layout, and heading
+   collapse. */
+
+// Card type -> builder(headingEl, bodyEls) -> card element (or null to leave the
+// bare heading, mirroring each old enhancer's "no body -> skip" behaviour).
+const CARD_BUILDERS = {
+  skillchecks: buildSkillChecksCard,
+  npc: buildNpcCard,
+  item: buildItemCard,
+  ability: buildAbilityCard,
+  obj: buildObjCard,
+  combat: buildCombatCard,
+  unexpected: buildUnexpectedCard,
+  std: buildStdCard,
+};
+
+/* Per-card source isolation, selected by the parsed card type. Each helper only
+   isolates directive/label lines WITHIN its own card (the card source starts with
+   its heading), so a card written with "Az Enter" still parses. This is the
+   AST-scoped replacement for the old global normalize* pipeline. */
+function isolateCardSource(type, src) {
+  switch (type) {
+    case "skillchecks": src = normalizeSkillChecksMarkdown(src); break;
+    case "item": src = normalizeItemMarkdown(src); break;
+    case "npc": src = normalizeNpcMarkdown(src); break;
+    case "obj": src = normalizeObjMarkdown(src); break;
+    case "ability": src = normalizeAbilityMarkdown(src); break;
+    case "combat": src = normalizeCombatMarkdown(src); break;
+    case "std": src = normalizeStdMarkdown(src); break;
+    case "unexpected": src = normalizeUnexpectedMarkdown(src); break;
+    default: break; // "echo"/unknown: rendered as a plain heading + body
+  }
+  return normalizeClosedMarkdown(src); // "Closed:" may appear in any card
+}
+
+// Render a markdown string and return its top-level ELEMENT nodes (the old
+// pipeline only ever walked element siblings, so text/whitespace nodes are
+// dropped here too).
+function markedToElements(md) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = renderMarkdown(md);
+  return [...tmp.children];
+}
+
+function cardRawSource(doc, card) {
+  return doc.raw.slice(card.range.startOffset, card.range.endOffset);
+}
+
+// Heading element for a section, carrying the AST "Collapsable:" flag (which
+// replaces the old markHeadingCollapsable DOM scan).
+function renderSectionHeading(doc, section) {
+  const els = markedToElements(RendScrollParser.lineText(doc.lines[section.headingRange.startLine]));
+  const h = els[0];
+  if (h && section.collapsable !== null && section.collapsable !== undefined) {
+    h.dataset.collapsable = section.collapsable ? "true" : "false";
+  }
+  return h;
+}
+
+// One card block -> the element(s) to append. A builder turns (heading, body
+// nodes) into a card; a missing builder or a null result leaves the raw nodes.
+function renderCardBlock(doc, card) {
+  const builder = CARD_BUILDERS[card.type];
+  const els = markedToElements(isolateCardSource(card.type, cardRawSource(doc, card)));
+  if (!builder) return els;
+  const cardEl = builder(els[0], els.slice(1));
+  return cardEl ? [cardEl] : els;
+}
+
+function renderPage(text) {
+  const doc = RendScrollParser.parseRendScroll(text);
+  page.innerHTML = "";
+  page.appendChild(createTopScrollImage());
+
+  doc.sections.forEach((section) => {
+    if (section.headingRange) {
+      const h = renderSectionHeading(doc, section);
+      if (h) page.appendChild(h);
+    }
+    // Consecutive non-card blocks (narrative / plain / HR) are rendered together
+    // from their original source slice, so marked sees them exactly as it did in
+    // the old whole-document parse (e.g. a list immediately followed by a "> …"
+    // blockquote stays one structure). A card boundary flushes the run.
+    let buffer = [];
+    const flushNonCards = () => {
+      if (!buffer.length) return;
+      const a = buffer[0].range.startOffset;
+      const b = buffer[buffer.length - 1].range.endOffset;
+      // Heading-level "Collapsable:" lines live on the section, never shown.
+      const src = doc.raw.slice(a, b)
+        .split(/\r?\n/)
+        .filter((l) => !RendScrollParser.regexes.COLLAPSABLE_RE.test(l.trim()))
+        .join(doc.eol);
+      markedToElements(src).forEach((el) => page.appendChild(el));
+      buffer = [];
+    };
+    section.blocks.forEach((block) => {
+      if (block.kind === "card") {
+        flushNonCards();
+        renderCardBlock(doc, block).forEach((el) => page.appendChild(el));
+      } else {
+        buffer.push(block);
+      }
+    });
+    flushNonCards();
+  });
+
   enhanceBaseStyling(page);
   enhanceCardCollapse(page);
-  // Last: re-arrange the styled nodes into the header band + two-column grid.
+  // Re-arrange the styled nodes into the header band + two-column grid.
   layoutTwoColumns(page);
   // After the grid exists, add collapse toggles to the main event headings.
   enhanceHeadingCollapse(page);
@@ -87,26 +188,10 @@ function setSidebarCollapsed(collapsed) {
   localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
 }
 
-/* Text phase: normalize raw markdown before marked.js. Renderers that need to
-   touch the source (not just the DOM) contribute their step here. */
-function toHtml(text) {
-  text = normalizeSkillChecksMarkdown(text);
-  text = normalizeItemMarkdown(text);
-  text = normalizeNpcMarkdown(text);
-  text = normalizeObjMarkdown(text);
-  text = normalizeAbilityMarkdown(text);
-  text = normalizeCombatMarkdown(text);
-  text = normalizeStdMarkdown(text);
-  text = normalizeUnexpectedMarkdown(text);
-  text = normalizeClosedMarkdown(text);
-  text = normalizeCollapsableMarkdown(text);
-  return renderMarkdown(text);
-}
-
 async function load(path) {
   const text = await fetchMarkdown(path);
   currentPath = path;
-  renderPage(toHtml(text));
+  renderPage(text);
   page.parentElement.scrollTop = 0;
   document.querySelectorAll("#nav button").forEach((b) =>
     b.classList.toggle("active", b.dataset.path === path)

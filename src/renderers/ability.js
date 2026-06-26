@@ -113,19 +113,10 @@ function normalizeAbilityMarkdown(text) {
   });
 }
 
-function enhanceAbilitySections(root) {
-  const heads = [...root.querySelectorAll("h3")].filter((h) =>
-    ABILITY_HEAD.test(h.textContent.trim())
-  );
-
-  heads.forEach((head) => {
-    // Stop at the next H2/H3 or an <hr> so the event separator stays standalone.
-    const nodes = [];
-    for (let n = head.nextElementSibling; n && !abilityIsBoundary(n); n = n.nextElementSibling) {
-      nodes.push(n);
-    }
-
-    if (!nodes.length) return;
+// Build one Ability card from its heading + body nodes (produced by marked from
+// the card's parsed source). Returns the card element, or null when no body.
+function buildAbilityCard(head, nodes) {
+    if (!nodes.length) return null;
 
     const card = document.createElement("div");
     card.className = "ability-card";
@@ -195,10 +186,5 @@ function enhanceAbilitySections(root) {
 
     if (stuck) card.classList.add("ability-stuck");
 
-    const marker = document.createComment("ability-card");
-    head.before(marker);
-    head.remove();
-    nodes.forEach((node) => node.remove());
-    marker.replaceWith(card);
-  });
+    return card;
 }
