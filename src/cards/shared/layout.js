@@ -1,5 +1,5 @@
 /* Two-column layout.
-   Runs LAST in the render pipeline (after the feature renderers and base
+   Runs LAST in the render pipeline (after the feature card builders and base
    styling). It only RE-ARRANGES the existing direct children of #page into a
    header band + a two-column grid. It creates no content and reads no files.
 

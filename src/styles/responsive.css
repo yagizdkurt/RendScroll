@@ -1,0 +1,63 @@
+﻿/* ---------- Responsive ---------- */
+@media (max-width:760px){
+  body{flex-direction:column;}
+  #main-area{height:auto;}
+  #topbar{
+    flex:0 0 auto;
+    height:auto;
+    min-height:var(--topbar-height);
+    flex-wrap:wrap;
+    padding:8px 12px;
+  }
+  #topbar-primary,
+  #topbar-tools{
+    flex-wrap:wrap;
+  }
+  #sidebar,
+  body.sidebar-collapsed #sidebar{
+    width:100%;
+    flex:0 0 auto;
+    height:auto;
+    padding:26px 18px;
+  }
+  body.sidebar-collapsed #nav button{
+    width:auto;
+    height:auto;
+    min-height:0;
+    padding:.5rem .7rem;
+    color:#e8dcc2;
+    font-size:1.02rem;
+    line-height:normal;
+    white-space:normal;
+    text-align:left;
+  }
+  body.sidebar-collapsed #nav button::before{content:none;}
+  body.sidebar-collapsed .options{display:flex;}
+  #reader{height:auto;}
+  .page-grid{grid-template-columns:1fr;column-gap:0;}
+  .page-grid > .col-divider{display:none;}
+  .page{padding:34px 24px 44px;}
+  .page h1{font-size:2rem;}
+  .page p,.page blockquote.read-aloud p{font-size:calc(1.05rem * var(--ro-text));}
+  .page .sc-card p,
+  .page .npc-card p,
+  .page .obj-card p,
+  .page .item-card p,
+  .page .ability-card p,
+  .page .combat-card p,
+  .page .unexpected-card p,
+  .page .std-card p,
+  .page .sc-card blockquote.read-aloud p,
+  .page .npc-card blockquote.read-aloud p,
+  .page .obj-card blockquote.read-aloud p,
+  .page .item-card blockquote.read-aloud p,
+  .page .ability-card blockquote.read-aloud p,
+  .page .combat-card blockquote.read-aloud p,
+  .page .unexpected-card blockquote.read-aloud p,
+  .page .std-card blockquote.read-aloud p{
+    font-size:calc(1.05rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+  }
+  /* Stack the header content above a full-width portrait on narrow screens. */
+  .page .card-figure{flex-direction:column;}
+  .page .card-portrait{flex-basis:auto; width:100%; min-height:10rem;}
+}

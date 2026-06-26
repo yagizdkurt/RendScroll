@@ -1,5 +1,5 @@
 /* Shared card image helpers.
-   Every card renderer (NPC, Item, Ability, Obje, Combat, Std, Unexpected) uses
+   Every card builder (NPC, Item, Ability, Obje, Combat, Std, Unexpected) uses
    these so "Image:" and "BG:" resolve identically and portraits all look alike.
    Global (non-module) like the other renderer files; defines no state and never
    fetches files or touches the sidebar. */

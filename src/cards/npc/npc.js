@@ -4,7 +4,7 @@
    another renderer. */
 
 /* BG/Image url resolution and the portrait frame are shared across all card
-   renderers (renderers/cardImage.js): cardBgUrl(), cardPortrait(). */
+   builders (cards/shared/cardImage.js): cardBgUrl(), cardPortrait(). */
 
 const NPC_FIELD_LABELS = new Set([
   "personality:",

@@ -1,4 +1,4 @@
-/* Shared DOM pieces used by card renderers.
+/* Shared DOM pieces used by card builders.
    Options keep renderer-specific class names explicit. */
 
 function createRarityBadge(value, options) {

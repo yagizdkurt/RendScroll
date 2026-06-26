@@ -7,7 +7,7 @@
 
    This module is the ONE place that knows "what a RendScroll card/directive is".
    The classification + directive/check parsing rules used to be restated in three
-   shapes (renderers/*.js heading regexes, editor/outline.js, editor/cardSchemas.js);
+   shapes (cards/<type>/*.js heading regexes, editor/outline.js, editor/cardSchemas.js);
    those now delegate here. See the migration plan for the full background.
 
    Phase 1 deliverable: parse structure only. It does NOT render. The renderer
@@ -21,12 +21,12 @@ const RendScrollParser = (() => {
 
   // Turkish-aware lowercase (İ/I -> dotted/dotless i), matching every renderer's
   // rsLower(). Used for the includes-based classification (npc / skill check) and
-  // for truthy-value tests — the same places the renderers use it.
+  // for truthy-value tests — the same places the card builders use it.
   function lower(s) {
     return String(s).replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
   }
 
-  // ASCII-leaning lowercase for DIRECTIVE KEYWORDS. The renderers match these with
+  // ASCII-leaning lowercase for DIRECTIVE KEYWORDS. The card builders match these with
   // case-insensitive regex (e.g. /^image\s*:/i), NOT rsLower — so "Image" must map
   // to "image", not the dotless "ımage" that lower() would produce. Both İ and I
   // fold to a plain "i" here so the keyword set stays ASCII.
@@ -63,7 +63,7 @@ const RendScrollParser = (() => {
   // Universal, cross-card directive lines. Type-specific scalar fields (NPC
   // stats, item Tür/Nadirlik, dialogue topics, …) are intentionally NOT here —
   // they stay in the card body, and each type's renderer interprets them, exactly
-  // as the renderers do today. Keeping the core directive set universal avoids
+  // as the card builders do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
   const DIRECTIVE_NAMES = new Set([
     "side", "image", "bg", "closed", "textsize", "yapışık", "connect", "combine",
@@ -81,10 +81,10 @@ const RendScrollParser = (() => {
   // `level` matters: only Obje/Object/POI render as cards at H2 (obj.js queries
   // h2+h3); every other card type is H3-only.
   // The colon-form types are matched with case-insensitive regex on the RAW
-  // heading (exactly like the renderers, e.g. item.js's /^\s*item:/i). Turkish
+  // heading (exactly like the card builders, e.g. item.js's /^\s*item:/i). Turkish
   // lower() must NOT be applied first — it maps "I"->"ı" (dotless), which turns
   // "Item" into "ıtem" and breaks the match. Only the includes-based checks
-  // (npc / skill checks, which the renderers also lower) use lower().
+  // (npc / skill checks, which the card builders also lower) use lower().
   function cardType(level, content) {
     const raw = String(content).trim();
     if (level === 2) {

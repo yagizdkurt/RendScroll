@@ -33,7 +33,7 @@ function objIsBoundary(n) {
 }
 
 /* BG/Image url resolution and the portrait frame are shared across all card
-   renderers (renderers/cardImage.js): cardBgUrl(), cardPortrait(). */
+   cards (cards/shared/cardImage.js): cardBgUrl(), cardPortrait(). */
 
 function objHeadingMatch(text) {
   return text.trim().match(/^\s*(obje|object|poi)\s*:/i);

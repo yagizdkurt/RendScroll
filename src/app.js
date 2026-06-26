@@ -1,7 +1,7 @@
 /* ============================================================
    Entry point: builds the sidebar, reacts to file selection,
    and orchestrates the render pipeline. Stays small on purpose.
-   Feature-specific rendering lives in renderers/*.js.
+   Feature-specific card rendering lives in cards/<type>/*.js.
    ============================================================ */
 
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";

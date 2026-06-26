@@ -1,7 +1,7 @@
 /* Ability section renderer (Skill / Spell / Passive / Effect).
    Receives a root DOM element and modifies ONLY Ability sections in the DOM.
    It never fetches files, never touches the sidebar, and never calls another
-   renderer. Modeled on the Item renderer (renderers/item.js).
+   builder. Modeled on the Item card (cards/item/item.js).
 
    An ability is written as one of:
 

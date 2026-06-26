@@ -8,7 +8,7 @@
    All edit operations are string splices over the original text followed by a
    re-parse — we never reconstruct markdown from a lossy tree.
 
-   Classification mirrors the renderers exactly (src/renderers/*.js) so the
+   Classification mirrors the cards exactly (src/cards/<type>/*.js) so the
    model agrees with what actually gets drawn:
      - column: layout.js:layoutIsAside (left default + the "Side: R" override)
      - types : each renderer's heading regex

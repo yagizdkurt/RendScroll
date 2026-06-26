@@ -4,7 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 global.RendScrollParser = require("../src/parser/rendscrollParser.js");
-global.RendScrollSkillChecks = require("../src/renderers/shared/skillCheckRules.js");
+global.RendScrollSkillChecks = require("../src/cards/shared/skillCheckRules.js");
 const RendScrollDiagnostics = require("../src/debug/diagnostics.js");
 
 test("diagnostics treats asterisk check markers as check entries", () => {

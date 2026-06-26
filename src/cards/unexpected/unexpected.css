@@ -1,0 +1,35 @@
+﻿/* ---------- Beklenmedik / Unexpected card (simple grouping box) ---------- */
+.page .unexpected-card{
+  position:relative;
+  overflow:hidden;
+  margin:.5rem 0 .8rem;
+  padding:.7rem .85rem .75rem;
+  background:rgba(232,226,200,.5);
+  border:1px solid var(--gold-deep);
+  border-left:6px solid #8a6d2f;
+  border-radius:4px;
+}
+/* Soluk soru filigranı: bloğun ortasında, contain ile blok/kolonu aşmaz. */
+.page .unexpected-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:url("../../STDImages/question.png") no-repeat center / contain;
+  opacity:.35;
+  mix-blend-mode:multiply;
+  pointer-events:none;
+  z-index:0;
+}
+.page .unexpected-card > *{position:relative; z-index:1;}
+.page .unexpected-card > :first-child{margin-top:0;}
+.page .unexpected-card > :last-child{margin-bottom:0;}
+
+.page .unexpected-title{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:#8a6d2f;
+  font-size:1.05rem;
+  margin-bottom:.45rem;
+}

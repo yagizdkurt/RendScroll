@@ -1,0 +1,201 @@
+﻿/* ---------- NPC Cards ---------- */
+.page .npc-card{
+  position:relative;
+  overflow:hidden;
+  margin:.5rem 0 .8rem;
+  padding:.7rem .85rem .75rem;
+  background:linear-gradient(180deg,var(--parchment-lt),#f4e7c9);
+  border:1px solid var(--gold-deep);
+  border-left:6px solid var(--maroon-bar);
+  border-radius:4px;
+  box-shadow:inset 0 0 18px rgba(120,90,40,.14), 0 4px 12px rgba(70,45,20,.12);
+}
+/* Soluk NPC filigranı: bloğun ortasında, contain ile blok/kolonu aşmaz. */
+.page .npc-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:var(--npc-bg, url("../../STDImages/npc.png")) no-repeat center / contain;
+  opacity:.35;
+  mix-blend-mode:multiply;
+  pointer-events:none;
+  z-index:0;
+}
+.page .npc-card > *{position:relative; z-index:1;}
+.page .npc-card > :first-child{margin-top:0;}
+.page .npc-card > :last-child{margin-bottom:0;}
+
+.page .npc-title{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  color:var(--maroon);
+  font-size:1.16rem;
+  letter-spacing:.04em;
+  margin:0 0 .5rem;
+  padding:0 0 .3rem;
+  border-bottom:2px solid var(--rule);
+}
+
+/* Default: two columns (personality | stats). The third portrait column is
+   added only when the card has an Image (.npc-has-portrait), so a card without
+   an image never reserves an empty portrait slot. */
+.page .npc-identity{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);
+  gap:.7rem;
+  align-items:start;
+  margin:.25rem 0 .7rem;
+  padding:.55rem .6rem;
+  background:rgba(238,229,206,.48);
+  border:1px solid rgba(156,126,60,.48);
+  border-radius:4px;
+}
+
+.page .npc-identity.npc-has-portrait{
+  grid-template-columns:minmax(0,.95fr) minmax(0,1.1fr) minmax(7.5rem,.7fr);
+}
+
+.page .npc-identity-col{
+  min-width:0;
+}
+
+.page .npc-identity-col > :first-child{margin-top:0;}
+.page .npc-identity-col > :last-child{margin-bottom:0;}
+
+.page .npc-identity .npc-field{
+  margin:.05rem 0 .22rem;
+}
+
+.page .npc-identity ul,
+.page .npc-identity ol{
+  margin:.18rem 0 .22rem;
+  padding-left:1rem;
+}
+
+.page .npc-identity li{
+  font-size:.96rem;
+  line-height:1.28;
+  margin:.08rem 0;
+}
+
+.page .npc-stat-row{
+  display:grid;
+  grid-template-columns:max-content minmax(0,1fr);
+  column-gap:.55rem;
+  align-items:baseline;
+  padding:.16rem 0;
+  border-bottom:1px solid rgba(156,126,60,.28);
+}
+
+.page .npc-stat-row:last-child{border-bottom:none;}
+
+.page .npc-stat-key{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  letter-spacing:.04em;
+  color:var(--maroon);
+  font-size:.86rem;
+}
+
+.page .npc-stat-value{
+  font-size:.98rem;
+  line-height:1.25;
+  text-align:left;
+}
+
+/* The NPC portrait reuses the shared .card-portrait look (cards/shared/cardImage.js
+   + the "Shared card figure" block below); it just lives in the identity grid's
+   third column instead of a flex row. */
+
+.page .npc-dialogue-divider{
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+  margin:.65rem 0 .5rem;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  font-size:.84rem;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--gold-deep);
+  text-align:center;
+}
+
+.page .npc-dialogue-divider::before,
+.page .npc-dialogue-divider::after{
+  content:"";
+  flex:1 1 auto;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(156,126,60,.72),transparent);
+}
+
+.page .npc-field{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--maroon);
+  font-size:.92rem;
+  margin:.6rem 0 .2rem;
+  padding-bottom:.16rem;
+  border-bottom:1px solid rgba(156,126,60,.55);
+}
+
+.page .npc-card .npc-field:first-child{margin-top:0;}
+
+.page .npc-subcard{
+  margin:.45rem 0;
+  padding:.45rem .6rem .5rem;
+  background:rgba(238,229,206,.68);
+  border:1px solid rgba(156,126,60,.65);
+  border-left:4px solid var(--gold-deep);
+  border-radius:4px;
+}
+
+.page .npc-subcard > :first-child{margin-top:0;}
+.page .npc-subcard > :last-child{margin-bottom:0;}
+
+.page .npc-subtitle{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  color:var(--gold-deep);
+  font-size:1rem;
+  letter-spacing:.05em;
+  margin:0 0 .3rem;
+  padding-bottom:.18rem;
+  border-bottom:1px solid rgba(156,126,60,.5);
+}
+
+.page .npc-card ul,
+.page .npc-card ol{
+  margin:.2rem 0 .3rem;
+  padding-left:1.2rem;
+}
+
+.page .npc-card li{
+  font-size:1rem;
+  line-height:1.35;
+  margin:.12rem 0;
+}
+
+/* Compact dialogue answer: a light indented line instead of a heavy box. */
+.page .npc-card blockquote.read-aloud{
+  margin:.1rem 0 .35rem 1.1rem;
+  padding:.15rem .55rem;
+  border:none;
+  border-left:3px solid var(--gold-deep);
+  background:rgba(232,226,200,.5);
+  box-shadow:none;
+}
+
+.page .npc-card blockquote.read-aloud p{
+  margin:.1rem 0;
+  font-size:1rem;
+}
+
+@media (max-width:760px){
+  .page .npc-identity,
+  .page .npc-identity.npc-has-portrait{
+    grid-template-columns:1fr;
+  }
+}

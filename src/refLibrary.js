@@ -34,7 +34,7 @@ const RefLibrary = (() => {
   let ready = false;
 
   function norm(name) {
-    // Turkish-safe lowercase (İ/I), matching the renderers' rsLower().
+    // Turkish-safe lowercase (İ/I), matching the card builders' rsLower().
     return String(name == null ? "" : name).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
   }
 

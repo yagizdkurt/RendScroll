@@ -8,13 +8,13 @@
    handler callbacks the controller (editor.js) passes in. */
 
 const EditorAnchors = (() => {
-  // Card types that the renderers turn into a single card <div>. Plain "###"
+  // Card types that the card builders turn into a single card <div>. Plain "###"
   // sections and Yankı/Echo produce no card div, so they are not anchorable.
   const ANCHORABLE = new Set([
     "npc", "item", "ability", "obj", "combat", "unexpected", "std", "skillchecks",
   ]);
 
-  // DOM class for each card type (from the renderers).
+  // DOM class for each card type (from the card builders).
   const CARD_CLASS = {
     npc: "npc-card", item: "item-card", ability: "ability-card", obj: "obj-card",
     combat: "combat-card", unexpected: "unexpected-card", std: "std-card",

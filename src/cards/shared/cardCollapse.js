@@ -11,7 +11,7 @@
           on  -> every card without a directive starts collapsed
           off -> every card without a directive starts open */
 
-// Card containers produced by the feature renderers.
+// Card containers produced by the feature card builders.
 const CC_CARD_SELECTOR =
   ".sc-card,.npc-card,.obj-card,.item-card,.ability-card,.combat-card,.unexpected-card";
 
