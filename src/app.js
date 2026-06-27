@@ -176,9 +176,8 @@ function renderSectionHeading(doc, section) {
   return h;
 }
 
-// Card source (heading + body) -> its built card element. Shared by inline cards
-// (renderCardBlock) and resolved library references (renderRefBlock), so a
-// referenced item renders byte-for-byte like an inline one.
+// Card source (heading + body) -> its built card element. Shared by scene cards
+// and library SourceItem views so item rendering stays on one path.
 function renderCardFromSource(type, src) {
   const renderSrc = prepareCardSourceForRender(type, stripCardTextSize(src));
   const els = markedToElements(isolateCardSource(type, renderSrc));
@@ -203,33 +202,11 @@ function renderCardBlock(doc, card) {
   return [cardEl];
 }
 
-const REF_MISSING_LABELS = {
-  "unknown-ref-type": "Unknown reference type",
-  "missing-ref": "Item not found in library",
-};
-
-function refMissingCard(type, name, reason) {
+function refMissingCard(type, name) {
   const div = document.createElement("div");
   div.className = "ref-missing";
-  div.textContent = "⚠ " + (REF_MISSING_LABELS[reason] || "Broken reference") +
-    ": [" + type + "=" + name + "]";
+  div.textContent = "⚠ Item not found in library: [" + type + "=" + name + "]";
   return div;
-}
-
-// A standalone "[item=Name]" reference block -> the resolved library card, or a
-// warning placeholder when the reference can't be resolved.
-function renderRefBlock(block) {
-  const resolved = (typeof RefLibrary !== "undefined")
-    ? RefLibrary.resolve(block.refType, block.refName)
-    : { ok: false, reason: "missing-ref" };
-  if (!resolved.ok) return [refMissingCard(block.refType, block.refName, resolved.reason)];
-  const { cardEl, els } = renderCardFromSource(resolved.cardType, resolved.source);
-  if (!cardEl) return els.length ? els : [refMissingCard(block.refType, block.refName, "missing-ref")];
-  stampRefName(cardEl, resolved.entry.name);
-  // Mark the card as reference-sourced: the editor excludes it from card
-  // anchoring (it isn't in the outline model) and attaches its own tools.
-  cardEl.dataset.refSource = block.refType + "::" + resolved.entry.name;
-  return [cardEl];
 }
 
 function renderPage(text) {
@@ -263,9 +240,6 @@ function renderPage(text) {
       if (block.kind === "card") {
         flushNonCards();
         renderCardBlock(doc, block).forEach((el) => page.appendChild(el));
-      } else if (block.kind === "ref") {
-        flushNonCards();
-        renderRefBlock(block).forEach((el) => page.appendChild(el));
       } else {
         buffer.push(block);
       }
@@ -397,11 +371,11 @@ function renderLibraryItemView(name) {
   const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve("item", name) : { ok: false };
   if (resolved.ok) {
     const { cardEl } = renderCardFromSource(resolved.cardType, resolved.source);
-    view.appendChild(cardEl || refMissingCard("item", name, "missing-ref"));
+    view.appendChild(cardEl || refMissingCard("item", name));
     enhanceBaseStyling(view);
     enhanceCardCollapse(view);
   } else {
-    view.appendChild(refMissingCard("item", name, resolved.reason || "missing-ref"));
+    view.appendChild(refMissingCard("item", name));
   }
 
   page.appendChild(view);
@@ -966,8 +940,8 @@ async function init() {
   if (optionsEl) RendererOptions.mount(optionsEl);
 
   // Load the reference library (Items, …) before the first scene renders, so
-  // `[item=Name]` blocks resolve synchronously inside renderPage. A failure here
-  // (e.g. not launched via launcher.py) just leaves the library empty.
+  // SourceItem-backed scene Items and `[link=Name]` previews resolve. A failure
+  // here (e.g. not launched via launcher.py) just leaves the library empty.
   if (typeof RefLibrary !== "undefined") {
     try { await RefLibrary.init(); } catch (_) { /* empty library */ }
   }

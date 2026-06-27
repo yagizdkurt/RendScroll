@@ -225,39 +225,16 @@ const RendScrollDiagnostics = (() => {
     return String(s == null ? "" : s).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
   }
 
-  // Validate [item=Name] reference blocks, malformed reference lines, and inline
-  // [link=Name] targets against the loaded RefLibrary and this scene's cards.
+  // Validate inline [link=Name] targets against the loaded RefLibrary and this
+  // scene's cards.
   function addReferenceDiagnostics(doc, file, issues) {
     const p = parser();
     if (!p) return;
     const lib = refLib();
 
-    // Names reachable on this page: card titles + ref block names.
+    // Names reachable on this page: card titles.
     const onPage = new Set();
     allCards(doc).forEach((c) => onPage.add(normName(c.title)));
-    doc.sections.forEach((s) => s.blocks.forEach((b) => {
-      if (b.kind === "ref") onPage.add(normName(b.refName));
-    }));
-
-    doc.sections.forEach((section) => {
-      section.blocks.forEach((block) => {
-        if (block.kind !== "ref") return;
-        const line = dispLine(block.range);
-        if (lib && !lib.def(block.refType)) {
-          issues.push(issue("error", file, line, `unknown reference type: [${block.refType}=${block.refName}]`, "unknown-ref-type"));
-        } else if (lib && !lib.has(block.refType, block.refName)) {
-          issues.push(issue("error", file, line, `item not in library: [${block.refType}=${block.refName}]`, "missing-ref"));
-        }
-      });
-    });
-
-    // Reference-shaped lines with an empty name the parser couldn't accept.
-    doc.lines.forEach((rawLine, idx) => {
-      const t = p.lineText(rawLine).trim();
-      if (/^\[[a-z][a-z0-9-]*=\s*\]$/i.test(t)) {
-        issues.push(issue("warn", file, idx + 1, `malformed reference: ${t}`, "malformed-ref"));
-      }
-    });
 
     // Inline links: broken when the name is neither on this page nor in a library.
     const linkRe = /\[link=([^\]\r\n]+)\]/ig;

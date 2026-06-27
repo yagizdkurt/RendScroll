@@ -21,11 +21,8 @@ const EditorAnchors = (() => {
     combat: "combat-card", unexpected: "unexpected-card", std: "std-card",
     narrative: "narrative-card", skillchecks: "sc-card",
   };
-  // Reference-sourced cards (`[item=Name]`) are rendered into the DOM but live in
-  // the library, NOT the outline model — exclude them so the model<->DOM card zip
-  // stays 1:1. They get their own editor tools (see editor.js decorateRefCards).
-  const CARD_DIV_SELECTOR = Object.values(CARD_CLASS).map((c) => ":scope > ." + c + ":not([data-ref-source])").join(",");
-  const CARD_DOM_SELECTOR = Object.values(CARD_CLASS).map((c) => "." + c + ":not([data-ref-source])").join(",");
+  const CARD_DIV_SELECTOR = Object.values(CARD_CLASS).map((c) => ":scope > ." + c).join(",");
+  const CARD_DOM_SELECTOR = Object.values(CARD_CLASS).map((c) => "." + c).join(",");
 
   function editorOn() {
     return document.body.classList.contains("editor-on");

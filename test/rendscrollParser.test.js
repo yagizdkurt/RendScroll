@@ -169,7 +169,7 @@ test("SourceItem: library base item parses as sourceitem", () => {
   assert.equal(cards[0].title, "Silver Key");
 });
 
-test("standalone item refs after cards are card boundaries", () => {
+test("standalone item refs after cards are plain card body text", () => {
   const doc = parseRendScroll([
     "# Scene",
     "",
@@ -188,9 +188,8 @@ test("standalone item refs after cards are card boundaries", () => {
   const refs = blocks.filter((b) => b.kind === "ref");
   const first = blocks.find((b) => b.kind === "card" && b.title === "One");
 
-  assert.equal(refs.length, 1);
-  assert.equal(refs[0].refName, "Silver Key");
-  assert.doesNotMatch(bodyText(first), /\[item=Silver Key\]/);
+  assert.equal(refs.length, 0);
+  assert.match(bodyText(first), /\[item=Silver Key\]/);
 });
 
 // --- Object (Obje at H2) ---------------------------------------------------

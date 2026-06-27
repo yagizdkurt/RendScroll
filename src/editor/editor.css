@@ -108,38 +108,18 @@ body.editor-on .editor-plain-block:hover {
 .editor-card-tools {
   display: none;
   position: absolute;
-  top: -12px;
+  top: -18px;
   right: 6px;
   z-index: 5;
-  gap: 2px;
+  gap: 4px;
 }
 body.editor-on .editor-card:hover > .editor-card-tools {
-  display: flex;
-}
-/* Reference-sourced cards get a distinct dashed outline + their own toolbar. */
-body.editor-on .editor-ref-card {
-  position: relative;
-  outline: 1px dashed rgba(47, 95, 176, 0.55);
-  outline-offset: 2px;
-}
-body.editor-on .editor-ref-card:hover {
-  outline-color: rgba(47, 95, 176, 0.95);
-}
-.editor-ref-tools {
-  display: none;
-  position: absolute;
-  top: -12px;
-  right: 6px;
-  z-index: 6;
-  gap: 2px;
-}
-body.editor-on .editor-ref-card:hover > .editor-ref-tools {
   display: flex;
 }
 .editor-plain-tools {
   display: none;
   position: absolute;
-  top: -12px;
+  top: -18px;
   right: 6px;
   z-index: 6;
 }
@@ -147,12 +127,12 @@ body.editor-on .editor-plain-block:hover > .editor-plain-tools {
   display: flex;
 }
 .editor-tool {
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.3);
   background: #2a2117;
   color: #e9d9b8;

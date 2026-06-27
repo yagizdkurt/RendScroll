@@ -1,4 +1,4 @@
-﻿/* ---------- Library references ([item=Name] / [link=Name]) ---------- */
+﻿/* ---------- Library references ([link=Name]) ---------- */
 /* Inline cross-reference link: blue, clickable, hover-underlined. */
 .page .rs-ref-link{
   color:#2f5fb0;
@@ -19,7 +19,7 @@
   background:rgba(146,38,16,.12);
 }
 
-/* Warning placeholder for an unresolved [item=Name] block. */
+/* Warning placeholder for an unresolved library item view. */
 .page .ref-missing{
   margin:.5rem 0 .8rem;
   padding:.5rem .7rem;

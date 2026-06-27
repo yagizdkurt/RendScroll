@@ -194,19 +194,6 @@ const Editor = (() => {
     });
   }
 
-  // Remove a reference line from the current scene (safe only when unambiguous).
-  function removeRef(type, name) {
-    const p = RendScrollParser;
-    const matches = [];
-    state.model.lines.forEach((ln, i) => {
-      const m = p.lineText(ln).trim().match(p.regexes.REF_LINE_RE);
-      if (m && m[1].toLowerCase() === type && RefLibrary.norm(m[2]) === RefLibrary.norm(name)) matches.push(i);
-    });
-    if (!matches.length) { toast("Reference not found", true); return; }
-    if (matches.length > 1) { toast("Multiple references — edit source to remove", true); return; }
-    applyModel(EditorOutline.spliceText(state.model, matches[0], matches[0] + 1, ""));
-  }
-
   // --- handlers handed to anchors/menus ----------------------------------
 
   const handlers = {
@@ -263,7 +250,6 @@ const Editor = (() => {
     moveItemToLibrary,
     cardIsItem,
     editLibraryItem,
-    removeRef,
     insertChapter(target) {
       if (typeof EditorForm !== "undefined") {
         EditorForm.openChapter((values) =>
@@ -282,39 +268,7 @@ const Editor = (() => {
   function decorate() {
     if (state.model && state.enabled) {
       EditorAnchors.decorate(page, state.model, handlers);
-      decorateRefCards();
     }
-  }
-
-  // Reference-sourced cards aren't in the outline model, so anchors.js skips them.
-  // Give them their own minimal toolbar: edit the library file, or remove the
-  // reference from this scene.
-  function decorateRefCards() {
-    page.querySelectorAll("[data-ref-source]").forEach((card) => {
-      if (card.querySelector(":scope > .editor-ref-tools")) return;
-      const [type, name] = String(card.dataset.refSource).split("::");
-      card.classList.add("editor-ref-card");
-      const tools = document.createElement("div");
-      tools.className = "editor-ref-tools";
-
-      const edit = document.createElement("button");
-      edit.type = "button";
-      edit.className = "editor-mini";
-      edit.textContent = "✎ Library";
-      edit.title = "Edit the library item (updates every scene)";
-      edit.addEventListener("click", () => editLibraryItem(type, name));
-
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "editor-mini";
-      remove.textContent = "✕ Ref";
-      remove.title = "Remove this reference from the scene";
-      remove.addEventListener("click", () => removeRef(type, name));
-
-      tools.appendChild(edit);
-      tools.appendChild(remove);
-      card.appendChild(tools);
-    });
   }
 
   function rerender() {
@@ -384,8 +338,7 @@ const Editor = (() => {
 
   function clearDecorations() {
     if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
-    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-ref-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
-    page.querySelectorAll(".editor-ref-card").forEach((n) => n.classList.remove("editor-ref-card"));
+    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
     page.querySelectorAll("[data-block-id]").forEach((n) => {
       n.removeAttribute("data-block-id");
       n.classList.remove("editor-card");
