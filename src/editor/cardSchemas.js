@@ -287,7 +287,7 @@ const EditorSchemas = (() => {
 
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
-    { key: "tur", label: "Type (Tür)", kind: "text", mdLabel: "Tür" },
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
     rarityField("Nadirlik"),
     fImage,
     fColumn,

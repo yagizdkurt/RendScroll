@@ -359,9 +359,10 @@ const EditorForm = (() => {
   // --- per-kind field rendering -------------------------------------------
 
   function fieldRow(field, value) {
-    const wrap = el("div", "editor-field");
+    const inlineKinds = new Set(["text", "select"]);
+    const wrap = el("div", "editor-field" + (inlineKinds.has(field.kind) ? " editor-field-inline" : ""));
     const id = "ef-" + field.key;
-    const label = el("label", null, field.label + (field.required ? " *" : ""));
+    const label = el("label", null, field.label + ":" + (field.required ? " *" : ""));
     label.setAttribute("for", id);
     wrap.appendChild(label);
 
@@ -516,9 +517,9 @@ const EditorForm = (() => {
     head.appendChild(x);
 
     const body = el("div", "editor-modal-body");
-    const titleField = el("div", "editor-field");
+    const titleField = el("div", "editor-field editor-field-inline");
     const titleId = "ef-plain-title";
-    const titleLabel = el("label", null, "Title");
+    const titleLabel = el("label", null, "Title:");
     titleLabel.setAttribute("for", titleId);
     const titleInput = el("input");
     titleInput.type = "text";
@@ -530,9 +531,9 @@ const EditorForm = (() => {
     let levelInput = null;
     let levelField = null;
     if (block.kind === "section") {
-      levelField = el("div", "editor-field");
+      levelField = el("div", "editor-field editor-field-inline");
       const levelId = "ef-plain-level";
-      const levelLabel = el("label", null, "Columns");
+      const levelLabel = el("label", null, "Columns:");
       levelLabel.setAttribute("for", levelId);
       levelInput = el("select");
       levelInput.id = levelId;
@@ -600,8 +601,8 @@ const EditorForm = (() => {
     head.appendChild(x);
 
     const body = el("div", "editor-modal-body");
-    const titleField = el("div", "editor-field");
-    const titleLabel = el("label", null, "Title");
+    const titleField = el("div", "editor-field editor-field-inline");
+    const titleLabel = el("label", null, "Title:");
     titleLabel.setAttribute("for", "ef-chapter-title");
     const title = el("input");
     title.type = "text";
@@ -610,8 +611,8 @@ const EditorForm = (() => {
     titleField.appendChild(titleLabel);
     titleField.appendChild(title);
 
-    const levelField = el("div", "editor-field");
-    const levelLabel = el("label", null, "Columns");
+    const levelField = el("div", "editor-field editor-field-inline");
+    const levelLabel = el("label", null, "Columns:");
     levelLabel.setAttribute("for", "ef-chapter-level");
     const level = el("select");
     level.id = "ef-chapter-level";

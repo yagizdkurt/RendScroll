@@ -343,8 +343,14 @@ body.editor-on .editor-chapter-zone {
   flex-direction: column;
   gap: 4px;
 }
+.editor-field-inline {
+  display: grid;
+  grid-template-columns: minmax(86px, max-content) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+}
 .editor-field > label {
-  font-size: 12px;
+  font-size: 16px;
   letter-spacing: 0.03em;
   opacity: 0.8;
 }
