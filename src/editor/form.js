@@ -396,7 +396,7 @@ const EditorForm = (() => {
       label.prepend(cb);
       label.prepend(document.createTextNode(" "));
       getValue = () => cb.checked;
-    } else if (field.kind === "lines") {
+    } else if (field.kind === "lines" || field.kind === "narrativeText") {
       const ta = el("textarea");
       ta.id = id;
       ta.value = value || "";
@@ -654,62 +654,6 @@ const EditorForm = (() => {
     title.select();
   }
 
-  function unquoteNarrative(source) {
-    return String(source || "")
-      .replace(/\r?\n$/, "")
-      .split(/\r?\n/)
-      .map((line) => line.replace(/^\s*>\s?/, ""))
-      .join("\n");
-  }
-
-  function openNarrative(block, model, onSubmit) {
-    close();
-    backdrop = el("div", "editor-modal-backdrop");
-    const modal = el("div", "editor-modal editor-modal-narrative");
-
-    const head = el("div", "editor-modal-head");
-    head.appendChild(el("span", null, block ? "Edit Narrative" : "New Narrative"));
-    const x = button("editor-mini", "✕", "Close");
-    x.addEventListener("click", close);
-    head.appendChild(x);
-
-    const body = el("div", "editor-modal-body");
-    const field = el("div", "editor-field");
-    const id = "ef-narrative-body";
-    const label = el("label", null, "Narrative text");
-    label.setAttribute("for", id);
-    const text = el("textarea");
-    text.id = id;
-    text.className = "editor-narrative-body";
-    text.placeholder = "Players see or hear this...";
-    text.value = block ? unquoteNarrative(EditorOutline.narrativeBlockSource(model, block)) : "";
-    field.appendChild(label);
-    field.appendChild(text);
-    body.appendChild(field);
-
-    const foot = el("div", "editor-modal-foot");
-    const cancel = button("editor-btn", "Cancel");
-    cancel.addEventListener("click", close);
-    const ok = button("editor-btn primary", block ? "Apply" : "Insert");
-    ok.addEventListener("click", () => {
-      close();
-      onSubmit(text.value);
-    });
-    foot.appendChild(cancel);
-    foot.appendChild(ok);
-
-    modal.appendChild(head);
-    modal.appendChild(body);
-    modal.appendChild(foot);
-    backdrop.appendChild(modal);
-    backdrop.addEventListener("mousedown", (e) => {
-      if (e.target === backdrop) close();
-    });
-    document.body.appendChild(backdrop);
-    document.addEventListener("keydown", onKey);
-    text.focus();
-  }
-
   function defaults(schema) {
     const v = {};
     schema.fields.forEach((f) => {
@@ -734,7 +678,6 @@ const EditorForm = (() => {
       open(schema, EditorSchemas.parse(schema, src), "Edit " + schema.label, onSubmit);
     },
     openPlain,
-    openNarrative,
     openChapter,
   };
 })();

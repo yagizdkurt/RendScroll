@@ -8,6 +8,7 @@ const RENDERED_CARD_CLASSES = [
   "ability-card",
   "combat-card",
   "unexpected-card",
+  "narrative-card",
   "std-card",
 ];
 

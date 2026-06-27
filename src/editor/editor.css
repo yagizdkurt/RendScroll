@@ -98,22 +98,12 @@ body.editor-on .editor-card:hover {
 .editor-plain-block {
   position: relative;
 }
-.editor-narrative-block {
-  position: relative;
-}
 body.editor-on .editor-plain-block {
   outline: 1px dashed rgba(184, 137, 47, 0.28);
   outline-offset: 4px;
 }
-body.editor-on .editor-narrative-block {
-  outline: 1px dashed rgba(184, 137, 47, 0.35);
-  outline-offset: 3px;
-}
 body.editor-on .editor-plain-block:hover {
   outline-color: rgba(216, 167, 67, 0.75);
-}
-body.editor-on .editor-narrative-block:hover {
-  outline-color: rgba(216, 167, 67, 0.9);
 }
 .editor-card-tools {
   display: none;
@@ -153,17 +143,7 @@ body.editor-on .editor-ref-card:hover > .editor-ref-tools {
   right: 6px;
   z-index: 6;
 }
-.editor-narrative-tools {
-  display: none;
-  position: absolute;
-  top: -12px;
-  right: 6px;
-  z-index: 7;
-}
 body.editor-on .editor-plain-block:hover > .editor-plain-tools {
-  display: flex;
-}
-body.editor-on .editor-narrative-block:hover > .editor-narrative-tools {
   display: flex;
 }
 .editor-tool {
@@ -372,9 +352,6 @@ body.editor-on .editor-chapter-zone {
 }
 .editor-field textarea.editor-plain-body {
   min-height: 340px;
-}
-.editor-field textarea.editor-narrative-body {
-  min-height: 260px;
 }
 .editor-field-row {
   display: flex;

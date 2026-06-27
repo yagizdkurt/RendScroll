@@ -1,0 +1,18 @@
+/* ---------- Narrative Cards ---------- */
+/* Plain wrapper: layout/editor need a card element, reader sees read-aloud. */
+.page .narrative-card {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.page .narrative-card > :first-child {
+  margin-top: 0;
+}
+
+.page .narrative-card > :last-child {
+  margin-bottom: 0;
+}

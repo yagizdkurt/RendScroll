@@ -46,6 +46,7 @@
   .page .ability-card p,
   .page .combat-card p,
   .page .unexpected-card p,
+  .page .narrative-card p,
   .page .std-card p,
   .page .sc-card blockquote.read-aloud p,
   .page .npc-card blockquote.read-aloud p,
@@ -54,6 +55,7 @@
   .page .ability-card blockquote.read-aloud p,
   .page .combat-card blockquote.read-aloud p,
   .page .unexpected-card blockquote.read-aloud p,
+  .page .narrative-card blockquote.read-aloud p,
   .page .std-card blockquote.read-aloud p{
     font-size:calc(1.05rem * var(--ro-text) * var(--rs-card-text-scale, 1));
   }

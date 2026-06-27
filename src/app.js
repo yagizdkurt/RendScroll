@@ -85,6 +85,7 @@ const CARD_BUILDERS = {
   obj: buildObjCard,
   combat: buildCombatCard,
   unexpected: buildUnexpectedCard,
+  narrative: buildNarrativeCard,
   std: buildStdCard,
 };
 
@@ -128,6 +129,7 @@ function isolateCardSource(type, src) {
     case "obj": src = normalizeObjMarkdown(src); break;
     case "ability": src = normalizeAbilityMarkdown(src); break;
     case "combat": src = normalizeCombatMarkdown(src); break;
+    case "narrative": src = normalizeNarrativeMarkdown(src); break;
     case "std": src = normalizeStdMarkdown(src); break;
     case "unexpected": src = normalizeUnexpectedMarkdown(src); break;
     default: break; // "echo"/unknown: rendered as a plain heading + body

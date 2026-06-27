@@ -107,12 +107,6 @@ const Editor = (() => {
     applyModel(EditorOutline.replacePlainBlock(state.model, block, values));
   }
 
-  function replaceNarrativeBlock(id, text) {
-    const block = EditorOutline.findNarrativeBlock(state.model, id);
-    if (!block) return;
-    applyModel(EditorOutline.replaceNarrativeBlock(state.model, block, text));
-  }
-
   // --- library references ([item=Name]) -----------------------------------
   // Items live once in /Items as standalone files; scenes only reference them, so
   // the editor never writes an item's body into a scene (see plan §6).
@@ -238,12 +232,6 @@ const Editor = (() => {
         EditorForm.openPlain(block, state.model, (values) => replacePlainBlock(id, values));
       }
     },
-    editNarrativeBlock(id) {
-      const block = EditorOutline.findNarrativeBlock(state.model, id);
-      if (block && typeof EditorForm !== "undefined") {
-        EditorForm.openNarrative(block, state.model, (text) => replaceNarrativeBlock(id, text));
-      }
-    },
     cardMenu(id, x, y, ctx) {
       // Listeners persist after toggling off (no re-render), so gate here.
       if (!state.enabled) return;
@@ -274,13 +262,6 @@ const Editor = (() => {
     cardIsItem,
     editLibraryItem,
     removeRef,
-    pickNarrative(target) {
-      if (typeof EditorForm !== "undefined") {
-        EditorForm.openNarrative(null, state.model, (text) =>
-          insertCardBlock(EditorOutline.narrativeBlock(text), target)
-        );
-      }
-    },
     insertChapter(target) {
       if (typeof EditorForm !== "undefined") {
         EditorForm.openChapter((values) =>
@@ -401,7 +382,7 @@ const Editor = (() => {
 
   function clearDecorations() {
     if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
-    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-narrative-tools, .editor-ref-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
+    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-ref-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
     page.querySelectorAll(".editor-ref-card").forEach((n) => n.classList.remove("editor-ref-card"));
     page.querySelectorAll("[data-block-id]").forEach((n) => {
       n.removeAttribute("data-block-id");
@@ -411,10 +392,6 @@ const Editor = (() => {
     page.querySelectorAll("[data-plain-block-id]").forEach((n) => {
       n.removeAttribute("data-plain-block-id");
       n.classList.remove("editor-plain-block");
-    });
-    page.querySelectorAll("[data-narrative-block-id]").forEach((n) => {
-      n.removeAttribute("data-narrative-block-id");
-      n.classList.remove("editor-narrative-block");
     });
   }
 

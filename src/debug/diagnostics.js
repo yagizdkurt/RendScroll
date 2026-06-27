@@ -152,6 +152,21 @@ const RendScrollDiagnostics = (() => {
     });
   }
 
+  function addLegacyNarrativeDiagnostics(doc, file, issues) {
+    doc.sections.forEach((section) => {
+      section.blocks.forEach((block) => {
+        if (block.kind !== "narrative") return;
+        issues.push(issue(
+          "warn",
+          file,
+          dispLine(block.range),
+          "use ### Narrative instead of standalone blockquote narrative",
+          "legacy-narrative-block"
+        ));
+      });
+    });
+  }
+
   function addCheckDiagnostics(doc, file, issues) {
     const rules = skillRules();
     if (!rules) return;
@@ -277,6 +292,7 @@ const RendScrollDiagnostics = (() => {
     addCheckDiagnostics(doc, file, issues);
     addUnknownHeadingDiagnostics(doc, file, issues);
     addReferenceDiagnostics(doc, file, issues);
+    addLegacyNarrativeDiagnostics(doc, file, issues);
 
     return issues.sort((a, b) => {
       if (a.file !== b.file) return String(a.file).localeCompare(String(b.file));

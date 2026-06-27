@@ -8,5 +8,6 @@
 @import url("./cards/obj/obj.css");
 @import url("./cards/combat/combat.css");
 @import url("./cards/unexpected/unexpected.css");
+@import url("./cards/narrative/narrative.css");
 @import url("./cards/shared/shared.css");
 @import url("./styles/responsive.css");

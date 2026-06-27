@@ -11,14 +11,14 @@ const EditorAnchors = (() => {
   // Card types that the card builders turn into a single card <div>. Plain "###"
   // sections and Yankı/Echo produce no card div, so they are not anchorable.
   const ANCHORABLE = new Set([
-    "npc", "item", "ability", "obj", "combat", "unexpected", "std", "skillchecks",
+    "npc", "item", "ability", "obj", "combat", "unexpected", "narrative", "std", "skillchecks",
   ]);
 
   // DOM class for each card type (from the card builders).
   const CARD_CLASS = {
     npc: "npc-card", item: "item-card", ability: "ability-card", obj: "obj-card",
     combat: "combat-card", unexpected: "unexpected-card", std: "std-card",
-    skillchecks: "sc-card",
+    narrative: "narrative-card", skillchecks: "sc-card",
   };
   // Reference-sourced cards (`[item=Name]`) are rendered into the DOM but live in
   // the library, NOT the outline model — exclude them so the model<->DOM card zip
@@ -229,17 +229,6 @@ const EditorAnchors = (() => {
     el.appendChild(tools);
   }
 
-  function decorateNarrativeBlock(el, block, handlers) {
-    if (!el || !block || el.querySelector(":scope > .editor-narrative-tools")) return;
-    el.dataset.narrativeBlockId = String(block.id);
-    el.classList.add("editor-narrative-block");
-
-    const tools = document.createElement("div");
-    tools.className = "editor-narrative-tools";
-    tools.appendChild(toolBtn("✎", "Edit narrative", () => handlers.editNarrativeBlock(block.id)));
-    el.appendChild(tools);
-  }
-
   function toolBtn(glyph, label, onClick) {
     const b = document.createElement("button");
     b.type = "button";
@@ -298,9 +287,6 @@ const EditorAnchors = (() => {
       const headerPlain = (model.plainBlocks || []).find((b) => b.kind === "header");
       decoratePlainBlock(headerEl, headerPlain, handlers);
     }
-
-    const narrativeEls = [...page.querySelectorAll("blockquote")].filter((el) => !el.closest(CARD_DOM_SELECTOR));
-    (model.narrativeBlocks || []).forEach((block, i) => decorateNarrativeBlock(narrativeEls[i], block, handlers));
 
     const grid = page.querySelector(".page-grid");
     if (!grid) {

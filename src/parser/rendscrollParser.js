@@ -98,6 +98,7 @@ const RendScrollParser = (() => {
     if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
     if (/^\s*sava[şs]\s*:/i.test(raw)) return "combat";
     if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
+    if (/^\s*narrative\s*$/i.test(raw)) return "narrative";
     if (/^std\s*:/i.test(raw)) return "std";
     if (tl.includes("npc")) return "npc";
     if (/^\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
@@ -114,6 +115,7 @@ const RendScrollParser = (() => {
       case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
       case "combat": return c.replace(/^\s*sava[şs]\s*:\s*/i, "").trim() || "Savaş";
       case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
+      case "narrative": return "Narrative";
       case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
       case "skillchecks": return c.trim();
       default: return c.trim();

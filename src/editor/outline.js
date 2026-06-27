@@ -144,10 +144,6 @@ const EditorOutline = (() => {
     }
     closeCur(lines.length);
 
-    function inCardRange(lineIndex) {
-      return events.some((ev) => ev.cards.some((card) => lineIndex >= card.start && lineIndex < card.end));
-    }
-
     // Pass 3: expose editable non-card heading/body blocks. These are leading
     // plain markdown spans only; card ranges remain owned by their card editors.
     const plainBlocks = [];
@@ -183,24 +179,7 @@ const EditorOutline = (() => {
       });
     });
 
-    // Pass 4: editable standalone narrative blocks. These are consecutive
-    // blockquote source lines outside structured cards, so they can be edited
-    // next to the rendered read-aloud box without taking over card internals.
-    const narrativeBlocks = [];
-    let narrativeId = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (inCardRange(i) || !/^\s*>/.test(lineText(lines[i]))) continue;
-      const start = i;
-      while (i < lines.length && !inCardRange(i) && /^\s*>/.test(lineText(lines[i]))) i++;
-      narrativeBlocks.push({
-        id: narrativeId++,
-        start,
-        end: i,
-      });
-      i--;
-    }
-
-    return { raw: md, lines, eol, events, boundaries, hrLines, plainBlocks, narrativeBlocks };
+    return { raw: md, lines, eol, events, boundaries, hrLines, plainBlocks };
   }
 
   // --- Serialize (exact) ---------------------------------------------------
@@ -239,12 +218,6 @@ const EditorOutline = (() => {
     return model.raw.slice(a, b);
   }
 
-  function narrativeBlockSource(model, block) {
-    const a = offsetOf(model, block.start);
-    const b = block.end >= model.lines.length ? model.raw.length : offsetOf(model, block.end);
-    return model.raw.slice(a, b);
-  }
-
   // Find a card across all events by id.
   function findCard(model, id) {
     for (const ev of model.events) {
@@ -256,10 +229,6 @@ const EditorOutline = (() => {
 
   function findPlainBlock(model, id) {
     return (model.plainBlocks || []).find((b) => b.id === id) || null;
-  }
-
-  function findNarrativeBlock(model, id) {
-    return (model.narrativeBlocks || []).find((b) => b.id === id) || null;
   }
 
   function cardHrGroup(model, ev, card) {
@@ -477,26 +446,6 @@ const EditorOutline = (() => {
     return spliceText(model, block.start, block.end, replacement);
   }
 
-  function quoteNarrative(text, eol) {
-    const raw = String(text || "").replace(/\r?\n/g, "\n").replace(/[ \t\r\n]+$/, "");
-    if (!raw) return "";
-    return raw.split("\n").map((line) => {
-      if (/^\s*>/.test(line)) return line;
-      return line ? "> " + line : ">";
-    }).join(eol);
-  }
-
-  function replaceNarrativeBlock(model, block, text) {
-    const quoted = quoteNarrative(text, model.eol);
-    const replacement = quoted ? quoted + model.eol : "";
-    return spliceText(model, block.start, block.end, replacement);
-  }
-
-  function narrativeBlock(text) {
-    const quoted = quoteNarrative(text || "New narrative text.", "\n");
-    return quoted || "> New narrative text.";
-  }
-
   function chapterBlock(values) {
     const title = String(values && values.title ? values.title : "New Chapter").trim();
     const level = parseInt(values && values.level, 10) === 1 ? 1 : 2;
@@ -516,13 +465,9 @@ const EditorOutline = (() => {
     deleteCard,
     findCard,
     findPlainBlock,
-    findNarrativeBlock,
     cardSource,
     plainBlockSource,
-    narrativeBlockSource,
     replacePlainBlock,
-    replaceNarrativeBlock,
-    narrativeBlock,
     chapterBlock,
     connectedCardGroup,
     moveCardGroup,

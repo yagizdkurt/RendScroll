@@ -117,6 +117,7 @@
 .page .ability-card p,
 .page .combat-card p,
 .page .unexpected-card p,
+.page .narrative-card p,
 .page .std-card p{
   font-size:calc(1.14rem * var(--ro-text) * var(--rs-card-text-scale, 1));
 }
@@ -128,6 +129,7 @@
 .page .ability-card blockquote.read-aloud p,
 .page .combat-card blockquote.read-aloud p,
 .page .unexpected-card blockquote.read-aloud p,
+.page .narrative-card blockquote.read-aloud p,
 .page .std-card blockquote.read-aloud p{
   font-size:calc(1.13rem * var(--ro-text) * var(--rs-card-text-scale, 1));
 }
@@ -139,6 +141,7 @@
 .page .ability-card li,
 .page .combat-card li,
 .page .unexpected-card li,
+.page .narrative-card li,
 .page .std-card li{
   font-size:calc(1.1rem * var(--ro-text) * var(--rs-card-text-scale, 1));
 }

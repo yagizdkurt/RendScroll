@@ -58,3 +58,38 @@ test("schema lists parse asterisk markers and serialize canonical dash markers",
   assert.match(out, /^- Quiet$/m);
   assert.doesNotMatch(out, /^\* Climbing$/m);
 });
+
+test("Narrative schema serializes Text as quoted read-aloud lines", () => {
+  const schema = EditorSchemas.get("narrative");
+  const out = EditorSchemas.serialize(schema, {
+    column: "right",
+    textSize: "16",
+    text: "First line\n\nSecond line",
+  });
+
+  assert.match(out, /^### Narrative$/m);
+  assert.match(out, /^Side: R$/m);
+  assert.match(out, /^Text Size: 16$/m);
+  assert.match(out, /^Text:$/m);
+  assert.match(out, /^> First line$/m);
+  assert.match(out, /^>$/m);
+  assert.match(out, /^> Second line$/m);
+});
+
+test("Narrative schema parses Text label and unquotes content", () => {
+  const schema = EditorSchemas.get("narrative");
+  const values = EditorSchemas.parse(schema, [
+    "### Narrative",
+    "Side: R",
+    "Text Size: 15",
+    "Text:",
+    "> First line",
+    ">",
+    "> Second line",
+    "",
+  ].join("\n"));
+
+  assert.equal(values.column, "right");
+  assert.equal(values.textSize, "15");
+  assert.equal(values.text, "First line\n\nSecond line");
+});

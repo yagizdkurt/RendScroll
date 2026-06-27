@@ -98,6 +98,9 @@ const EditorSchemas = (() => {
         }
       } else if (f.kind === "lines") {
         if (v != null && String(v).trim() !== "") out += String(v).replace(/[ \t\r\n]+$/, "") + eol;
+      } else if (f.kind === "narrativeText") {
+        const text = quoteNarrativeText(v);
+        if (text) out += f.mdLabel + ":" + eol + text + eol;
       } else if (f.kind === "checks") {
         const checks = serializeChecks(v);
         if (checks) out += checks + eol;
@@ -132,7 +135,7 @@ const EditorSchemas = (() => {
     const body = rawLines.slice(headIdx + 1);
 
     // Build label lookups.
-    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks"]);
+    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks", "narrativeText"]);
     const labeled = schema.fields.filter((f) => f.mdLabel && !catchAllKinds.has(f.kind));
     const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
     const hasColumn = schema.fields.some((f) => f.key === "column");
@@ -193,6 +196,8 @@ const EditorSchemas = (() => {
       if (linesField.kind === "checks") values[linesField.key] = parseChecks(text);
       else if (linesField.kind === "linesWithChecks") {
         values[linesField.key] = parseLinesWithChecks(text, linesField.checkMode);
+      } else if (linesField.kind === "narrativeText") {
+        values[linesField.key] = unquoteNarrativeText(stripTextLabel(text, linesField.mdLabel));
       } else values[linesField.key] = text;
     }
     return values;
@@ -261,6 +266,34 @@ const EditorSchemas = (() => {
     hint: "Add skills and outcomes.",
     checkOptions: CHECK_SKILL_OPTIONS,
   };
+
+  function quoteNarrativeText(value) {
+    const raw = String(value || "").replace(/\r?\n/g, "\n").replace(/[ \t\r\n]+$/, "");
+    if (!raw) return "";
+    return raw.split("\n").map((line) => {
+      if (/^\s*>/.test(line)) return line;
+      return line ? "> " + line : ">";
+    }).join("\n");
+  }
+
+  function unquoteNarrativeText(value) {
+    return String(value || "")
+      .replace(/[ \t\r\n]+$/, "")
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*>\s?/, ""))
+      .join("\n");
+  }
+
+  function stripTextLabel(text, label) {
+    const lines = String(text || "").split(/\r?\n/);
+    const wanted = lower(String(label || "Text"));
+    if (lines.length) {
+      const first = lower(lines[0].trim()).match(/^([^:]+):\s*$/);
+      if (first && first[1].trim() === wanted) lines.shift();
+    }
+    while (lines.length && lines[0].trim() === "") lines.shift();
+    return lines.join("\n");
+  }
 
   // --- schema registry -----------------------------------------------------
 
@@ -372,8 +405,17 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
+  define("narrative", "Narrative", {
+    heading() { return "Narrative"; },
+    parseHeading(content, values) { values.column = "left"; },
+  }, [
+    fColumn,
+    fTextSize,
+    { key: "text", label: "Text", kind: "narrativeText", mdLabel: "Text", hint: "Read-aloud text...", required: true },
+  ]);
+
   // Order shown in the insert menu.
-  const ORDER = ["npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std"];
+  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std"];
 
   return {
     get(type) { return REGISTRY[type] || null; },

@@ -69,10 +69,6 @@ const EditorContextMenu = (() => {
   return {
     openInsert(target, x, y, handlers) {
       const nodes = [group("Insert")];
-      if (handlers.pickNarrative) {
-        nodes.push(item("Narrative", () => handlers.pickNarrative(target)));
-        nodes.push(sep());
-      }
       EditorSchemas.list().forEach((schema) => {
         nodes.push(item(schema.label, () => handlers.pickInsert(schema.type, target)));
       });

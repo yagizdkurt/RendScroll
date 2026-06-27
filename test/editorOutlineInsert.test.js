@@ -71,3 +71,10 @@ test("rewriteBlockColumn leaves narrative inserts unchanged", () => {
 
   assert.equal(block, "> narrative");
 });
+
+test("rewriteBlockColumn writes Side R for Narrative card inserts", () => {
+  const model = EditorOutline.parse("# Scene\n## Event\n");
+  const block = EditorOutline.rewriteBlockColumn(model, "### Narrative\nText:\n> body", "right");
+
+  assert.match(block, /^### Narrative\nSide: R\nText:\n> body$/);
+});
