@@ -12,11 +12,12 @@ const EditorAnchors = (() => {
   // sections and Yankı/Echo produce no card div, so they are not anchorable.
   const ANCHORABLE = new Set([
     "npc", "item", "ability", "obj", "combat", "unexpected", "narrative", "std", "skillchecks",
+    "sourceitem",
   ]);
 
   // DOM class for each card type (from the card builders).
   const CARD_CLASS = {
-    npc: "npc-card", item: "item-card", ability: "ability-card", obj: "obj-card",
+    npc: "npc-card", item: "item-card", sourceitem: "item-card", ability: "ability-card", obj: "obj-card",
     combat: "combat-card", unexpected: "unexpected-card", std: "std-card",
     narrative: "narrative-card", skillchecks: "sc-card",
   };

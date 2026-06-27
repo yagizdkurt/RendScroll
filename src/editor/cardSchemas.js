@@ -320,6 +320,7 @@ const EditorSchemas = (() => {
 
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
+    { key: "sourceItem", label: "SourceItem", kind: "text", mdLabel: "SourceItem" },
     { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
     rarityField("Nadirlik"),
     fImage,
@@ -403,6 +404,23 @@ const EditorSchemas = (() => {
     fColumn,
     fTextSize,
     fClosed,
+  ]);
+
+  define("sourceitem", "SourceItem", {
+    heading(values) {
+      return "SourceItem: " + (values.title || "").trim();
+    },
+    parseHeading(content, values) {
+      const m = content.match(/^\s*(source\s*item|sourceitem)\s*:\s*(.*)$/i);
+      values.title = m ? m[2].trim() : content.trim();
+    },
+  }, [
+    fTitle,
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
+    rarityField("Nadirlik"),
+    fImage,
+    { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
+    fBody("> description, extra lines…"),
   ]);
 
   define("narrative", "Narrative", {

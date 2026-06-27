@@ -59,6 +59,37 @@ test("schema lists parse asterisk markers and serialize canonical dash markers",
   assert.doesNotMatch(out, /^\* Climbing$/m);
 });
 
+test("Item schema parses and serializes SourceItem slot", () => {
+  const schema = EditorSchemas.get("item");
+  const values = EditorSchemas.parse(schema, [
+    "### Item: Lantern",
+    "SourceItem: Lantern Base",
+    "Tür: -",
+    "",
+  ].join("\n"));
+
+  assert.equal(values.sourceItem, "Lantern Base");
+  assert.equal(values.tur, "-");
+  const out = EditorSchemas.serialize(schema, values);
+  assert.match(out, /^SourceItem: Lantern Base$/m);
+  assert.match(out, /^Tür: -$/m);
+});
+
+test("SourceItem schema has no instance-only slots", () => {
+  const schema = EditorSchemas.get("sourceitem");
+  const keys = schema.fields.map((f) => f.key);
+
+  assert.deepEqual(keys, ["title", "tur", "rarity", "image", "properties", "body"]);
+  assert.match(EditorSchemas.serialize(schema, {
+    title: "Lantern",
+    tur: "Tool",
+    rarity: "2",
+    image: "",
+    properties: ["Glows"],
+    body: "> Pale light.",
+  }), /^### SourceItem: Lantern$/m);
+});
+
 test("Narrative schema serializes Text as quoted read-aloud lines", () => {
   const schema = EditorSchemas.get("narrative");
   const out = EditorSchemas.serialize(schema, {

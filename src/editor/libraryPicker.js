@@ -1,6 +1,6 @@
 /* Item Library picker.
-   A modal for choosing an existing library item to insert as an [item=Name]
-   reference, or starting a brand-new item. Reuses the editor modal styling
+   A modal for choosing an existing library item to insert as a scene Item with
+   SourceItem: Name, or starting a brand-new item. Reuses the editor modal styling
    (.editor-modal*) and reads the item list from RefLibrary. Knows nothing about
    the outline model — it just reports the chosen name / "create new" to its
    caller (editor.js wires those to insertion). */

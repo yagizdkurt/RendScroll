@@ -157,6 +157,42 @@ test("Item: type, title, Image directive, meta stays in body", () => {
   assert.match(bodyText(item), /Tür: Key/);
 });
 
+test("SourceItem: library base item parses as sourceitem", () => {
+  const cards = allCards(parseRendScroll([
+    "### SourceItem: Silver Key",
+    "Tür: Key",
+    "",
+  ].join("\n")));
+
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].type, "sourceitem");
+  assert.equal(cards[0].title, "Silver Key");
+});
+
+test("standalone item refs after cards are card boundaries", () => {
+  const doc = parseRendScroll([
+    "# Scene",
+    "",
+    "## Event",
+    "",
+    "### STD: One",
+    "> first",
+    "",
+    "[item=Silver Key]",
+    "",
+    "### STD: Two",
+    "> second",
+    "",
+  ].join("\n"));
+  const blocks = doc.sections.flatMap((s) => s.blocks);
+  const refs = blocks.filter((b) => b.kind === "ref");
+  const first = blocks.find((b) => b.kind === "card" && b.title === "One");
+
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0].refName, "Silver Key");
+  assert.doesNotMatch(bodyText(first), /\[item=Silver Key\]/);
+});
+
 // --- Object (Obje at H2) ---------------------------------------------------
 
 test("Object: H2 Obje with Checks group and Loot in body", () => {

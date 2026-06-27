@@ -107,9 +107,9 @@ const Editor = (() => {
     applyModel(EditorOutline.replacePlainBlock(state.model, block, values));
   }
 
-  // --- library references ([item=Name]) -----------------------------------
-  // Items live once in /Items as standalone files; scenes only reference them, so
-  // the editor never writes an item's body into a scene (see plan §6).
+  // --- library-backed items -----------------------------------------------
+  // SourceItems live once in /Items as standalone files; scenes hold lightweight
+  // Item instances whose empty fields inherit from the named SourceItem.
 
   function ensureTrailingNewline(text) {
     const t = String(text || "");
@@ -125,17 +125,18 @@ const Editor = (() => {
   }
 
   function itemNameFromBlock(block) {
-    const m = String(block).match(/^###\s+item\s*:\s*(.+?)\s*$/im);
+    const m = String(block).match(/^###\s+(?:source\s*item|sourceitem|item)\s*:\s*(.+?)\s*$/im);
     return m ? m[1].trim() : "";
   }
 
-  // New item from the create form -> write /Items/Name.md, insert "[item=Name]".
+  // New item from the create form -> write /Items/Name.md as SourceItem, then
+  // insert a scene Item instance with SourceItem: Name.
   async function createItemToLibrary(block, target) {
     const name = itemNameFromBlock(block);
     if (!name || typeof RefLibrary === "undefined") { insertCardBlock(block, target); return; }
     try {
-      await RefLibrary.createFile("item", name, ensureTrailingNewline(block));
-      insertCardBlock("[item=" + name + "]\n", target);
+      await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, block)));
+      insertCardBlock(RefLibrary.itemInstanceContent(name), target);
       notifyLibraryChanged("item", name, { created: true });
       toast("Created library item: " + name);
     } catch (err) {
@@ -148,7 +149,8 @@ const Editor = (() => {
     return !!(found && found.card.type === "item");
   }
 
-  // Migration: extract an inline item card into /Items and leave "[item=Name]".
+  // Migration: extract an inline item card into /Items and leave a scene Item
+  // instance that points at the new SourceItem.
   async function moveItemToLibrary(id) {
     if (typeof RefLibrary === "undefined") return;
     const found = EditorOutline.findCard(state.model, id);
@@ -157,8 +159,8 @@ const Editor = (() => {
     if (!name) { toast("Item has no name", true); return; }
     const src = EditorOutline.cardSource(state.model, found.card);
     try {
-      await RefLibrary.createFile("item", name, ensureTrailingNewline(src));
-      applyModel(EditorOutline.replaceCard(state.model, found.card, "[item=" + name + "]\n"));
+      await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, src)));
+      applyModel(EditorOutline.replaceCard(state.model, found.card, RefLibrary.itemInstanceContent(name)));
       notifyLibraryChanged("item", name, { created: true });
       toast("Moved to library: " + name);
     } catch (err) {
@@ -247,7 +249,7 @@ const Editor = (() => {
       // card body. Open a picker of existing items (or create a new one).
       if (type === "item" && typeof RefLibrary !== "undefined" && typeof EditorLibraryPicker !== "undefined") {
         EditorLibraryPicker.open({
-          onPick: (name) => insertCardBlock("[item=" + name + "]\n", target),
+          onPick: (name) => insertCardBlock(RefLibrary.itemInstanceContent(name), target),
           onCreateNew: () => EditorForm.openCreate("item", state.model, (block) => createItemToLibrary(block, target)),
         });
         return;

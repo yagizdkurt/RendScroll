@@ -68,6 +68,8 @@ const EditorOutline = (() => {
         const content = hm[2];
         headings.push({ line: i, level, content, type: cardType(level, content) });
         boundaries.push(i);
+      } else if (text.trim().match(RSP.regexes.REF_LINE_RE)) {
+        boundaries.push(i);
       } else if (isHr(text)) {
         boundaries.push(i);
         hrLines.push(i);

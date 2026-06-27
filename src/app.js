@@ -81,6 +81,7 @@ const CARD_BUILDERS = {
   skillchecks: buildSkillChecksCard,
   npc: buildNpcCard,
   item: buildItemCard,
+  sourceitem: buildSourceItemCard,
   ability: buildAbilityCard,
   obj: buildObjCard,
   combat: buildCombatCard,
@@ -125,6 +126,7 @@ function isolateCardSource(type, src) {
   switch (type) {
     case "skillchecks": src = normalizeSkillChecksMarkdown(src); break;
     case "item": src = normalizeItemMarkdown(src); break;
+    case "sourceitem": src = normalizeItemMarkdown(src); break;
     case "npc": src = normalizeNpcMarkdown(src); break;
     case "obj": src = normalizeObjMarkdown(src); break;
     case "ability": src = normalizeAbilityMarkdown(src); break;
@@ -150,6 +152,19 @@ function cardRawSource(doc, card) {
   return doc.raw.slice(card.range.startOffset, card.range.endOffset);
 }
 
+function itemSourceResolver(name) {
+  if (typeof RefLibrary === "undefined") return null;
+  const entry = RefLibrary.lookup("item", name);
+  return entry ? entry.source : null;
+}
+
+function prepareCardSourceForRender(type, src) {
+  if (typeof ItemData === "undefined") return src;
+  if (type === "item") return ItemData.resolveItemSource(src, itemSourceResolver);
+  if (type === "sourceitem") return ItemData.sourceItemRenderSource(src);
+  return src;
+}
+
 // Heading element for a section, carrying the AST "Collapsable:" flag (which
 // replaces the old markHeadingCollapsable DOM scan).
 function renderSectionHeading(doc, section) {
@@ -165,7 +180,8 @@ function renderSectionHeading(doc, section) {
 // (renderCardBlock) and resolved library references (renderRefBlock), so a
 // referenced item renders byte-for-byte like an inline one.
 function renderCardFromSource(type, src) {
-  const els = markedToElements(isolateCardSource(type, stripCardTextSize(src)));
+  const renderSrc = prepareCardSourceForRender(type, stripCardTextSize(src));
+  const els = markedToElements(isolateCardSource(type, renderSrc));
   const builder = CARD_BUILDERS[type];
   if (!builder) return { cardEl: null, els };
   const cardEl = builder(els[0], els.slice(1));

@@ -17,7 +17,7 @@ const RefLibrary = (() => {
   // type -> { folder, cardType }. cardType is the existing renderer/parser card
   // type the resolved source renders as (see CARD_BUILDERS in src/app.js).
   const REF_TYPES = {
-    item: { folder: "Items", cardType: "item" },
+    item: { folder: "Items", cardType: "sourceitem" },
     // future: npc / monster / location — add a line, nothing else changes.
   };
 
@@ -243,6 +243,27 @@ const RefLibrary = (() => {
     return cycles;
   }
 
+  function itemInstanceContent(name) {
+    const n = String(name || "").trim();
+    return "### Item: " + n + "\nSourceItem: " + n + "\n";
+  }
+
+  function sourceItemContent(name, content) {
+    const n = String(name || "").trim();
+    let src = String(content || "").replace(/\r?\n/g, "\n");
+    const lines = src.split("\n");
+    const heading = lines.findIndex((line) => /^\s*###\s+(source\s*item|sourceitem|item)\s*:/i.test(line));
+    if (heading >= 0) {
+      lines[heading] = lines[heading].replace(
+        /^\s*###\s+(source\s*item|sourceitem|item)\s*:\s*(.*)$/i,
+        (_, _kind, title) => "### SourceItem: " + (String(title || "").trim() || n)
+      );
+    } else {
+      lines.unshift("### SourceItem: " + n);
+    }
+    return lines.filter((line) => !/^\s*(source\s*item|sourceitem|side|text\s*size|yapışık|connect|combine|closed)\s*:/i.test(line.trim())).join("\n");
+  }
+
   return {
     REF_TYPES,
     REF_LINE_RE,
@@ -258,6 +279,8 @@ const RefLibrary = (() => {
     deleteFile,
     duplicates: () => duplicates.slice(),
     detectCycles,
+    itemInstanceContent,
+    sourceItemContent,
     norm,
     entries: (type) => (cache[type] ? [...cache[type].values()] : []),
   };

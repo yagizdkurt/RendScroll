@@ -41,9 +41,21 @@ test("RefLibrary resolves a reference to its file source (case/Turkish-insensiti
   await stubLibrary(ITEMS);
   const r = RefLibrary.resolve("item", "calamity");
   assert.equal(r.ok, true);
+  assert.equal(r.cardType, "sourceitem");
   assert.match(r.source, /Lanetli/);
   assert.equal(RefLibrary.has("item", "GÜMÜŞ ANAHTAR".replace(/I/g, "İ")), true);
   assert.equal(RefLibrary.resolve("item", "Nope").ok, false);
+});
+
+test("RefLibrary resolves SourceItem files and keeps legacy Item files readable", async () => {
+  await stubLibrary([
+    { name: "New", path: "Items/New.md", content: "### SourceItem: New\nTür: Relic\n" },
+    { name: "Legacy", path: "Items/Legacy.md", content: "### Item: Legacy\nTür: Tool\n" },
+  ]);
+
+  assert.equal(RefLibrary.resolve("item", "New").cardType, "sourceitem");
+  assert.match(RefLibrary.resolve("item", "New").source, /^### SourceItem: New/m);
+  assert.match(RefLibrary.resolve("item", "Legacy").source, /^### Item: Legacy/m);
 });
 
 test("RefLibrary reports duplicate names and circular references", async () => {
@@ -80,6 +92,29 @@ test("createFile then deleteFile add and remove a cache entry", async () => {
   assert.equal(RefLibrary.has("item", "Yeni"), false);
   // Delete targets the library file path under Items/.
   assert.equal(posted.some((p) => p.url === "/__delete_campaign_file" && p.body.path === "Items/Yeni.md"), true);
+});
+
+test("library item migration helper writes SourceItem and strips instance-only fields", () => {
+  const out = RefLibrary.sourceItemContent("Lantern", [
+    "### Item: Lantern",
+    "SourceItem: Old",
+    "Side: R",
+    "Text Size: 14",
+    "Yapışık: T",
+    "Closed: T",
+    "Tür: Tool",
+    "",
+  ].join("\n"));
+
+  assert.match(out, /^### SourceItem: Lantern$/m);
+  assert.match(out, /^Tür: Tool$/m);
+  assert.doesNotMatch(out, /^### Item:/m);
+  assert.doesNotMatch(out, /^SourceItem:/m);
+  assert.doesNotMatch(out, /^Side:/m);
+  assert.doesNotMatch(out, /^Text Size:/m);
+  assert.doesNotMatch(out, /^Yapışık:/m);
+  assert.doesNotMatch(out, /^Closed:/m);
+  assert.equal(RefLibrary.itemInstanceContent("Lantern"), "### Item: Lantern\nSourceItem: Lantern\n");
 });
 
 test("scene diagnostics flag missing refs, malformed refs, and broken links", async () => {
