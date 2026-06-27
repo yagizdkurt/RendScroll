@@ -122,6 +122,14 @@ const Editor = (() => {
     return /\n$/.test(t) ? t : t + "\n";
   }
 
+  // Tell the rest of the app a library file changed: app.js re-mounts the Item
+  // Library sidebar and re-renders the current view so references resolve.
+  function notifyLibraryChanged(type, name, extra) {
+    document.dispatchEvent(new CustomEvent("library:changed", {
+      detail: Object.assign({ type, name }, extra || {}),
+    }));
+  }
+
   function itemNameFromBlock(block) {
     const m = String(block).match(/^###\s+item\s*:\s*(.+?)\s*$/im);
     return m ? m[1].trim() : "";
@@ -134,6 +142,7 @@ const Editor = (() => {
     try {
       await RefLibrary.createFile("item", name, ensureTrailingNewline(block));
       insertCardBlock("[item=" + name + "]\n", target);
+      notifyLibraryChanged("item", name, { created: true });
       toast("Created library item: " + name);
     } catch (err) {
       toast(err.message || "Item create failed", true);
@@ -156,6 +165,7 @@ const Editor = (() => {
     try {
       await RefLibrary.createFile("item", name, ensureTrailingNewline(src));
       applyModel(EditorOutline.replaceCard(state.model, found.card, "[item=" + name + "]\n"));
+      notifyLibraryChanged("item", name, { created: true });
       toast("Moved to library: " + name);
     } catch (err) {
       toast(err.message || "Move failed", true);
@@ -178,7 +188,9 @@ const Editor = (() => {
       try {
         await EditorSave.save(path, ensureTrailingNewline(block));
         await RefLibrary.refresh(type, name);
-        rerender();
+        // app.js re-renders the right view (scene with decorations, or the
+        // library view) in response to this; don't rerender the scene here.
+        notifyLibraryChanged(type, name, { edited: true });
         toast("Saved library item: " + name);
       } catch (err) {
         toast(err.message || "Save failed", true);
@@ -243,8 +255,15 @@ const Editor = (() => {
     },
     pickInsert(type, target) {
       if (typeof EditorForm === "undefined") return;
-      // Items are created into the library and inserted as a reference, never
-      // embedded as a card body in the scene.
+      // Items are inserted as a reference to a library file, never embedded as a
+      // card body. Open a picker of existing items (or create a new one).
+      if (type === "item" && typeof RefLibrary !== "undefined" && typeof EditorLibraryPicker !== "undefined") {
+        EditorLibraryPicker.open({
+          onPick: (name) => insertCardBlock("[item=" + name + "]\n", target),
+          onCreateNew: () => EditorForm.openCreate("item", state.model, (block) => createItemToLibrary(block, target)),
+        });
+        return;
+      }
       if (type === "item" && typeof RefLibrary !== "undefined") {
         EditorForm.openCreate(type, state.model, (block) => createItemToLibrary(block, target));
         return;
@@ -434,7 +453,17 @@ const Editor = (() => {
     });
   }
 
-  return { init, getState: () => state, _handlers: handlers };
+  return {
+    init,
+    getState: () => state,
+    // Re-render the current scene with editing decorations (used by app.js after
+    // a library change while the editor is on).
+    rerender,
+    // Edit a library file via the item form (used by the library sidebar view and
+    // by reference-card tools). Works regardless of scene edit mode.
+    editLibraryItem,
+    _handlers: handlers,
+  };
 })();
 
 Editor.init();

@@ -214,7 +214,8 @@ body.sidebar-collapsed .sidebar-brand{
   object-fit:contain;
 }
 
-body.sidebar-collapsed #nav button{
+body.sidebar-collapsed #nav button,
+body.sidebar-collapsed #library-nav button{
   width:100%;
   height:2rem;
   min-height:0;
@@ -230,20 +231,51 @@ body.sidebar-collapsed #nav button{
   text-align:center;
 }
 
-body.sidebar-collapsed #nav button::before{
+body.sidebar-collapsed #nav button::before,
+body.sidebar-collapsed #library-nav button::before{
   content:attr(data-nav-index);
   color:#e8dcc2;
   font-size:1rem;
   line-height:1;
 }
 
-body.sidebar-collapsed #nav button.active::before{
+body.sidebar-collapsed #nav button.active::before,
+body.sidebar-collapsed #library-nav button.active::before{
   color:var(--parchment-lt);
 }
 
-#nav{display:flex;flex-direction:column;gap:.4rem;}
+/* The two sidebar sections hide their titles + lists when collapsed. */
+body.sidebar-collapsed .nav-section-title,
+body.sidebar-collapsed .nav-empty{
+  display:none;
+}
 
-#nav button{
+#nav,#library-nav{display:flex;flex-direction:column;gap:.4rem;}
+
+/* Section labels above the campaign list and the item library list. */
+.nav-section-title{
+  margin:.9rem .2rem .25rem;
+  font-family:'Alegreya Sans SC','EB Garamond',sans-serif;
+  font-weight:700;
+  font-size:.74rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--gold);
+  opacity:.85;
+}
+#nav-campaign-title{margin-top:.2rem;}
+
+.nav-empty{
+  padding:.3rem .7rem;
+  font-family:'EB Garamond',Georgia,serif;
+  font-size:.92rem;
+  font-style:italic;
+  color:var(--chrome-text);
+  opacity:.6;
+}
+
+#nav button,
+#library-nav button{
   font-family:'EB Garamond',Georgia,serif;
   font-size:1.02rem;
   text-align:left;
@@ -254,14 +286,21 @@ body.sidebar-collapsed #nav button.active::before{
   padding:.5rem .7rem;
   cursor:pointer;
 }
-#nav button:hover{
+#nav button:hover,
+#library-nav button:hover{
   background:rgba(201,173,106,.12);
   border-color:var(--gold-deep);
 }
-#nav button.active{
+#nav button.active,
+#library-nav button.active{
   background:var(--maroon);
   color:var(--parchment-lt);
   border-color:var(--maroon-bar);
+}
+/* Library buttons can wrap (item names vary in length). */
+#library-nav button{
+  white-space:normal;
+  line-height:1.2;
 }
 
 .nav-context-menu{

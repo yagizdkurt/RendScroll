@@ -183,6 +183,27 @@ const RefLibrary = (() => {
     } catch (_) { /* leave stale entry */ }
   }
 
+  // Delete a library file, then drop it from the cache. The launcher's delete
+  // guard already allows library folders (Items/, …).
+  async function deleteFile(type, name) {
+    const def = REF_TYPES[type];
+    if (!def) throw new Error("unknown library type: " + type);
+    const path = def.folder + "/" + name + ".md";
+    const res = await fetch("/__delete_campaign_file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    let payload = null;
+    try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+    if (!res.ok || !payload || !payload.ok) {
+      const detail = payload && payload.error ? payload.error : "HTTP " + res.status;
+      throw new Error("Item delete failed: " + detail);
+    }
+    const map = cache[type];
+    if (map) map.delete(norm(name));
+  }
+
   // Build a ref graph from every library file's standalone ref lines and report
   // names that participate in a cycle. Used by diagnostics.
   function detectCycles() {
@@ -234,6 +255,7 @@ const RefLibrary = (() => {
     resolve,
     createFile,
     refresh,
+    deleteFile,
     duplicates: () => duplicates.slice(),
     detectCycles,
     norm,

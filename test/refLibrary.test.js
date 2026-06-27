@@ -59,6 +59,29 @@ test("RefLibrary reports duplicate names and circular references", async () => {
   assert.equal(RefLibrary.resolve("item", "A").ok, true);
 });
 
+test("createFile then deleteFile add and remove a cache entry", async () => {
+  await stubLibrary(ITEMS.slice());
+  const posted = [];
+  global.fetch = async (url, opts) => {
+    posted.push({ url, body: opts && opts.body ? JSON.parse(opts.body) : null });
+    if (url === "/__create_library_file") {
+      return { ok: true, json: async () => ({ ok: true, entry: { name: "Yeni", path: "Items/Yeni.md" } }) };
+    }
+    if (url === "/__delete_campaign_file") {
+      return { ok: true, json: async () => ({ ok: true }) };
+    }
+    return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
+  };
+
+  await RefLibrary.createFile("item", "Yeni", "### Item: Yeni\n");
+  assert.equal(RefLibrary.has("item", "Yeni"), true);
+
+  await RefLibrary.deleteFile("item", "Yeni");
+  assert.equal(RefLibrary.has("item", "Yeni"), false);
+  // Delete targets the library file path under Items/.
+  assert.equal(posted.some((p) => p.url === "/__delete_campaign_file" && p.body.path === "Items/Yeni.md"), true);
+});
+
 test("scene diagnostics flag missing refs, malformed refs, and broken links", async () => {
   await stubLibrary(ITEMS);
   const src = [

@@ -430,6 +430,49 @@ body.editor-on .editor-chapter-zone {
   color: #ece0c6;
 }
 
+/* --- item library picker --- */
+.editor-picker-modal {
+  width: min(440px, 100%);
+}
+.editor-picker-search {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #4a3a22;
+  background: #15100a;
+  color: #ece0c6;
+  width: 100%;
+  box-sizing: border-box;
+}
+.editor-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.editor-picker-item {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #ece0c6;
+}
+.editor-picker-item:hover,
+.editor-picker-item:focus-visible {
+  background: rgba(216, 167, 67, 0.16);
+  border-color: #6a5326;
+  outline: none;
+}
+.editor-picker-empty {
+  padding: 10px;
+  opacity: 0.65;
+  font-style: italic;
+}
+
 /* --- structured skill checks --- */
 .editor-checks,
 .editor-lines-checks {

@@ -54,3 +54,58 @@
   box-shadow:0 8px 28px rgba(0,0,0,.35);
 }
 .ref-preview-popover .item-card{margin:0;}
+
+/* ---------- Item Library view (selecting a library item in the sidebar) ---------- */
+.library-view{
+  max-width:720px;
+  margin:0 auto;
+}
+.library-view-head{
+  margin:.4rem 0 .2rem;
+  padding-bottom:.5rem;
+  border-bottom:2px solid var(--rule);
+}
+.library-view-kicker{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--gold-deep);
+  font-size:.78rem;
+}
+.library-view-title{
+  font-family:'Cinzel',serif;
+  font-weight:700;
+  font-size:1.6rem;
+  color:var(--maroon);
+  line-height:1.15;
+}
+.library-view-toolbar{
+  display:flex;
+  gap:.5rem;
+  margin:.6rem 0 1rem;
+  flex-wrap:wrap;
+}
+.library-view-btn{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.92rem;
+  font-weight:600;
+  color:var(--ink);
+  background:var(--parchment-lt);
+  border:1px solid var(--gold-deep);
+  border-radius:4px;
+  padding:.4rem .8rem;
+  cursor:pointer;
+}
+.library-view-btn:hover{
+  background:var(--gold);
+  border-color:var(--gold-deep);
+}
+.library-view-btn.danger{
+  color:#fff;
+  background:var(--maroon);
+  border-color:var(--maroon-bar);
+}
+.library-view-btn.danger:hover{
+  background:var(--maroon-bar);
+}

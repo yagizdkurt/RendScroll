@@ -8,11 +8,16 @@ const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const TOP_SCROLL_IMAGE = "src/STDImages/RendScroll1.png";
 
 const nav = document.getElementById("nav");
+const libraryNav = document.getElementById("library-nav");
 const page = document.getElementById("page");
 const sidebarToggle = document.getElementById("sidebar-toggle");
 const newPageButton = document.getElementById("new-page-button");
 let currentPath = null;
 let campaignEntries = [];
+// The reader area shows either a campaign scene ("scene") or a single library
+// item ("library"); the sidebar reflects which is active.
+let currentView = "scene";
+let currentLibraryName = null;
 
 /* Known label lines from the template that should stand out. */
 const FIELD_LABELS = new Set([
@@ -268,14 +273,141 @@ function setSidebarCollapsed(collapsed) {
 async function load(path) {
   const text = await fetchMarkdown(path);
   currentPath = path;
+  currentView = "scene";
+  currentLibraryName = null;
   renderPage(text);
   page.parentElement.scrollTop = 0;
   document.querySelectorAll("#nav button").forEach((b) =>
     b.classList.toggle("active", b.dataset.path === path)
   );
+  document.querySelectorAll("#library-nav button").forEach((b) => b.classList.remove("active"));
   // Editor mode (editor/*.js) listens for this to cache the scene's raw source.
   // No-op when the editor isn't loaded.
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));
+}
+
+/* ----- Item Library: sidebar list + dedicated reader view ----------------- */
+
+// The library's files (via RefLibrary, loaded at boot), as [{ name, path }].
+function libraryEntries() {
+  if (typeof RefLibrary === "undefined") return [];
+  return RefLibrary.entries("item").map((e) => ({ name: e.name, path: e.path }));
+}
+
+function mountLibraryEntries(entries) {
+  if (!libraryNav) return;
+  libraryNav.innerHTML = "";
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "nav-empty";
+    empty.textContent = "No items yet.";
+    libraryNav.appendChild(empty);
+    return;
+  }
+  entries.forEach((entry) => {
+    const btn = document.createElement("button");
+    btn.textContent = entry.name;
+    btn.dataset.itemName = entry.name;
+    btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
+    btn.title = entry.name;
+    btn.classList.toggle("active", currentView === "library" && entry.name === currentLibraryName);
+    btn.addEventListener("click", () => openLibraryItem(entry.name));
+    libraryNav.appendChild(btn);
+  });
+}
+
+// Re-read the library list into the sidebar (after create/edit/delete).
+function refreshLibrarySidebar() {
+  mountLibraryEntries(libraryEntries());
+}
+
+// Switch the reader area to a single library item's card + management toolbar.
+function openLibraryItem(name) {
+  currentView = "library";
+  currentLibraryName = name;
+  currentPath = null;
+  document.querySelectorAll("#nav button").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll("#library-nav button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.itemName === name)
+  );
+  renderLibraryItemView(name);
+  page.parentElement.scrollTop = 0;
+}
+
+function libraryToolbarButton(label, title, onClick, extraClass) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "library-view-btn" + (extraClass ? " " + extraClass : "");
+  b.textContent = label;
+  if (title) b.title = title;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderLibraryItemView(name) {
+  page.innerHTML = "";
+  const view = document.createElement("div");
+  view.className = "library-view";
+
+  const head = document.createElement("div");
+  head.className = "library-view-head";
+  const kicker = document.createElement("div");
+  kicker.className = "library-view-kicker";
+  kicker.textContent = "Item Library";
+  const titleEl = document.createElement("div");
+  titleEl.className = "library-view-title";
+  titleEl.textContent = name;
+  head.appendChild(kicker);
+  head.appendChild(titleEl);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "library-view-toolbar";
+  toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this item", () => {
+    if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
+      Editor.editLibraryItem("item", name);
+    }
+  }));
+  toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
+    if (typeof RefLibrary !== "undefined") await RefLibrary.refresh("item", name);
+    renderLibraryItemView(name);
+  }));
+  toolbar.appendChild(libraryToolbarButton("Delete", "Delete this item", () => deleteLibraryItem(name), "danger"));
+
+  view.appendChild(head);
+  view.appendChild(toolbar);
+
+  const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve("item", name) : { ok: false };
+  if (resolved.ok) {
+    const { cardEl } = renderCardFromSource(resolved.cardType, resolved.source);
+    view.appendChild(cardEl || refMissingCard("item", name, "missing-ref"));
+    enhanceBaseStyling(view);
+    enhanceCardCollapse(view);
+  } else {
+    view.appendChild(refMissingCard("item", name, resolved.reason || "missing-ref"));
+  }
+
+  page.appendChild(view);
+}
+
+async function deleteLibraryItem(name) {
+  if (typeof RefLibrary === "undefined") return;
+  const entry = RefLibrary.lookup("item", name);
+  if (!entry) return;
+  if (!(await confirmDeleteCampaignEntry({ label: name, path: entry.path }))) return;
+  try {
+    await RefLibrary.deleteFile("item", name);
+    document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: "item", name, removed: true } }));
+    // Leave the library view: go back to the first campaign scene (or empty).
+    if (campaignEntries.length) {
+      await load(campaignEntries[0].path);
+    } else {
+      currentView = "scene";
+      currentLibraryName = null;
+      page.innerHTML = "";
+    }
+  } catch (err) {
+    alert(err.message || "Item deletion failed.");
+  }
 }
 
 function showNavError(message) {
@@ -775,6 +907,33 @@ function installRefLinkHandler() {
   });
 }
 
+// The editor (and the library view) dispatch "library:changed" after any
+// create / move / edit / delete of a library file. Keep the sidebar in sync and
+// re-render whatever the reader is showing so new/edited references resolve.
+function installLibraryChangeHandler() {
+  document.addEventListener("library:changed", () => {
+    refreshLibrarySidebar();
+    if (currentView === "library" && currentLibraryName) {
+      // The edited/deleted item may be the one on screen.
+      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("item", currentLibraryName)) {
+        renderLibraryItemView(currentLibraryName);
+      }
+      return;
+    }
+    if (currentView === "scene") {
+      // Re-render the scene so edited/added references resolve. When the editor
+      // is on, route through it so the editing decorations are re-applied.
+      const ed = (typeof Editor !== "undefined" && Editor.getState) ? Editor.getState() : null;
+      if (ed && ed.enabled && Editor.rerender) {
+        Editor.rerender();
+      } else {
+        const src = (typeof window !== "undefined" && window.__rsLastSource) || "";
+        if (src) renderPage(src);
+      }
+    }
+  });
+}
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
@@ -795,6 +954,8 @@ async function init() {
     try { await RefLibrary.init(); } catch (_) { /* empty library */ }
   }
   installRefLinkHandler();
+  refreshLibrarySidebar();
+  installLibraryChangeHandler();
 
   let entries;
   try {
