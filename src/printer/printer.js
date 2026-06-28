@@ -183,10 +183,6 @@
     // helps when the page is opened in a normal browser profile.
     btn.title = "Print to PDF - disable 'Headers and footers' for a clean export";
     btn.addEventListener("click", function () {
-      console.info(
-        "[printer] Opening print dialog. For a clean PDF, choose 'Save as PDF', " +
-          "disable 'Headers and footers', and enable 'Background graphics'."
-      );
       window.print();
     });
     group.appendChild(btn);

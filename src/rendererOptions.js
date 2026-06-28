@@ -156,5 +156,5 @@ const RendererOptions = (() => {
     }
   }
 
-  return { SCHEMA, get, set, toggle, apply, mount };
+  return { get, set, toggle, apply, mount };
 })();
