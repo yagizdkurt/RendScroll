@@ -2,6 +2,12 @@
 
 # ✦ RendScroll ✦
 
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![GitHub stars](https://img.shields.io/github/stars/yagizdkurt/RendScroll?style=social)
+![GitHub forks](https://img.shields.io/github/forks/yagizdkurt/RendScroll?style=social)
+![Status](https://img.shields.io/badge/status-active-success)
+
+
 ### *Every page hides a deeper room.*
 
 **Turn your campaign notes into a Dungeon Master's screen you actually want to run from.**
