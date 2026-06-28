@@ -175,9 +175,9 @@ const EditorSchemas = (() => {
       }
 
       for (const f of labeled) {
-        const lab = lower(f.mdLabel);
+        const labs = fieldLabels(f).map((label) => lower(label));
         const m = lower(t).match(/^([^:]+):\s*(.*)$/);
-        if (!m || m[1].trim() !== lab) continue;
+        if (!m || !labs.includes(m[1].trim())) continue;
 
         if (f.kind === "text" || f.kind === "select") {
           // recover original-case value from the raw line
@@ -261,7 +261,17 @@ const EditorSchemas = (() => {
   // Build a heading-content factory + matching parser for a fixed keyword type.
   // Column is no longer encoded in the heading — it is a "Side:" body line
   // (default left), handled by serialize()/parse().
-  function keywordHeading(keyword) {
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function fieldLabels(field) {
+    return [field.mdLabel].concat(field.mdAliases || []).filter(Boolean);
+  }
+
+  function keywordHeading(keyword, aliases) {
+    const keywords = [keyword].concat(aliases || []);
+    const re = new RegExp("^\\s*(?:" + keywords.map(escapeRegExp).join("|") + ")\\s*:\\s*(.*)$", "i");
     return {
       heading(values) {
         const title = (values.title || "").trim();
@@ -269,7 +279,6 @@ const EditorSchemas = (() => {
       },
       parseHeading(content, values) {
         values.column = "left";
-        const re = new RegExp("^\\s*" + keyword + "\\s*:\\s*(.*)$", "i");
         const m = content.match(re);
         values.title = m ? m[1].trim() : content.trim();
       },
@@ -282,7 +291,7 @@ const EditorSchemas = (() => {
   const fImage = { key: "image", label: "Image (portrait)", kind: "text", mdLabel: "Image" };
   const fBg = { key: "bg", label: "BG (watermark)", kind: "text", mdLabel: "BG" };
   const fClosed = { key: "closed", label: "Start collapsed", kind: "flag", mdLabel: "Closed" };
-  const fStuck = { key: "stuck", label: "Stick to card above (Yapışık)", kind: "flag", mdLabel: "Yapışık" };
+  const fStuck = { key: "stuck", label: "Stick to card above", kind: "flag", mdLabel: "Combine", mdAliases: ["Yapışık", "Connect"] };
   // Column is serialized as a "Side:" body line (default left writes nothing,
   // "right" writes "Side: R"). See serialize()/parse().
   const fColumn = {
@@ -294,8 +303,8 @@ const EditorSchemas = (() => {
     key: "textSize", label: "Text Size", kind: "text", mdLabel: "Text Size",
     inputMode: "numeric", defaultOption: "defaultCardTextSize",
   };
-  const rarityField = (md) => ({
-    key: "rarity", label: "Rarity", kind: "select", mdLabel: md,
+  const rarityField = () => ({
+    key: "rarity", label: "Rarity", kind: "select", mdLabel: "Rarity", mdAliases: ["Nadirlik"],
     options: [
       { value: "", label: "—" },
       { value: "1", label: "1 · Common" },
@@ -357,7 +366,7 @@ const EditorSchemas = (() => {
 
   define("npc", "NPC", keywordHeading("NPC"), [
     fTitle,
-    { key: "personality", label: "Personality (Kişilik)", kind: "list", mdLabel: "Kişilik" },
+    { key: "personality", label: "Personality", kind: "list", mdLabel: "Personality", mdAliases: ["Kişilik"] },
     { key: "race", label: "Race", kind: "text", mdLabel: "Race" },
     { key: "age", label: "Age", kind: "text", mdLabel: "Age" },
     { key: "occupation", label: "Occupation", kind: "text", mdLabel: "Occupation" },
@@ -367,19 +376,19 @@ const EditorSchemas = (() => {
     fImage, fBg,
     fColumn,
     fTextSize,
-    fBodyWithChecks("İlk Diyalog: / Sorarsa: / Bildikleri: / dialogue topics / Checks: …", "npc"),
+    fBodyWithChecks("First dialogue / questions / known topics / dialogue topics / Checks: ...", "npc"),
     fClosed,
   ]);
 
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
     { key: "sourceItem", label: "SourceItem", kind: "text", mdLabel: "SourceItem" },
-    { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
-    rarityField("Nadirlik"),
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Type", mdAliases: ["Tür"] },
+    rarityField(),
     fImage,
     fColumn,
     fTextSize,
-    { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
+    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
     fBody("> description, extra lines…"),
     fStuck, fClosed,
   ]);
@@ -402,19 +411,19 @@ const EditorSchemas = (() => {
       default: "Spell",
     },
     fTitle,
-    { key: "tur", label: "Type (Tür)", kind: "text", mdLabel: "Tür" },
-    { key: "cost", label: "Cost (Maliyet)", kind: "text", mdLabel: "Maliyet" },
-    { key: "range", label: "Range (Menzil)", kind: "text", mdLabel: "Menzil" },
-    { key: "cooldown", label: "Cooldown (Bekleme)", kind: "text", mdLabel: "Bekleme" },
-    rarityField("Nadirlik"),
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Type", mdAliases: ["Tür"] },
+    { key: "cost", label: "Cost", kind: "text", mdLabel: "Cost", mdAliases: ["Maliyet"] },
+    { key: "range", label: "Range", kind: "text", mdLabel: "Range", mdAliases: ["Menzil"] },
+    { key: "cooldown", label: "Cooldown", kind: "text", mdLabel: "Cooldown", mdAliases: ["Bekleme"] },
+    rarityField(),
     fColumn,
     fTextSize,
-    { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
+    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
     fBody("> description, Lore: …"),
     fStuck, fClosed,
   ]);
 
-  define("obj", "Object / POI", keywordHeading("Obje"), [
+  define("obj", "Object / POI", keywordHeading("Object", ["Obje", "POI"]), [
     fTitle,
     fImage, fBg,
     fColumn,
@@ -423,12 +432,12 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
-  define("combat", "Combat (Savaş)", keywordHeading("Savaş"), [
+  define("combat", "Combat", keywordHeading("Combat", ["Savaş", "Savas"]), [
     fTitle,
     fImage,
     fColumn,
     fTextSize,
-    fBodyWithChecks("> opening, Taktik: …", "combat"),
+    fBodyWithChecks("> opening, Tactics: ...", "combat"),
     { key: "enemies", label: "Enemies", kind: "enemies", mdLabel: "Enemies" },
     fClosed,
   ]);
@@ -470,10 +479,10 @@ const EditorSchemas = (() => {
     },
   }, [
     fTitle,
-    { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
-    rarityField("Nadirlik"),
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Type", mdAliases: ["Tür"] },
+    rarityField(),
     fImage,
-    { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
+    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
     fBody("> description, extra lines…"),
   ]);
 

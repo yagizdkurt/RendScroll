@@ -28,9 +28,9 @@
 // sub-section. Read-aloud (">") and list ("-") lines never match.
 const COMBAT_LABEL_RE = /^[\p{L} ]+:\s*$/u;
 
-// True only for a "### Savaş:" heading (colon form).
+// True only for a combat heading (colon form).
 function isCombatHead(h) {
-  return /^\s*sava[şs]\s*:/.test(rsLower(h.textContent).trim());
+  return /^\s*(sava[şs]|combat)\s*:/.test(rsLower(h.textContent).trim());
 }
 
 /* A node ends the current section if it's a new heading/separator OR a card that
@@ -46,7 +46,7 @@ function combatIsBoundary(n) {
    "> ..." line is swallowed into the blockquote. */
 function normalizeCombatMarkdown(text) {
   return normalizeSectionDirectives(text, {
-    startsSection: (line) => /^###\s+sava[şs]\s*:/i.test(line),
+    startsSection: (line) => /^###\s+(sava[şs]|combat)\s*:/i.test(line),
     endsSection: (line) => /^#{1,3} /.test(line),
     shouldIsolate: (line) => (
       COMBAT_LABEL_RE.test(line.trim()) ||
@@ -87,7 +87,7 @@ function buildCombatCard(head, nodes) {
 
     const title = document.createElement("div");
     title.className = "combat-title";
-    title.textContent = head.textContent.trim().replace(/^\s*sava[şs]\s*:\s*/i, "").trim();
+    title.textContent = head.textContent.trim().replace(/^\s*(sava[şs]|combat)\s*:\s*/i, "").trim();
 
     // Header = title + leading content (before the first "Label:" section),
     // placed beside the portrait when an Image is given; sections flow below.

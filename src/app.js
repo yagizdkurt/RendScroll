@@ -50,7 +50,7 @@ function enhanceBaseStyling(root) {
     const t = rsLower(h.textContent);
     if (t.includes("skill check")) h.classList.add("skill-section");
     else if (t.includes("npc")) h.classList.add("npc-section");
-    else if (t.includes("savaş")) h.classList.add("combat-section");
+    else if (t.includes("savaş") || t.includes("combat")) h.classList.add("combat-section");
     else if (t.includes("beklenmedik")) h.classList.add("contingency-section");
     else if (t.includes("yankı")) h.classList.add("echo-section");
   });

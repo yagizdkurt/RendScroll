@@ -93,7 +93,7 @@ const RendScrollParser = (() => {
     if (/^\s*item\s*:/i.test(raw)) return "item";
     if (/^\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
     if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
-    if (/^\s*sava[şs]\s*:/i.test(raw)) return "combat";
+    if (/^\s*(sava[şs]|combat)\s*:/i.test(raw)) return "combat";
     if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
     if (/^\s*narrative\s*$/i.test(raw)) return "narrative";
     if (/^std\s*:/i.test(raw)) return "std";
@@ -112,7 +112,7 @@ const RendScrollParser = (() => {
       case "item": return c.replace(/^\s*item\s*:\s*/i, "").trim() || "Item";
       case "ability": return c.replace(/^\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
       case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
-      case "combat": return c.replace(/^\s*sava[şs]\s*:\s*/i, "").trim() || "Savaş";
+      case "combat": return c.replace(/^\s*(sava[şs]|combat)\s*:\s*/i, "").trim() || "Combat";
       case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
       case "narrative": return "Narrative";
       case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
