@@ -38,6 +38,41 @@ No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 
 ---
 
+## 🆕 New in this chapter
+
+RendScroll grew up. What started as a renderer is now a **complete DM workbench** —
+write, build, reuse, and run a fight, all from the same book.
+
+- **🖋️ A real visual editor — no Markdown required.** Flip on edit mode and shape any
+  card through clean forms: pick the type, fill the fields, drop it exactly where it
+  belongs. **Drag to reorder, right-click for actions,** and an **insert menu** that
+  knows every card RendScroll speaks. Prefer raw text? It's still just Markdown
+  underneath — both halves stay in perfect sync.
+
+- **⚔️ Combat helper.** Give an encounter its enemies and
+  a **Start Combat** button appears. Roll into **initiative and turn order**, then
+  **track every enemy's HP** as the blades fall — No attack roller or bloated features.
+
+- **🗂️ An Item Library that ends copy-paste.** Write a magic item *once*, then summon
+  it anywhere with `[item=Name]` or weave it inline with `[link=Name]`. Edit the
+  source and **every scene updates with it.** One source of truth for your whole
+  campaign.
+
+- **🐉 An Enemy Library of reusable stat blocks.** Build a creature once and call it
+  into any combat. Browse, add, and edit your bestiary from the sidebar — your
+  monsters travel with you from session to session.
+
+- **🧭 A sidebar that runs the show.** Collapsible **Campaign · Items · Enemies**
+  sections, each with a clear **“+ New”** action. Spin up a fresh page, item, or
+  enemy without ever leaving the book — and collapse the whole rail to a row of
+  glowing glyphs when you want the table to breathe.
+
+- **🎨 Iconography that reads at a glance.** Standardized **damage-type icons**, dice,
+  AC/HP/initiative crests — a fireball *looks* like fire, a slash *looks* like steel,
+  so stat blocks parse in the half-second you actually have.
+
+---
+
 ## ⚔️ Why it feels good at the table
 
 - **The page reads itself, in play order.** Scenes flow top to bottom, event by
@@ -52,17 +87,23 @@ No accounts. No cloud. No setup ritual. Just your world, opened like a book.
   yours.
 
 - **Every moment has a card that knows what it is.** NPCs, combat, skill checks,
-  items, spells, objects, and the unexpected each carry their own look and color —
-  so a fight never reads like a footnote.
+  items, spells, objects, narration, and the unexpected each carry their own look and
+  color — so a fight never reads like a footnote.
 
-- **Tune the mood, live.** Text size, page width, narration style, cards open or
-  closed — set the table's atmosphere with a click, and it remembers.
+- **Skill checks that color their own stakes.** Difficulty bands shade themselves —
+  **easy green, climbing through gold and orange to a deadly bordeaux** — so the table
+  feels the risk before you say a word.
+
+- **Tune the mood, live.** Text size, line spacing, reader font, page width, narration
+  style, cards open or closed, **dark or light chrome,** even a **custom parchment of
+  your own** — set the table's atmosphere with a click, and it remembers across
+  sessions.
 
 - **Write, edit, and print without leaving.** Adjust a scene right in the page, then
-  export a clean PDF to lay beside your dice.
+  **export a clean PDF** to lay beside your dice.
 
-- **Yours, and offline.** It runs entirely on your machine. Your world never leaves
-  the room.
+- **Yours, and offline.** It runs entirely on your machine. No accounts, no cloud.
+  Your world never leaves the room.
 
 ---
 
@@ -140,7 +181,28 @@ Properties:
 ```
 
 …and RendScroll turns it into a glowing read-aloud box, a hidden DM note only you can
-see, and a combat card with its stats laid out at a glance. That's the whole spell.
+see, color-coded skill checks, and a combat card with its stats laid out at a glance.
+That's the whole spell.
+
+**Don't want to type the syntax?** Flip on the editor and build the very same cards
+through forms — RendScroll writes the Markdown for you.
+
+---
+
+## 🃏 The cards in your hand
+
+Every kind of moment has a card that already knows how to look the part:
+
+| Card | What it's for |
+| --- | --- |
+| **Narrative** | Read-aloud boxes that glow apart from your private notes |
+| **NPC** | Personalities, dialogue trees, and quick checks in one block |
+| **Skill Checks** | DC-by-DC reveals, shaded by difficulty |
+| **Object** | Interactables, their checks, and the loot they hide |
+| **Combat** | Stat blocks with a **live initiative + HP runner** |
+| **Item** | Magic items, drawn from your reusable **Item Library** |
+| **Ability / Spell** | Costs, ranges, cooldowns, and effects |
+| **Unexpected** | The “what if the players…” branches you keep in your back pocket |
 
 ---
 
@@ -148,7 +210,7 @@ see, and a combat card with its stats laid out at a glance. That's the whole spe
 
 1. Run **`launcher.py`** (or the bundled **`RendScroll.exe`**).
 2. It quietly checks your campaign files, then opens RendScroll in its own window.
-3. Pick a scene from the side and start reading.
+3. Pick a scene from the side and start reading — or hit **edit** and start building.
 
 That's it — you're at the table.
 
