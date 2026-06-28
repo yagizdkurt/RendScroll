@@ -612,12 +612,62 @@ body.editor-on .editor-chapter-zone {
 }
 .editor-enemy-row .ee-attack-row {
   display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
+  padding: 5px;
+  border: 1px solid #2d2215;
+  border-radius: 5px;
+  background: rgba(255,255,255,.025);
+}
+.editor-enemy-row .ee-attack-head {
+  display: flex;
   gap: 5px;
   align-items: center;
 }
 .editor-enemy-row .ee-atk-name { flex: 1 1 auto; min-width: 90px; }
 .editor-enemy-row .ee-atk-hit { width: 52px; text-align: center; flex: 0 0 auto; }
-.editor-enemy-row .ee-atk-dmg { flex: 1 1 110px; min-width: 90px; }
+.editor-enemy-row .ee-damage-editor,
+.editor-enemy-row .ee-damage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.editor-enemy-row .ee-damage-row,
+.editor-enemy-row .ee-damage-raw {
+  display: grid;
+  grid-template-columns: 44px 70px 58px minmax(110px, 1fr) minmax(110px, 1fr) auto;
+  gap: 5px;
+  align-items: center;
+}
+.editor-enemy-row .ee-damage-raw {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.editor-enemy-row .ee-dmg-count,
+.editor-enemy-row .ee-dmg-extra {
+  text-align: center;
+}
+.editor-enemy-row .ee-dmg-custom {
+  display: none;
+}
+.editor-enemy-row .ee-dmg-custom.is-visible {
+  display: block;
+}
+@media (max-width: 720px) {
+  .editor-enemy-row .ee-attack-head,
+  .editor-enemy-row .ee-damage-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .editor-enemy-row .ee-attack-head .ee-atk-name,
+  .editor-enemy-row .ee-dmg-custom.is-visible {
+    grid-column: 1 / -1;
+  }
+  .editor-enemy-row .ee-attack-head .editor-mini,
+  .editor-enemy-row .ee-damage-row .editor-mini {
+    width: fit-content;
+  }
+}
 
 .editor-enemy-row .ee-defenses {
   display: flex;

@@ -56,6 +56,15 @@ test("unlabelled bullets are kept as traits (back-compat with old rosters)", () 
   assert.deepEqual(rec.traits, ["Nimble Escape: Disengage as a bonus action"]);
 });
 
+test("Turkish Taktik bullets are parsed as tactics", () => {
+  const [rec] = CEM.parseEnemyBlock([
+    "- Goblin | AC 15 | HP 7",
+    "  - Taktik: Attacks the nearest creature",
+  ]);
+  assert.deepEqual(rec.tactics, ["Attacks the nearest creature"]);
+  assert.deepEqual(rec.traits, []);
+});
+
 test("initMod and formatInitMod treat init as a signed modifier", () => {
   assert.equal(CEM.initMod("+1"), 1);
   assert.equal(CEM.initMod("-2"), -2);
@@ -63,6 +72,50 @@ test("initMod and formatInitMod treat init as a signed modifier", () => {
   assert.equal(CEM.formatInitMod("1"), "+1");
   assert.equal(CEM.formatInitMod("-2"), "-2");
   assert.equal(CEM.formatInitMod("0"), "+0");
+});
+
+test("parseDamageDice extracts dice count, die, modifier and type", () => {
+  assert.deepEqual(CEM.parseDamageDice("1d4+2 Piercing"), {
+    count: 1,
+    sides: 4,
+    extra: "+2",
+    type: "Piercing",
+  });
+  assert.deepEqual(CEM.parseDamageDice("2d6 + 3 fire"), {
+    count: 2,
+    sides: 6,
+    extra: "+3",
+    type: "fire",
+  });
+  assert.deepEqual(CEM.parseDamageDice("d8"), {
+    count: 1,
+    sides: 8,
+    extra: "",
+    type: "",
+  });
+  assert.equal(CEM.parseDamageDice("5 poison"), null);
+});
+
+test("parseDamageTerms extracts multiple dice terms and preserves custom types", () => {
+  assert.deepEqual(CEM.parseDamageTerms("1d4 necrotic + 1d4 radiant"), [
+    { count: 1, sides: 4, extra: "", type: "necrotic" },
+    { count: 1, sides: 4, extra: "", type: "radiant" },
+  ]);
+  assert.deepEqual(CEM.parseDamageTerms("1d6+2 slashing + 1d4 fire"), [
+    { count: 1, sides: 6, extra: "+2", type: "slashing" },
+    { count: 1, sides: 4, extra: "", type: "fire" },
+  ]);
+  assert.deepEqual(CEM.parseDamageTerms("d8 void"), [
+    { count: 1, sides: 8, extra: "", type: "void" },
+  ]);
+  assert.equal(CEM.parseDamageTerms("5 poison"), null);
+});
+
+test("serializeDamageTerms writes canonical mixed damage text", () => {
+  assert.equal(CEM.serializeDamageTerms([
+    { count: 1, sides: 4, extra: "", type: "necrotic" },
+    { count: 1, sides: 4, extra: "", type: "radiant" },
+  ]), "1d4 necrotic + 1d4 radiant");
 });
 
 test("combat schema serialize/parse round-trips the Enemies block", () => {
@@ -86,6 +139,23 @@ test("combat schema serialize/parse round-trips the Enemies block", () => {
   assert.match(out, /^Enemies:$/m);
   assert.match(out, /^- Goblin \| AC 15 \| HP 7 \| Init \+2 \| x3$/m);
   assert.match(out, /^ {2}- Attack: Scimitar \| \+4 \| 1d6\+2 Slashing$/m);
+});
+
+test("combat schema serialize/parse round-trips mixed attack damage", () => {
+  const schema = EditorSchemas.get("combat");
+  const md = [
+    "### Savaş: Mixed Damage",
+    "Enemies:",
+    "- Wraith | AC 13 | HP 22 | Init +3",
+    "  - Attack: Touch | +5 | 1d4 necrotic + 1d4 radiant",
+    "",
+  ].join("\n");
+
+  const values = EditorSchemas.parse(schema, md);
+  assert.equal(values.enemies[0].attacks[0].damage, "1d4 necrotic + 1d4 radiant");
+
+  const out = EditorSchemas.serialize(schema, values);
+  assert.match(out, /^ {2}- Attack: Touch \| \+5 \| 1d4 necrotic \+ 1d4 radiant$/m);
 });
 
 test("applyHpInput implements the damage/heal grammar", () => {

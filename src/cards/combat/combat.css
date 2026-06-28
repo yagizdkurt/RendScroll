@@ -56,79 +56,182 @@
 .page .combat-section .skillchecks > :first-child{margin-top:0;}
 
 /* ---------- Enemy stat blocks (bestiary cards) ---------- */
-.page .combat-roster{display:flex; flex-direction:column; gap:.6rem;}
+.page .combat-roster{display:flex; flex-direction:column; gap:.9rem;}
 .page .enemy-block{
-  padding:.55rem .65rem .6rem;
+  padding:.9rem .95rem 1rem;
   border:1px solid var(--gold-deep);
   border-left:4px solid var(--maroon-bar);
-  border-radius:5px;
-  background:rgba(255,251,245,.62);
-  box-shadow:inset 0 0 10px rgba(120,40,30,.06);
+  border-radius:6px;
+  background:rgba(255,251,245,.74);
+  box-shadow:inset 0 0 12px rgba(120,40,30,.05), 0 2px 8px rgba(80,20,15,.07);
 }
 
 /* Header: large name + subtitle on the left, stat badges on the right. */
 .page .enemy-head{
   display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between;
-  gap:.3rem .6rem; padding-bottom:.35rem; margin-bottom:.4rem;
+  gap:.55rem 1rem; padding-bottom:.65rem; margin-bottom:.75rem;
   border-bottom:2px solid var(--rule);
 }
 .page .enemy-name{
   font-family:'Cinzel',serif; font-weight:700; color:var(--maroon);
-  font-size:1.18rem; line-height:1.1; letter-spacing:.02em; text-transform:uppercase;
+  font-size:1.42rem; line-height:1.05; letter-spacing:0; text-transform:uppercase;
 }
-.page .enemy-sub{font-family:'EB Garamond',serif; font-style:italic; font-size:.85rem; color:#6a4a3e;}
-.page .enemy-badges{display:flex; flex-wrap:wrap; gap:.25rem; align-items:center;}
+.page .enemy-sub{font-family:'EB Garamond',serif; font-style:italic; font-size:.95rem; color:#6a4a3e; margin-top:.1rem;}
+.page .enemy-badges{display:flex; flex-wrap:nowrap; gap:.35rem; align-items:flex-start; justify-content:flex-end;}
 .page .ebadge{
-  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.04em;
-  font-size:.78rem; padding:.12rem .4rem; border-radius:4px; white-space:nowrap;
-  border:1px solid var(--gold-deep); background:rgba(210,180,120,.25); color:#5a3a18;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  width:3.85rem; height:3.85rem; padding:.82rem .55rem .62rem; border:0; border-radius:0; white-space:nowrap;
+  background:transparent center / 100% 100% no-repeat; color:#3a241c;
+  box-shadow:none; overflow:hidden;
 }
-.page .ebadge-ac{background:rgba(196,160,92,.32); border-color:#b08a3c; color:#5a3f12;}
-.page .ebadge-hp{background:rgba(150,40,30,.16); border-color:#a8412c; color:#7a241a;}
-.page .ebadge-init{background:rgba(70,70,90,.12); color:#3a3550;}
-.page .ebadge-count{background:rgba(120,40,30,.12); color:var(--maroon-bar);}
-
-/* Combat-stats row. */
-.page .enemy-stats{display:flex; flex-wrap:wrap; gap:.3rem .9rem; margin-bottom:.2rem;}
-.page .enemy-stat{display:flex; gap:.3rem; align-items:baseline;}
-.page .enemy-stat .es-label{font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:#8a6a52;}
-.page .enemy-stat .es-val{font-weight:700; color:#3a241c; font-size:.92rem;}
+.page .ebadge-label{
+  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; font-size:.58rem; line-height:1; color:rgba(50,33,24,.78);
+}
+.page .ebadge-value{
+  font-family:'Cinzel',serif; font-weight:800; letter-spacing:0;
+  font-size:1.02rem; line-height:1.08; color:#221713; margin-top:.1rem;
+}
+.page .ebadge-ac{background-image:url("../../STDImages/AC_BG.png");}
+.page .ebadge-hp{background-image:url("../../STDImages/HP_BG.png");}
+.page .ebadge-init{background-image:url("../../STDImages/INIT_BG.png");}
+.page .ebadge-count{
+  width:2.6rem; height:2.2rem; flex-direction:row; padding:.1rem .2rem;
+  font-family:'Cinzel',serif; font-weight:800; font-size:1rem;
+  background:rgba(120,40,30,.12); color:var(--maroon-bar);
+  border:1px solid rgba(120,40,30,.22); border-radius:4px;
+}
 
 /* Section labels (ATTACK / DEFENSES / TRAITS / TACTICS). */
-.page .enemy-section{margin-top:.45rem;}
+.page .enemy-section{margin-top:0;}
 .page .enemy-section-label{
   font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.12em;
-  text-transform:uppercase; color:var(--maroon-bar); font-size:.76rem; margin-bottom:.22rem;
+  text-transform:uppercase; color:var(--maroon-bar); font-size:.76rem; margin-bottom:.28rem;
+}
+.page .enemy-section-label::after{
+  content:""; display:block; height:1px; margin-top:.24rem;
+  background:linear-gradient(90deg,var(--rule),rgba(176,138,60,0));
+}
+.page .enemy-top-row{
+  display:grid; grid-template-columns:minmax(0,1.45fr) minmax(8.5rem,.85fr);
+  gap:.65rem; align-items:stretch; margin-top:.1rem;
+}
+.page .enemy-top-row .enemy-section{
+  min-width:0; padding:.58rem .65rem .65rem; border-radius:5px;
+  border:1px solid rgba(176,138,60,.38);
+  background:rgba(255,253,248,.62);
+}
+.page .enemy-traits-section{min-height:7.1rem;}
+.page .enemy-attack-section{
+  min-height:7.1rem; background:rgba(255,247,232,.82);
+  border-color:rgba(176,138,60,.58);
+}
+.page .enemy-attack-section .enemy-section-label{
+  font-size:.92rem; letter-spacing:.14em; margin-bottom:.4rem;
 }
 
 /* Attack cards. */
 .page .attack-card{
-  padding:.3rem .45rem; margin:.2rem 0; border-radius:4px;
-  border:1px solid rgba(176,138,60,.45); border-left:3px solid var(--gold-deep);
-  background:rgba(255,247,232,.7);
+  padding:.46rem .54rem; margin:.32rem 0 0; border-radius:5px;
+  border:1px solid rgba(176,138,60,.48); border-left:4px solid var(--gold-deep);
+  background:rgba(255,250,240,.78);
+  box-shadow:0 1px 0 rgba(255,255,255,.65) inset;
 }
-.page .attack-name{font-family:'Cinzel',serif; font-weight:600; color:var(--maroon); font-size:.92rem;}
-.page .attack-line{font-size:.84rem; color:#4a3228; margin-top:.05rem;}
-.page .attack-line .atk-hit{font-weight:700;}
-.page .attack-line .atk-sep{margin:0 .3rem; color:#a98a5e;}
+.page .attack-card-head{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:.65rem;
+}
+.page .attack-name{
+  font-family:'Cinzel',serif; font-weight:700; color:var(--maroon);
+  font-size:.94rem; line-height:1.15;
+}
+.page .attack-damage-row{
+  display:flex; flex-wrap:wrap; align-items:center; gap:.32rem;
+  margin-top:.34rem;
+}
+.page .attack-sep{color:#a98a5e; margin:0 .06rem; font-size:1.35rem; line-height:1.1;}
+.page .attack-hit,.page .attack-dice-count,.page .attack-dice-x,.page .attack-damage-extra,.page .attack-damage-text,.page .attack-damage-plus{
+  color:#3a241c; font-size:1.35rem; line-height:1.15;
+}
+.page .attack-hit{font-weight:800; flex:0 0 auto; text-align:right;}
+.page .attack-dice-count,.page .attack-damage-extra{font-weight:800;}
+.page .attack-dice-x{font-size:1.12rem; color:#8a6a52; text-transform:uppercase;}
+.page .attack-damage-term{
+  display:inline-flex; align-items:center; gap:.24rem; color:#3a241c;
+}
+.page .attack-damage-term .attack-dice-count,
+.page .attack-damage-term .attack-dice-x,
+.page .attack-damage-term .attack-damage-extra,
+.page .attack-damage-term .attack-damage-type{
+  color:inherit;
+}
+.page .attack-damage-plus{font-weight:800; color:#8a6a52; margin:0 .08rem;}
+.page .attack-die-icon{
+  display:inline-block; width:1.875rem; height:1.875rem; object-fit:contain;
+  vertical-align:middle; flex:0 0 auto;
+}
+.page .attack-damage-type{
+  color:#6a4a3e; font-size:1.17rem; line-height:1.15;
+}
+.page .attack-damage-icon{
+  display:inline-block; width:1.875rem; height:1.875rem; object-fit:contain;
+  vertical-align:middle; flex:0 0 auto;
+}
+.page .damage-type-acid,
+.page .damage-type-necrotic,
+.page .damage-type-poison{color:#4f8b2f;}
+.page .damage-type-bludgeoning,
+.page .damage-type-piercing,
+.page .damage-type-slashing{color:#6f6258;}
+.page .damage-type-fire,
+.page .damage-type-force{color:#c74422;}
+.page .damage-type-lightning,
+.page .damage-type-thunder{color:#5d5aa8;}
+.page .damage-type-cold{color:#2f9fc7;}
+.page .damage-type-psychic{color:#b14ca0;}
+.page .damage-type-radiant{color:#c99922;}
+
+/* Tactics: DM behavior rules. */
+.page .enemy-section.tactics-box{
+  margin-top:.75rem; padding:.68rem .75rem .72rem; border-radius:5px;
+  border:1px solid rgba(120,40,30,.22);
+  background:linear-gradient(180deg,rgba(255,238,232,.84),rgba(249,224,217,.72));
+}
+.page .tactics-box .enemy-section-label{font-size:.84rem; margin-bottom:.35rem;}
+.page ul.tactics-list{
+  margin:.15rem 0 0; padding-left:1.15rem;
+  font-family:'EB Garamond',serif; font-size:.96rem; color:#3f2822; line-height:1.62;
+}
+.page ul.tactics-list li{margin:.25rem 0;}
+
+/* Compact footer details. */
+.page .enemy-bottom-row{
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:.55rem; align-items:stretch; margin-top:.8rem;
+}
+.page .enemy-detail-card{
+  min-width:0; min-height:4.25rem; height:100%;
+  padding:.48rem .55rem .55rem; border-radius:4px;
+  border:1px solid rgba(176,138,60,.36);
+  background:rgba(255,253,248,.56);
+}
+.page .enemy-detail-label{
+  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.1em;
+  text-transform:uppercase; color:#7c513e; font-size:.68rem; min-height:.82rem; margin-bottom:.28rem;
+}
+.page .enemy-future-card{
+  background:rgba(255,253,248,.34);
+  border-style:dashed;
+}
 
 /* Defenses grid. */
-.page .enemy-defenses{display:flex; flex-wrap:wrap; gap:.25rem .9rem;}
-.page .enemy-def{display:flex; gap:.3rem; align-items:baseline;}
-.page .enemy-def .ed-label{font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; color:#8a6a52;}
-.page .enemy-def .ed-val{font-weight:600; color:#3a241c; font-size:.86rem;}
+.page .enemy-def{display:flex; gap:.35rem; align-items:baseline; margin:.12rem 0;}
+.page .enemy-def .ed-label{font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; color:#8a6a52;}
+.page .enemy-def .ed-val{font-weight:600; color:#3a241c; font-size:.84rem;}
 
 /* Traits list. */
-.page ul.enemy-traits{margin:.1rem 0 0; padding-left:1.1rem; font-size:.86rem; color:#3a2a22; line-height:1.4;}
-.page ul.enemy-traits li{margin:.05rem 0;}
-
-/* Tactics: a DM-note / lore box. */
-.page .enemy-section.tactics-box{
-  padding:.4rem .5rem; border-radius:4px;
-  border:1px dashed rgba(120,40,30,.4); background:rgba(120,40,30,.06);
-}
-.page .tactics-box .tactics-body{font-family:'EB Garamond',serif; font-style:italic; font-size:.88rem; color:#4a2e26; line-height:1.45;}
-.page .tactics-box .tactics-line{margin:.1rem 0;}
+.page ul.enemy-traits{margin:.05rem 0 0; padding-left:1rem; font-size:.88rem; color:#3a2a22; line-height:1.48;}
+.page ul.enemy-traits li{margin:.1rem 0;}
+.page .enemy-empty-note{font-size:.82rem; color:#8a6a52; font-style:italic;}
 
 /* ---------- Live combat runner ---------- */
 .page .combat-runner{margin-top:.6rem; padding-top:.5rem; border-top:1px dashed var(--rule);}

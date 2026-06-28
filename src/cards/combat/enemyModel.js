@@ -73,6 +73,43 @@ const CombatEnemyModel = (() => {
     return segs.join(" | ");
   }
 
+  function parseDamageTerm(term) {
+    const m = String(term || "").trim().match(/^(\d*)d(4|6|8|10|12|20)\s*([+-]\s*\d+)?\s*(.*)$/i);
+    if (!m) return null;
+    const count = parseInt(m[1] || "1", 10) || 1;
+    const sides = parseInt(m[2], 10);
+    const extra = (m[3] || "").replace(/\s+/g, "");
+    const type = (m[4] || "").trim();
+    return { count, sides, extra, type };
+  }
+
+  function parseDamageTerms(damage) {
+    const raw = String(damage || "").trim();
+    if (!raw) return null;
+    const parts = raw.split(/\s+\+\s+(?=\d*d(?:4|6|8|10|12|20)\b)/i);
+    if (!parts.length) return null;
+    const terms = parts.map(parseDamageTerm);
+    return terms.every(Boolean) ? terms : null;
+  }
+
+  function parseDamageDice(damage) {
+    const terms = parseDamageTerms(damage);
+    return terms && terms.length === 1 ? terms[0] : null;
+  }
+
+  function serializeDamageTerm(term) {
+    const count = Math.max(1, parseInt(term && term.count, 10) || 1);
+    const sides = parseInt(term && term.sides, 10);
+    if (![4, 6, 8, 10, 12, 20].includes(sides)) return "";
+    const extra = String((term && term.extra) || "").replace(/\s+/g, "");
+    const type = String((term && term.type) || "").trim();
+    return count + "d" + sides + extra + (type ? " " + type : "");
+  }
+
+  function serializeDamageTerms(terms) {
+    return (terms || []).map(serializeDamageTerm).filter(Boolean).join(" + ");
+  }
+
   // "Kate | Village Woman • Humanoid | AC 10 | … | x3" -> enemy record (without
   // the indented sub-section bullets). A segment that isn't a known stat or the
   // "xN" count is taken as the subtitle (creature type / flavour).
@@ -110,7 +147,7 @@ const CombatEnemyModel = (() => {
       case "resist": case "resistance": case "resistances": rec.resist = val; break;
       case "immune": case "immunity": case "immunities": rec.immune = val; break;
       case "trait": case "traits": rec.traits.push(val); break;
-      case "tactics": case "tactic": rec.tactics.push(val); break;
+      case "tactics": case "tactic": case "taktik": rec.tactics.push(val); break;
       default: rec.traits.push(t); break;
     }
   }
@@ -212,6 +249,10 @@ const CombatEnemyModel = (() => {
     formatInitMod,
     parseAttack,
     serializeAttack,
+    parseDamageDice,
+    parseDamageTerms,
+    serializeDamageTerm,
+    serializeDamageTerms,
     parseEnemyHeader,
     parseEnemyBlock,
     serializeEnemyHeader,

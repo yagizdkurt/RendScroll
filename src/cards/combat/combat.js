@@ -234,9 +234,80 @@ function enemySection(label) {
   return sec;
 }
 
-// Render each enemy as a fantasy-bestiary stat block: header (name + subtitle on
-// the left, AC/HP/INIT badges on the right), a combat-stats row, then ATTACK /
-// DEFENSES / TRAITS / TACTICS sections. Built to be readable at a glance.
+function enemyBadge(label, value, cls) {
+  const badge = combatEl("span", "ebadge " + cls);
+  badge.appendChild(combatEl("span", "ebadge-label", label));
+  badge.appendChild(combatEl("span", "ebadge-value", value));
+  return badge;
+}
+
+function enemyDetailCard(label) {
+  const card = combatEl("div", "enemy-detail-card");
+  card.appendChild(combatEl("div", "enemy-detail-label", label));
+  return card;
+}
+
+function formatAttackHit(hit) {
+  const t = (hit || "").trim().replace(/\s*\bto hit\b\s*$/i, "").trim();
+  return /^\d+$/.test(t) ? "+" + t : t;
+}
+
+function formatAttackDamage(damage) {
+  const t = (damage || "").trim();
+  return t && !/\bdamage\b/i.test(t) ? t + " damage" : t;
+}
+
+function appendAttackDamage(parent, damage) {
+  const terms = CombatEnemyModel.parseDamageTerms(damage);
+  if (!terms || typeof StdIcons === "undefined") {
+    parent.appendChild(combatEl("span", "attack-damage-text", formatAttackDamage(damage)));
+    return;
+  }
+
+  terms.forEach((term, idx) => {
+    if (idx > 0) parent.appendChild(combatEl("span", "attack-damage-plus", "+"));
+
+    const typeKey = term.type ? StdIcons.key("damage", term.type) : null;
+    const termCls = "attack-damage-term" + (typeKey ? " damage-type-" + typeKey : "");
+    const wrap = combatEl("span", termCls);
+    if (term.count > 1) wrap.appendChild(combatEl("span", "attack-dice-count", String(term.count)));
+    const icon = StdIcons.icon("dice", term.sides, {
+      className: "attack-die-icon",
+      alt: "d" + term.sides,
+      title: "d" + term.sides,
+      size: 20,
+    });
+    if (icon) wrap.appendChild(icon);
+    if (term.extra) wrap.appendChild(combatEl("span", "attack-damage-extra", term.extra));
+    if (term.type) {
+      const dmgIcon = typeKey && StdIcons.icon("damage", typeKey, {
+        className: "attack-damage-icon",
+        alt: term.type,
+        title: term.type,
+        size: 20,
+      });
+      if (dmgIcon) wrap.appendChild(dmgIcon);
+      else wrap.appendChild(combatEl("span", "attack-damage-type", term.type));
+    }
+    parent.appendChild(wrap);
+  });
+}
+
+function tacticRules(tactics) {
+  const rules = [];
+  (tactics || []).forEach((raw) => {
+    String(raw || "").split(/\r?\n/).forEach((line) => {
+      const t = line.trim().replace(/^[-*]\s+/, "").trim();
+      if (t) rules.push(t);
+    });
+  });
+  if (rules.length && /^(taktik|tactics?)\s*:?\s*$/i.test(rules[0])) rules.shift();
+  if (rules.length) rules[0] = rules[0].replace(/^(taktik|tactics?)\s*:\s*/i, "").trim();
+  return rules;
+}
+
+// Render each enemy as a tabletop stat card: identity first, combat badges next,
+// then the traits/attack row, tactics, and compact lower-priority details.
 function renderCombatRoster(box, recs) {
   box.textContent = "";
   recs.forEach((r) => {
@@ -250,92 +321,98 @@ function renderCombatRoster(box, recs) {
     head.appendChild(id);
 
     const badges = combatEl("div", "enemy-badges");
-    if ((r.ac || "").toString().trim()) badges.appendChild(combatEl("span", "ebadge ebadge-ac", "AC " + r.ac));
-    if ((r.hp || "").toString().trim()) badges.appendChild(combatEl("span", "ebadge ebadge-hp", "HP " + r.hp));
+    if ((r.ac || "").toString().trim()) badges.appendChild(enemyBadge("AC", r.ac, "ebadge-ac"));
+    if ((r.hp || "").toString().trim()) badges.appendChild(enemyBadge("HP", r.hp, "ebadge-hp"));
     if ((r.init || "").toString().trim())
-      badges.appendChild(combatEl("span", "ebadge ebadge-init", "INIT " + CombatEnemyModel.formatInitMod(r.init)));
+      badges.appendChild(enemyBadge("INIT", CombatEnemyModel.formatInitMod(r.init), "ebadge-init"));
     if (r.count > 1) badges.appendChild(combatEl("span", "ebadge ebadge-count", "×" + r.count));
     head.appendChild(badges);
     block.appendChild(head);
 
-    // --- combat stats row ---
-    const stats = [
-      ["Armor Class", r.ac],
-      ["Hit Points", r.hp],
-      ["Initiative", (r.init || "").toString().trim() ? CombatEnemyModel.formatInitMod(r.init) : ""],
-      ["Speed", r.speed],
-    ].filter(([, v]) => (v || "").toString().trim());
-    if (stats.length) {
-      const grid = combatEl("div", "enemy-stats");
-      stats.forEach(([label, val]) => {
-        const cell = combatEl("div", "enemy-stat");
-        cell.appendChild(combatEl("span", "es-label", label));
-        cell.appendChild(combatEl("span", "es-val", String(val)));
-        grid.appendChild(cell);
-      });
-      block.appendChild(grid);
-    }
+    // --- top row: traits on the left, attacks on the right ---
+    const topRow = combatEl("div", "enemy-top-row");
 
-    // --- attacks: one highlighted card each ---
+    const traitsSec = enemySection("Traits");
+    traitsSec.classList.add("enemy-traits-section");
+    if ((r.traits || []).length) {
+      const ul = combatEl("ul", "enemy-traits");
+      r.traits.forEach((t) => ul.appendChild(combatEl("li", null, t)));
+      traitsSec.appendChild(ul);
+    } else {
+      traitsSec.appendChild(combatEl("div", "enemy-empty-note", "No traits"));
+    }
+    topRow.appendChild(traitsSec);
+
+    const attackSec = enemySection("Attacks");
+    attackSec.classList.add("enemy-attack-section");
     if ((r.attacks || []).length) {
-      const sec = enemySection("Attack");
       r.attacks.forEach((a) => {
         const card = combatEl("div", "attack-card");
-        card.appendChild(combatEl("div", "attack-name", a.name || "Attack"));
-        const parts = [];
-        if ((a.hit || "").trim()) parts.push(combatEl("span", "atk-hit", a.hit.trim() + " to hit"));
-        if ((a.damage || "").trim()) parts.push(combatEl("span", "atk-dmg", a.damage.trim()));
-        if (parts.length) {
-          const line = combatEl("div", "attack-line");
-          parts.forEach((p, i) => {
-            if (i) line.appendChild(combatEl("span", "atk-sep", "·"));
-            line.appendChild(p);
-          });
-          card.appendChild(line);
+        const cardHead = combatEl("div", "attack-card-head");
+        cardHead.appendChild(combatEl("span", "attack-name", a.name || "Attack"));
+        const hit = formatAttackHit(a.hit);
+        if (hit) cardHead.appendChild(combatEl("span", "attack-hit", hit));
+        card.appendChild(cardHead);
+        if ((a.damage || "").trim()) {
+          const damageRow = combatEl("div", "attack-damage-row");
+          appendAttackDamage(damageRow, a.damage);
+          card.appendChild(damageRow);
         }
-        sec.appendChild(card);
+        attackSec.appendChild(card);
       });
+    } else {
+      attackSec.appendChild(combatEl("div", "enemy-empty-note", "No attack"));
+    }
+    topRow.appendChild(attackSec);
+    block.appendChild(topRow);
+
+    // --- tactics: DM behavior rules ---
+    const rules = tacticRules(r.tactics);
+    if (rules.length) {
+      const sec = enemySection("Tactics");
+      sec.classList.add("tactics-box");
+      const list = combatEl("ul", "tactics-list");
+      rules.forEach((t) => list.appendChild(combatEl("li", null, t)));
+      sec.appendChild(list);
       block.appendChild(sec);
     }
 
-    // --- defenses: saves + resistances/immunities ---
+    // --- bottom row: defenses, future placeholder, extras ---
+    const bottomRow = combatEl("div", "enemy-bottom-row");
     const defenses = [
       ["Weak Save", r.weakSave],
       ["Strong Save", r.strongSave],
       ["Resistances", r.resist],
       ["Immunities", r.immune],
     ].filter(([, v]) => (v || "").trim());
+    const defenseCard = enemyDetailCard("Defenses");
     if (defenses.length) {
-      const sec = enemySection("Defenses");
-      const grid = combatEl("div", "enemy-defenses");
       defenses.forEach(([label, val]) => {
         const cell = combatEl("div", "enemy-def");
         cell.appendChild(combatEl("span", "ed-label", label));
         cell.appendChild(combatEl("span", "ed-val", val.trim()));
-        grid.appendChild(cell);
+        defenseCard.appendChild(cell);
       });
-      sec.appendChild(grid);
-      block.appendChild(sec);
+    } else {
+      defenseCard.appendChild(combatEl("div", "enemy-empty-note", "None"));
     }
+    bottomRow.appendChild(defenseCard);
 
-    // --- traits ---
-    if ((r.traits || []).length) {
-      const sec = enemySection("Traits");
-      const ul = combatEl("ul", "enemy-traits");
-      r.traits.forEach((t) => ul.appendChild(combatEl("li", null, t)));
-      sec.appendChild(ul);
-      block.appendChild(sec);
-    }
+    const futureCard = enemyDetailCard("");
+    futureCard.classList.add("enemy-future-card");
+    bottomRow.appendChild(futureCard);
 
-    // --- tactics: DM-note / lore box ---
-    if ((r.tactics || []).length) {
-      const sec = enemySection("Tactics");
-      sec.classList.add("tactics-box");
-      const body = combatEl("div", "tactics-body");
-      r.tactics.forEach((t) => body.appendChild(combatEl("div", "tactics-line", t)));
-      sec.appendChild(body);
-      block.appendChild(sec);
+    const extrasCard = enemyDetailCard("Extras");
+    if ((r.speed || "").toString().trim()) {
+      const cell = combatEl("div", "enemy-def");
+      cell.appendChild(combatEl("span", "ed-label", "Movement"));
+      cell.appendChild(combatEl("span", "ed-val", r.speed.trim()));
+      extrasCard.appendChild(cell);
+    } else {
+      extrasCard.appendChild(combatEl("div", "enemy-empty-note", "None"));
     }
+    bottomRow.appendChild(extrasCard);
+    block.appendChild(bottomRow);
 
     box.appendChild(block);
   });
