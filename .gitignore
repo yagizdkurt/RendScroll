@@ -24,9 +24,12 @@
 !Campaign/.gitkeep
 !images/
 !images/.gitkeep
-# reusable reference library (Items, …) — committed single source of truth
+# reusable reference libraries (Items, Enemies, …) — folder structure is committed;
+# the library .md files themselves are local user content (ignored).
 !Items/
 !Items/.gitkeep
+!Enemies/
+!Enemies/.gitkeep
 
 # but still ignore compiled Python files
 *.pyc

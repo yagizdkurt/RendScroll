@@ -115,7 +115,9 @@ function buildCombatCard(head, nodes) {
       if (enemiesPending) {
         enemiesPending = false;
         if (node.tagName === "UL" || node.tagName === "OL") {
-          const recs = enemyRecordsFromList(node);
+          // Resolve any live "[enemy=Name]" library references to full stat blocks
+          // before rendering, so the roster + runner share the expanded records.
+          const recs = CombatEnemyModel.expandEnemies(enemyRecordsFromList(node), enemySourceResolver);
           recs.forEach((r) => enemyRecords.push(r));
           renderCombatRoster(rosterBox, recs);
           return;
@@ -208,6 +210,29 @@ function combatBtn(cls, text, title) {
   b.type = "button";
   if (title) b.title = title;
   return b;
+}
+
+// Resolve a live "[enemy=Name]" combat reference to its library source record.
+// Returns null (-> a "(missing)" placeholder) when the library isn't loaded or
+// the file is absent. Mirrors app.js's itemSourceResolver for items.
+function enemySourceResolver(name) {
+  if (typeof RefLibrary === "undefined") return null;
+  const entry = RefLibrary.lookup("enemy", name);
+  return entry ? CombatEnemyModel.parseSourceEnemy(entry.source) : null;
+}
+
+// A standalone library enemy (Enemies/Name.md, "### SourceEnemy:"): render the
+// lone enemy as a stat block, reusing the combat roster. No live runner — this is
+// a reference view, identical in look to one enemy inside a combat card.
+function buildSourceEnemyCard(head, nodes) {
+  const card = document.createElement("div");
+  card.className = "combat-card sourceenemy-card";
+  const list = (nodes || []).find((n) => n.tagName === "UL" || n.tagName === "OL");
+  const recs = list ? enemyRecordsFromList(list) : [];
+  const box = combatEl("div", "combat-roster");
+  renderCombatRoster(box, recs.length ? recs : [CombatEnemyModel.blankEnemy()]);
+  card.appendChild(box);
+  return card;
 }
 
 // A marked-rendered "Enemies:" list -> enemy records. Each top-level <li> is one

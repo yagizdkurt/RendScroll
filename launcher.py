@@ -27,8 +27,9 @@ PORT_END = 8010
 CAMPAIGN_DIR = "Campaign"
 OPTIONS_CURRENT_FILE = "options.current.json"
 # Reusable reference libraries: a ref type -> the folder its files live in. Items
-# today; npc/monster/location can be added here without touching the endpoints.
-LIBRARY_DIRS = {"item": "Items"}
+# and enemies today; npc/monster/location can be added here without touching the
+# endpoints.
+LIBRARY_DIRS = {"item": "Items", "enemy": "Enemies"}
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"

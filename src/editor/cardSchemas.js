@@ -103,8 +103,17 @@ const EditorSchemas = (() => {
           items.forEach((it) => (out += "- " + it + eol));
         }
       } else if (f.kind === "enemies") {
-        const block = CEM.serializeEnemies(v);
-        if (block) out += f.mdLabel + ":" + eol + block + eol;
+        // `single` (SourceEnemy library file): one enemy, named from the card
+        // title, written bare (no "Enemies:" label). Otherwise a labelled block.
+        let recs = v || [];
+        if (f.single) {
+          const first = recs[0]
+            ? Object.assign({}, recs[0], { name: (values.title || recs[0].name || "").trim(), ref: "" })
+            : null;
+          recs = first ? [first] : [];
+        }
+        const block = CEM.serializeEnemies(recs);
+        if (block) out += (f.mdLabel ? f.mdLabel + ":" + eol : "") + block + eol;
       } else if (f.kind === "lines") {
         if (v != null && String(v).trim() !== "") out += String(v).replace(/[ \t\r\n]+$/, "") + eol;
       } else if (f.kind === "narrativeText") {
@@ -148,6 +157,9 @@ const EditorSchemas = (() => {
     const catchAllKinds = new Set(["lines", "checks", "linesWithChecks", "narrativeText"]);
     const labeled = schema.fields.filter((f) => f.mdLabel && !catchAllKinds.has(f.kind));
     const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
+    // A label-less enemies field (SourceEnemy file): the bullet block sits directly
+    // under the heading, so it's matched by shape, not by a preceding label.
+    const bareEnemies = schema.fields.find((f) => f.kind === "enemies" && !f.mdLabel);
     const hasColumn = schema.fields.some((f) => f.key === "column");
     const bodyOut = [];
 
@@ -208,6 +220,22 @@ const EditorSchemas = (() => {
           matched = true;
         }
         break;
+      }
+
+      // Bare enemies block (no preceding label): consume the contiguous bullets.
+      if (!matched && bareEnemies && /^[-*]\s+/.test(t)) {
+        const block = [];
+        let j = i;
+        while (j < body.length) {
+          const bl = body[j];
+          if (bl.trim() === "") { j++; continue; }
+          if (!/^\s*[-*]\s+/.test(bl)) break;
+          block.push(bl);
+          j++;
+        }
+        values[bareEnemies.key] = CEM.parseEnemyBlock(block);
+        i = j - 1;
+        matched = true;
       }
 
       if (!matched) bodyOut.push(line);
@@ -447,6 +475,21 @@ const EditorSchemas = (() => {
     fImage,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, extra lines…"),
+  ]);
+
+  // A standalone library enemy: a "### SourceEnemy: Name" heading + one enemy
+  // block (no "Enemies:" label). The single enemy's name is the card title.
+  define("sourceenemy", "SourceEnemy", {
+    heading(values) {
+      return "SourceEnemy: " + (values.title || "").trim();
+    },
+    parseHeading(content, values) {
+      const m = content.match(/^\s*(source\s*enemy|sourceenemy)\s*:\s*(.*)$/i);
+      values.title = m ? m[2].trim() : content.trim();
+    },
+  }, [
+    fTitle,
+    { key: "enemy", label: "Enemy stats", kind: "enemies", single: true },
   ]);
 
   define("narrative", "Narrative", {

@@ -26,9 +26,9 @@ const EditorLibraryPicker = (() => {
     return n;
   }
 
-  function entries() {
+  function entries(type) {
     if (typeof RefLibrary === "undefined") return [];
-    return RefLibrary.entries("item")
+    return RefLibrary.entries(type)
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
@@ -36,13 +36,16 @@ const EditorLibraryPicker = (() => {
   function open(opts) {
     const onPick = opts && opts.onPick;
     const onCreateNew = opts && opts.onCreateNew;
+    const type = (opts && opts.type) || "item";
+    const noun = type === "enemy" ? "Enemy" : "Item";
+    const lc = noun.toLowerCase();
     close();
 
     backdrop = el("div", "editor-modal-backdrop");
     const modal = el("div", "editor-modal editor-picker-modal");
 
     const head = el("div", "editor-modal-head");
-    head.appendChild(el("span", null, "Insert Item"));
+    head.appendChild(el("span", null, "Insert " + noun));
     const x = el("button", "editor-mini", "✕");
     x.type = "button";
     x.addEventListener("click", close);
@@ -52,14 +55,14 @@ const EditorLibraryPicker = (() => {
 
     const search = el("input", "editor-picker-search");
     search.type = "text";
-    search.placeholder = "Search items…";
+    search.placeholder = "Search " + lc + "s…";
     search.autocomplete = "off";
     body.appendChild(search);
 
     const list = el("div", "editor-picker-list");
     body.appendChild(list);
 
-    const all = entries();
+    const all = entries(type);
 
     function pick(name) {
       close();
@@ -93,16 +96,20 @@ const EditorLibraryPicker = (() => {
     });
 
     const foot = el("div", "editor-modal-foot");
-    const newBtn = el("button", "editor-btn", "+ New item");
-    newBtn.type = "button";
-    newBtn.addEventListener("click", () => {
-      close();
-      if (typeof onCreateNew === "function") onCreateNew();
-    });
+    // The "New" affordance only appears when the caller can handle creation —
+    // e.g. the combat "+ from library" picker authors enemies elsewhere.
+    if (typeof onCreateNew === "function") {
+      const newBtn = el("button", "editor-btn", "+ New " + lc);
+      newBtn.type = "button";
+      newBtn.addEventListener("click", () => {
+        close();
+        onCreateNew();
+      });
+      foot.appendChild(newBtn);
+    }
     const cancel = el("button", "editor-btn", "Cancel");
     cancel.type = "button";
     cancel.addEventListener("click", close);
-    foot.appendChild(newBtn);
     foot.appendChild(cancel);
 
     modal.appendChild(head);

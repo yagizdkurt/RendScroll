@@ -158,6 +158,85 @@ test("combat schema serialize/parse round-trips mixed attack damage", () => {
   assert.match(out, /^ {2}- Attack: Touch \| \+5 \| 1d4 necrotic \+ 1d4 radiant$/m);
 });
 
+test("library reference round-trips as [enemy=Name] with optional count", () => {
+  const one = CEM.parseEnemyBlock("- [enemy=Goblin]");
+  assert.equal(one[0].ref, "Goblin");
+  assert.equal(one[0].name, "Goblin");
+  assert.equal(one[0].count, 1);
+  assert.equal(CEM.serializeEnemies(one), "- [enemy=Goblin]");
+
+  const many = CEM.parseEnemyBlock("- [enemy=Hobgoblin Captain] x3");
+  assert.equal(many[0].ref, "Hobgoblin Captain");
+  assert.equal(many[0].count, 3);
+  assert.equal(CEM.serializeEnemies(many), "- [enemy=Hobgoblin Captain] x3");
+});
+
+test("parseSourceEnemy reads the lone enemy from a library file", () => {
+  const file = [
+    "### SourceEnemy: Goblin",
+    "- Goblin | Goblin • Humanoid | AC 15 | HP 7 | Init +2 | Speed 30 ft",
+    "  - Attack: Scimitar | +4 | 1d6+2 Slashing",
+    "  - Trait: Nimble Escape",
+  ].join("\n");
+  const rec = CEM.parseSourceEnemy(file);
+  assert.equal(rec.name, "Goblin");
+  assert.equal(rec.ac, "15");
+  assert.equal(rec.hp, "7");
+  assert.deepEqual(rec.attacks, [{ name: "Scimitar", hit: "+4", damage: "1d6+2 Slashing" }]);
+  assert.deepEqual(rec.traits, ["Nimble Escape"]);
+});
+
+test("expandEnemies resolves refs, overrides count, and flags missing", () => {
+  const source = { name: "Goblin", ac: "15", hp: "7", init: "+2", count: 1 };
+  const resolver = (name) => (name === "Goblin" ? source : null);
+
+  const recs = CEM.parseEnemyBlock([
+    "- [enemy=Goblin] x4",
+    "- [enemy=Ghost]",
+    "- Kate | AC 10 | HP 15",
+  ]);
+  const live = CEM.expandEnemies(recs, resolver);
+
+  assert.equal(live[0].name, "Goblin");
+  assert.equal(live[0].ac, "15");
+  assert.equal(live[0].count, 4); // inline count overrides the source's
+  assert.equal(live[1].name, "Ghost (missing)");
+  assert.equal(live[2].name, "Kate"); // inline enemy passes through untouched
+  assert.equal(live[2].ref, "");
+});
+
+test("sourceenemy schema round-trips a bare single-enemy library file", () => {
+  const schema = EditorSchemas.get("sourceenemy");
+  const md = [
+    "### SourceEnemy: Goblin",
+    "- Goblin | Goblin • Humanoid | AC 15 | HP 7 | Init +2 | Speed 30 ft",
+    "  - Attack: Scimitar | +4 | 1d6+2 Slashing",
+    "  - Trait: Nimble Escape",
+    "",
+  ].join("\n");
+
+  const values = EditorSchemas.parse(schema, md);
+  assert.equal(values.title, "Goblin");
+  assert.equal(values.enemy.length, 1);
+  assert.equal(values.enemy[0].ac, "15");
+  assert.deepEqual(values.enemy[0].attacks, [{ name: "Scimitar", hit: "+4", damage: "1d6+2 Slashing" }]);
+
+  const out = EditorSchemas.serialize(schema, values);
+  assert.match(out, /^### SourceEnemy: Goblin$/m);
+  assert.match(out, /^- Goblin \| Goblin • Humanoid \| AC 15 \| HP 7 \| Init \+2 \| Speed 30 ft$/m);
+  assert.doesNotMatch(out, /^Enemies:$/m); // bare block, no label
+});
+
+test("sourceenemy serialize names the lone enemy from the card title", () => {
+  const schema = EditorSchemas.get("sourceenemy");
+  const out = EditorSchemas.serialize(schema, {
+    title: "Dire Wolf",
+    enemy: [{ name: "ignored", ac: "14", hp: "37" }],
+  });
+  assert.match(out, /^### SourceEnemy: Dire Wolf$/m);
+  assert.match(out, /^- Dire Wolf \| AC 14 \| HP 37$/m);
+});
+
 test("applyHpInput implements the damage/heal grammar", () => {
   const start = { cur: 15, max: 30 };
   assert.deepEqual(CEM.applyHpInput(start, "8"), { cur: 7, max: 30 });

@@ -10,9 +10,14 @@ global.RefLibrary = RefLibrary;
 const RendScrollDiagnostics = require("../src/debug/diagnostics.js");
 
 // Stub the launcher's bundle endpoint so RefLibrary.init() loads in-memory files.
+// init() loads every registered ref type (item, enemy, …); the stub serves the
+// given files for the "item" bundle only, so other types load empty.
 function stubLibrary(files) {
   global.fetch = async (url) => {
-    if (url.indexOf("/__library_bundle") === 0) return { ok: true, json: async () => files };
+    if (url.indexOf("/__library_bundle") === 0) {
+      const served = /[?&]type=item(&|$)/.test(url) ? files : [];
+      return { ok: true, json: async () => served };
+    }
     return { ok: false, status: 404, json: async () => { throw new Error("no"); }, text: async () => "" };
   };
   return RefLibrary.init();

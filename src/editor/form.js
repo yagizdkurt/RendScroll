@@ -482,8 +482,28 @@ const EditorForm = (() => {
         return /^[+-]/.test(raw) ? raw : "+" + raw;
       }
 
+      // A live library reference renders as a compact linked row (no inline stats);
+      // the full enemy is resolved from Enemies/Name.md at render time.
+      function addRefEnemy(rec) {
+        const row = el("div", "editor-enemy-row editor-enemy-ref");
+        const nameEl = el("span", "ee-ref-name", "🔗 " + rec.ref);
+        const count = miniInput("ee-num", rec.count != null && rec.count !== 1 ? rec.count : "", "×", true);
+        const lib = button("editor-mini", "Library", "Edit in library");
+        lib.addEventListener("click", () => {
+          if (typeof Editor !== "undefined" && Editor.editLibraryItem) Editor.editLibraryItem("enemy", rec.ref);
+        });
+        const rm = button("editor-mini", "−", "Remove enemy");
+        rm.addEventListener("click", () => row.remove());
+        const statline = el("div", "editor-enemy-statline");
+        [nameEl, el("span", "ee-x", "×"), count, lib, rm].forEach((n) => statline.appendChild(n));
+        row.appendChild(statline);
+        row._getEnemy = () => ({ ref: rec.ref, count: parseInt(count.value, 10) || 1 });
+        list.appendChild(row);
+      }
+
       function addEnemy(rec) {
         rec = rec || {};
+        if ((rec.ref || "").toString().trim()) { addRefEnemy(rec); return; }
         const row = el("div", "editor-enemy-row");
 
         // Identity + numeric stats on one compact line.
@@ -496,7 +516,22 @@ const EditorForm = (() => {
         const rm = button("editor-mini", "−", "Remove enemy");
         rm.addEventListener("click", () => row.remove());
         const statline = el("div", "editor-enemy-statline");
-        [name, ac, hp, init, speed, el("span", "ee-x", "×"), count, rm].forEach((n) => statline.appendChild(n));
+        const statKids = [name, ac, hp, init, speed, el("span", "ee-x", "×"), count];
+        // A "→ Library" action saves this inline enemy as a library file and swaps
+        // the row for a live [enemy=Name] reference. Not offered in single mode (a
+        // SourceEnemy file is already the library record).
+        if (!field.single) {
+          const toLib = button("editor-mini", "→ Lib", "Move this enemy to the library");
+          toLib.addEventListener("click", async () => {
+            if (typeof Editor === "undefined" || !Editor.moveEnemyToLibrary) return;
+            const current = row._getEnemy();
+            const name = await Editor.moveEnemyToLibrary(current);
+            if (name) { addRefEnemy({ ref: name, count: current.count }); row.remove(); }
+          });
+          statKids.push(toLib);
+        }
+        statKids.push(rm);
+        statKids.forEach((n) => statline.appendChild(n));
         row.appendChild(statline);
 
         // Subtitle / creature type.
@@ -644,14 +679,37 @@ const EditorForm = (() => {
           tactics: tactics.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
         });
 
+        // A SourceEnemy library file holds exactly one enemy whose name is the
+        // card title — hide the per-row name + remove controls in single mode.
+        if (field.single) { name.style.display = "none"; rm.style.display = "none"; }
         list.appendChild(row);
       }
 
-      (rows.length ? rows : [{}]).forEach(addEnemy);
-      const add = button("editor-mini", "+ enemy");
-      add.addEventListener("click", () => addEnemy({}));
-      wrap.appendChild(list);
-      wrap.appendChild(add);
+      // Open the enemy library picker and append the chosen enemy as a ref row.
+      // Picks existing library enemies only — authoring happens via the Enemies
+      // sidebar ("+ New enemy"), so we never nest a second editor form here.
+      function openEnemyPicker() {
+        if (typeof EditorLibraryPicker === "undefined") return;
+        EditorLibraryPicker.open({
+          type: "enemy",
+          onPick: (name) => addEnemy({ ref: name }),
+        });
+      }
+
+      if (field.single) {
+        addEnemy(rows[0] || {});
+        wrap.appendChild(list);
+      } else {
+        (rows.length ? rows : [{}]).forEach(addEnemy);
+        const controls = el("div", "editor-enemy-controls");
+        const add = button("editor-mini", "+ enemy");
+        add.addEventListener("click", () => addEnemy({}));
+        const addLib = button("editor-mini", "+ from library", "Insert a library enemy");
+        addLib.addEventListener("click", openEnemyPicker);
+        controls.append(add, addLib);
+        wrap.appendChild(list);
+        wrap.appendChild(controls);
+      }
 
       getValue = () => [...list.querySelectorAll(".editor-enemy-row")].map((row) => row._getEnemy());
     } else {
@@ -874,6 +932,7 @@ const EditorForm = (() => {
     const v = {};
     schema.fields.forEach((f) => {
       if (f.kind === "list") v[f.key] = [];
+      else if (f.kind === "enemies") v[f.key] = [];
       else if (f.kind === "flag") v[f.key] = false;
       else if (f.defaultOption && typeof RendererOptions !== "undefined") v[f.key] = RendererOptions.get(f.defaultOption) || "";
       else v[f.key] = f.default != null ? f.default : "";

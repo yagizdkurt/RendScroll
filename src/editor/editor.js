@@ -144,6 +144,57 @@ const Editor = (() => {
     }
   }
 
+  function enemyNameFromBlock(block) {
+    const m = String(block).match(/^###\s+(?:source\s*enemy|sourceenemy)\s*:\s*(.+?)\s*$/im);
+    return m ? m[1].trim() : "";
+  }
+
+  // Create a new enemy library file from the SourceEnemy form. Used by the combat
+  // card's "+ from library → create new" and the Enemies sidebar "+ New enemy".
+  // `onCreated(name)` (optional) runs after the file is written (e.g. to add a ref
+  // row to the open combat card, or open the new enemy's library view).
+  function createEnemyToLibrary(onCreated) {
+    if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
+    EditorForm.openCreate("sourceenemy", state.model, async (block) => {
+      const name = enemyNameFromBlock(block);
+      if (!name) { toast("Enemy has no name", true); return; }
+      try {
+        await RefLibrary.createFile("enemy", name, ensureTrailingNewline(RefLibrary.sourceEnemyContent(name, block)));
+        notifyLibraryChanged("enemy", name, { created: true });
+        toast("Created library enemy: " + name);
+        if (typeof onCreated === "function") onCreated(name);
+      } catch (err) {
+        toast(err.message || "Enemy create failed", true);
+      }
+    });
+  }
+
+  // Extract one inline combat enemy into the library: write Enemies/Name.md and
+  // return the name so the caller can swap the inline row for a [enemy=Name] ref.
+  // Resolves to the name on success (including when the file already exists), or
+  // null on failure / no name.
+  async function moveEnemyToLibrary(rec) {
+    if (typeof RefLibrary === "undefined" || typeof CombatEnemyModel === "undefined") return null;
+    const name = (rec && rec.name || "").trim();
+    if (!name) { toast("Enemy has no name", true); return null; }
+    const single = Object.assign({}, rec, { ref: "", count: 1 });
+    const block = "### SourceEnemy: " + name + "\n" + CombatEnemyModel.serializeEnemies([single]) + "\n";
+    try {
+      await RefLibrary.createFile("enemy", name, ensureTrailingNewline(RefLibrary.sourceEnemyContent(name, block)));
+      notifyLibraryChanged("enemy", name, { created: true });
+      toast("Moved enemy to library: " + name);
+      return name;
+    } catch (err) {
+      // A name collision means the library already has it — ref it as-is.
+      if (/already exists/i.test(err && err.message || "")) {
+        toast("Linked to existing library enemy: " + name);
+        return name;
+      }
+      toast(err.message || "Move failed", true);
+      return null;
+    }
+  }
+
   function cardIsItem(id) {
     const found = EditorOutline.findCard(state.model, id);
     return !!(found && found.card.type === "item");
@@ -394,6 +445,10 @@ const Editor = (() => {
     // Edit a library file via the item form (used by the library sidebar view and
     // by reference-card tools). Works regardless of scene edit mode.
     editLibraryItem,
+    // Create a new enemy library file (combat picker + Enemies sidebar).
+    createEnemyToLibrary,
+    // Move one inline combat enemy into the library (combat enemy editor).
+    moveEnemyToLibrary,
     _handlers: handlers,
   };
 })();

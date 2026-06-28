@@ -18,6 +18,7 @@ const RefLibrary = (() => {
   // type the resolved source renders as (see CARD_BUILDERS in src/app.js).
   const REF_TYPES = {
     item: { folder: "Items", cardType: "sourceitem" },
+    enemy: { folder: "Enemies", cardType: "sourceenemy" },
     // future: npc / monster / location — add a line, nothing else changes.
   };
 
@@ -199,6 +200,24 @@ const RefLibrary = (() => {
     return lines.filter((line) => !/^\s*(source\s*item|sourceitem|side|text\s*size|yapışık|connect|combine|closed)\s*:/i.test(line.trim())).join("\n");
   }
 
+  // Normalize a created/edited enemy block into a SourceEnemy library file:
+  // ensure a "### SourceEnemy: Name" heading and drop scene-only directive lines.
+  function sourceEnemyContent(name, content) {
+    const n = String(name || "").trim();
+    let src = String(content || "").replace(/\r?\n/g, "\n");
+    const lines = src.split("\n");
+    const heading = lines.findIndex((line) => /^\s*###\s+(source\s*enemy|sourceenemy|sava[şs]|enemy)\s*:/i.test(line));
+    if (heading >= 0) {
+      lines[heading] = lines[heading].replace(
+        /^\s*###\s+(source\s*enemy|sourceenemy|sava[şs]|enemy)\s*:\s*(.*)$/i,
+        (_, _kind, title) => "### SourceEnemy: " + (String(title || "").trim() || n)
+      );
+    } else {
+      lines.unshift("### SourceEnemy: " + n);
+    }
+    return lines.filter((line) => !/^\s*(side|text\s*size|yapışık|connect|combine|closed|enemies)\s*:/i.test(line.trim())).join("\n");
+  }
+
   return {
     REF_TYPES,
     init,
@@ -215,6 +234,7 @@ const RefLibrary = (() => {
     detectCycles,
     itemInstanceContent,
     sourceItemContent,
+    sourceEnemyContent,
     norm,
     entries: (type) => (cache[type] ? [...cache[type].values()] : []),
   };

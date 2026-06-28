@@ -215,7 +215,8 @@ body.sidebar-collapsed .sidebar-brand{
 }
 
 body.sidebar-collapsed #nav button,
-body.sidebar-collapsed #library-nav button{
+body.sidebar-collapsed #library-nav button,
+body.sidebar-collapsed #enemies-nav button{
   width:100%;
   height:2rem;
   min-height:0;
@@ -232,7 +233,8 @@ body.sidebar-collapsed #library-nav button{
 }
 
 body.sidebar-collapsed #nav button::before,
-body.sidebar-collapsed #library-nav button::before{
+body.sidebar-collapsed #library-nav button::before,
+body.sidebar-collapsed #enemies-nav button::before{
   content:attr(data-nav-index);
   color:#e8dcc2;
   font-size:1rem;
@@ -240,7 +242,8 @@ body.sidebar-collapsed #library-nav button::before{
 }
 
 body.sidebar-collapsed #nav button.active::before,
-body.sidebar-collapsed #library-nav button.active::before{
+body.sidebar-collapsed #library-nav button.active::before,
+body.sidebar-collapsed #enemies-nav button.active::before{
   color:var(--parchment-lt);
 }
 
@@ -250,10 +253,14 @@ body.sidebar-collapsed .nav-empty{
   display:none;
 }
 
-#nav,#library-nav{display:flex;flex-direction:column;gap:.4rem;}
+#nav,#library-nav,#enemies-nav{display:flex;flex-direction:column;gap:.4rem;}
 
-/* Section labels above the campaign list and the item library list. */
+/* Section labels above the campaign / items / enemies lists. Clickable: each
+   toggles its list (see setupCollapsibleSections in app.js). */
 .nav-section-title{
+  display:flex;
+  align-items:center;
+  gap:.4rem;
   margin:.9rem .2rem .25rem;
   font-family:'Alegreya Sans SC','EB Garamond',sans-serif;
   font-weight:700;
@@ -262,7 +269,24 @@ body.sidebar-collapsed .nav-empty{
   text-transform:uppercase;
   color:var(--gold);
   opacity:.85;
+  cursor:pointer;
+  user-select:none;
 }
+.nav-section-title:hover{opacity:1;}
+/* Caret indicator: points down when open, right when the section is collapsed. */
+.nav-section-title::before{
+  content:"▾";
+  font-size:.7rem;
+  line-height:1;
+  transition:transform .12s ease;
+}
+.nav-section-title.is-collapsed::before{transform:rotate(-90deg);}
+/* A collapsed section hides its list — but only while the sidebar is expanded,
+   so the collapsed-sidebar icon rail still shows every button. ID-qualified so
+   this beats the `#nav,#library-nav,#enemies-nav{display:flex}` rule above. */
+body:not(.sidebar-collapsed) #nav.is-collapsed,
+body:not(.sidebar-collapsed) #library-nav.is-collapsed,
+body:not(.sidebar-collapsed) #enemies-nav.is-collapsed{display:none;}
 #nav-campaign-title{margin-top:.2rem;}
 
 .nav-empty{
@@ -275,7 +299,8 @@ body.sidebar-collapsed .nav-empty{
 }
 
 #nav button,
-#library-nav button{
+#library-nav button,
+#enemies-nav button{
   font-family:'EB Garamond',Georgia,serif;
   font-size:1.02rem;
   text-align:left;
@@ -287,21 +312,30 @@ body.sidebar-collapsed .nav-empty{
   cursor:pointer;
 }
 #nav button:hover,
-#library-nav button:hover{
+#library-nav button:hover,
+#enemies-nav button:hover{
   background:rgba(201,173,106,.12);
   border-color:var(--gold-deep);
 }
 #nav button.active,
-#library-nav button.active{
+#library-nav button.active,
+#enemies-nav button.active{
   background:var(--maroon);
   color:var(--parchment-lt);
   border-color:var(--maroon-bar);
 }
-/* Library buttons can wrap (item names vary in length). */
-#library-nav button{
+/* Library buttons can wrap (item / enemy names vary in length). */
+#library-nav button,
+#enemies-nav button{
   white-space:normal;
   line-height:1.2;
 }
+/* The "+ New enemy" affordance reads as a subdued action, not a list entry. */
+.nav-create{
+  font-style:italic;
+  opacity:.75;
+}
+.nav-create:hover{opacity:1;}
 
 .nav-context-menu{
   position:fixed;

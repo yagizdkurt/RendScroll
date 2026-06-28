@@ -89,6 +89,7 @@ const RendScrollParser = (() => {
     const tl = lower(raw);
     if (tl.includes("skill check")) return "skillchecks";
     if (/^\s*source\s*item\s*:/i.test(raw) || /^\s*sourceitem\s*:/i.test(raw)) return "sourceitem";
+    if (/^\s*source\s*enemy\s*:/i.test(raw) || /^\s*sourceenemy\s*:/i.test(raw)) return "sourceenemy";
     if (/^\s*item\s*:/i.test(raw)) return "item";
     if (/^\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
     if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
@@ -107,6 +108,7 @@ const RendScrollParser = (() => {
     switch (type) {
       case "npc": return c.replace(/^\s*npc\s*:\s*/i, "").trim() || "NPC";
       case "sourceitem": return c.replace(/^\s*source\s*item\s*:\s*/i, "").replace(/^\s*sourceitem\s*:\s*/i, "").trim() || "SourceItem";
+      case "sourceenemy": return c.replace(/^\s*source\s*enemy\s*:\s*/i, "").replace(/^\s*sourceenemy\s*:\s*/i, "").trim() || "SourceEnemy";
       case "item": return c.replace(/^\s*item\s*:\s*/i, "").trim() || "Item";
       case "ability": return c.replace(/^\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
       case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";

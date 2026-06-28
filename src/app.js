@@ -9,6 +9,7 @@ const TOP_SCROLL_IMAGE = "src/STDImages/RendScroll1.png";
 
 const nav = document.getElementById("nav");
 const libraryNav = document.getElementById("library-nav");
+const enemiesNav = document.getElementById("enemies-nav");
 const page = document.getElementById("page");
 const sidebarToggle = document.getElementById("sidebar-toggle");
 const newPageButton = document.getElementById("new-page-button");
@@ -85,6 +86,7 @@ const CARD_BUILDERS = {
   ability: buildAbilityCard,
   obj: buildObjCard,
   combat: buildCombatCard,
+  sourceenemy: buildSourceEnemyCard,
   unexpected: buildUnexpectedCard,
   narrative: buildNarrativeCard,
   std: buildStdCard,
@@ -205,7 +207,7 @@ function renderCardBlock(doc, card) {
 function refMissingCard(type, name) {
   const div = document.createElement("div");
   div.className = "ref-missing";
-  div.textContent = "⚠ Item not found in library: [" + type + "=" + name + "]";
+  div.textContent = "⚠ Not found in library: [" + type + "=" + name + "]";
   return div;
 }
 
@@ -262,6 +264,42 @@ function setSidebarCollapsed(collapsed) {
   localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
 }
 
+// Make each sidebar section (Campaign / Items / Enemies) collapse its list when
+// its title is clicked, persisting per-section state. Independent of the whole-
+// sidebar collapse (which hides titles entirely); section-collapse only hides a
+// list while the sidebar is expanded (see base.css).
+const SECTION_COLLAPSE_KEY = "navSectionCollapsed";
+function setupCollapsibleSections() {
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(SECTION_COLLAPSE_KEY) || "{}") || {}; } catch (_) { stored = {}; }
+
+  document.querySelectorAll(".nav-section-title").forEach((title) => {
+    const targetNav = title.nextElementSibling;
+    if (!targetNav || targetNav.tagName !== "NAV") return;
+    const key = title.id || title.textContent.trim();
+
+    function apply(collapsed) {
+      title.classList.toggle("is-collapsed", collapsed);
+      targetNav.classList.toggle("is-collapsed", collapsed);
+      title.setAttribute("aria-expanded", String(!collapsed));
+    }
+    function toggle() {
+      const collapsed = !title.classList.contains("is-collapsed");
+      apply(collapsed);
+      stored[key] = collapsed;
+      try { localStorage.setItem(SECTION_COLLAPSE_KEY, JSON.stringify(stored)); } catch (_) { /* ignore */ }
+    }
+
+    title.setAttribute("role", "button");
+    title.setAttribute("tabindex", "0");
+    apply(!!stored[key]);
+    title.addEventListener("click", toggle);
+    title.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+    });
+  });
+}
+
 async function load(path) {
   const text = await fetchMarkdown(path);
   currentPath = path;
@@ -272,7 +310,7 @@ async function load(path) {
   document.querySelectorAll("#nav button").forEach((b) =>
     b.classList.toggle("active", b.dataset.path === path)
   );
-  document.querySelectorAll("#library-nav button").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll("#library-nav button, #enemies-nav button").forEach((b) => b.classList.remove("active"));
   // Editor mode (editor/*.js) listens for this to cache the scene's raw source.
   // No-op when the editor isn't loaded.
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));
@@ -318,7 +356,7 @@ function openLibraryItem(name) {
   currentView = "library";
   currentLibraryName = name;
   currentPath = null;
-  document.querySelectorAll("#nav button").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll("#nav button, #enemies-nav button").forEach((b) => b.classList.remove("active"));
   document.querySelectorAll("#library-nav button").forEach((b) =>
     b.classList.toggle("active", b.dataset.itemName === name)
   );
@@ -345,7 +383,7 @@ function renderLibraryItemView(name) {
   head.className = "library-view-head";
   const kicker = document.createElement("div");
   kicker.className = "library-view-kicker";
-  kicker.textContent = "Item Library";
+  kicker.textContent = "Items";
   const titleEl = document.createElement("div");
   titleEl.className = "library-view-title";
   titleEl.textContent = name;
@@ -399,6 +437,123 @@ async function deleteLibraryItem(name) {
     }
   } catch (err) {
     alert(err.message || "Item deletion failed.");
+  }
+}
+
+/* ----- Enemy Library: sidebar list + dedicated reader view ----------------
+   Mirrors the Item Library above, but library enemies are concrete stat blocks
+   (rendered via the combat roster) and are referenced from combat cards, not
+   inserted as standalone scene cards. View state uses currentView === "enemy". */
+
+function enemyLibraryEntries() {
+  if (typeof RefLibrary === "undefined") return [];
+  return RefLibrary.entries("enemy").map((e) => ({ name: e.name, path: e.path }));
+}
+
+function mountEnemyEntries(entries) {
+  if (!enemiesNav) return;
+  enemiesNav.innerHTML = "";
+  entries.forEach((entry) => {
+    const btn = document.createElement("button");
+    btn.textContent = entry.name;
+    btn.dataset.enemyName = entry.name;
+    btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
+    btn.title = entry.name;
+    btn.classList.toggle("active", currentView === "enemy" && entry.name === currentLibraryName);
+    btn.addEventListener("click", () => openLibraryEnemy(entry.name));
+    enemiesNav.appendChild(btn);
+  });
+  // A standalone "+ New enemy" affordance (combat cards also create via the picker).
+  const create = document.createElement("button");
+  create.className = "nav-create";
+  create.textContent = "+ New enemy";
+  create.dataset.navIndex = "+";
+  create.addEventListener("click", () => {
+    if (typeof Editor !== "undefined" && Editor.createEnemyToLibrary) {
+      Editor.createEnemyToLibrary((name) => openLibraryEnemy(name));
+    }
+  });
+  enemiesNav.appendChild(create);
+}
+
+function refreshEnemySidebar() {
+  mountEnemyEntries(enemyLibraryEntries());
+}
+
+function openLibraryEnemy(name) {
+  currentView = "enemy";
+  currentLibraryName = name;
+  currentPath = null;
+  document.querySelectorAll("#nav button, #library-nav button").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll("#enemies-nav button").forEach((b) =>
+    b.classList.toggle("active", b.dataset.enemyName === name)
+  );
+  renderLibraryEnemyView(name);
+  page.parentElement.scrollTop = 0;
+}
+
+function renderLibraryEnemyView(name) {
+  page.innerHTML = "";
+  const view = document.createElement("div");
+  view.className = "library-view";
+
+  const head = document.createElement("div");
+  head.className = "library-view-head";
+  const kicker = document.createElement("div");
+  kicker.className = "library-view-kicker";
+  kicker.textContent = "Enemies";
+  const titleEl = document.createElement("div");
+  titleEl.className = "library-view-title";
+  titleEl.textContent = name;
+  head.appendChild(kicker);
+  head.appendChild(titleEl);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "library-view-toolbar";
+  toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this enemy", () => {
+    if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
+      Editor.editLibraryItem("enemy", name);
+    }
+  }));
+  toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
+    if (typeof RefLibrary !== "undefined") await RefLibrary.refresh("enemy", name);
+    renderLibraryEnemyView(name);
+  }));
+  toolbar.appendChild(libraryToolbarButton("Delete", "Delete this enemy", () => deleteLibraryEnemy(name), "danger"));
+
+  view.appendChild(head);
+  view.appendChild(toolbar);
+
+  const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve("enemy", name) : { ok: false };
+  if (resolved.ok) {
+    const { cardEl } = renderCardFromSource(resolved.cardType, resolved.source);
+    view.appendChild(cardEl || refMissingCard("enemy", name));
+    enhanceBaseStyling(view);
+    enhanceCardCollapse(view);
+  } else {
+    view.appendChild(refMissingCard("enemy", name));
+  }
+
+  page.appendChild(view);
+}
+
+async function deleteLibraryEnemy(name) {
+  if (typeof RefLibrary === "undefined") return;
+  const entry = RefLibrary.lookup("enemy", name);
+  if (!entry) return;
+  if (!(await confirmDeleteCampaignEntry({ label: name, path: entry.path }))) return;
+  try {
+    await RefLibrary.deleteFile("enemy", name);
+    document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: "enemy", name, removed: true } }));
+    if (campaignEntries.length) {
+      await load(campaignEntries[0].path);
+    } else {
+      currentView = "scene";
+      currentLibraryName = null;
+      page.innerHTML = "";
+    }
+  } catch (err) {
+    alert(err.message || "Enemy deletion failed.");
   }
 }
 
@@ -905,10 +1060,17 @@ function installRefLinkHandler() {
 function installLibraryChangeHandler() {
   document.addEventListener("library:changed", () => {
     refreshLibrarySidebar();
+    refreshEnemySidebar();
     if (currentView === "library" && currentLibraryName) {
       // The edited/deleted item may be the one on screen.
       if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("item", currentLibraryName)) {
         renderLibraryItemView(currentLibraryName);
+      }
+      return;
+    }
+    if (currentView === "enemy" && currentLibraryName) {
+      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("enemy", currentLibraryName)) {
+        renderLibraryEnemyView(currentLibraryName);
       }
       return;
     }
@@ -947,7 +1109,9 @@ async function init() {
   }
   installRefLinkHandler();
   refreshLibrarySidebar();
+  refreshEnemySidebar();
   installLibraryChangeHandler();
+  setupCollapsibleSections();
 
   let entries;
   try {

@@ -48,6 +48,9 @@ const CombatEnemyModel = (() => {
       name: "", subtitle: "", ac: "", hp: "", init: "", speed: "", count: 1,
       attacks: [], weakSave: "", strongSave: "", resist: "", immune: "",
       traits: [], tactics: [],
+      // A non-empty `ref` marks a live link to a library enemy (Enemies/Name.md);
+      // the full stats are resolved + expanded at render time (see expandEnemies).
+      ref: "",
     };
   }
 
@@ -114,8 +117,18 @@ const CombatEnemyModel = (() => {
   // the indented sub-section bullets). A segment that isn't a known stat or the
   // "xN" count is taken as the subtitle (creature type / flavour).
   function parseEnemyHeader(text) {
-    const parts = String(text).split("|").map((s) => s.trim());
     const rec = blankEnemy();
+    // Live library reference: "[enemy=Name] x3" — the stats come from the library
+    // file at render time; only the name + optional count live in the combat card.
+    const refM = String(text).match(/^\s*\[\s*enemy\s*=\s*([^\]]+?)\s*\]\s*(.*)$/i);
+    if (refM) {
+      rec.ref = refM[1].trim();
+      rec.name = rec.ref;
+      const xm = (refM[2] || "").match(/x\s*(\d+)/i);
+      if (xm) rec.count = Math.max(1, parseInt(xm[1], 10) || 1);
+      return rec;
+    }
+    const parts = String(text).split("|").map((s) => s.trim());
     rec.name = (parts.shift() || "").trim();
     for (const part of parts) {
       if (!part) continue;
@@ -175,6 +188,11 @@ const CombatEnemyModel = (() => {
   // Build the canonical "- Name | … | AC .. | …" header line. Empty fields are
   // omitted; "xN" only when count > 1; Init is rendered as a signed modifier.
   function serializeEnemyHeader(rec) {
+    // A live library reference round-trips as "- [enemy=Name] xN" (no inline stats).
+    if (rec && (rec.ref || "").toString().trim()) {
+      const count = Math.max(1, parseInt(rec.count, 10) || 1);
+      return "- [enemy=" + rec.ref.toString().trim() + "]" + (count > 1 ? " x" + count : "");
+    }
     const segs = [(rec.name || "").trim()];
     if ((rec.subtitle || "").trim()) segs.push(rec.subtitle.trim());
     if ((rec.ac || "").toString().trim()) segs.push("AC " + rec.ac.toString().trim());
@@ -188,6 +206,7 @@ const CombatEnemyModel = (() => {
 
   function enemyHasContent(rec) {
     if (!rec) return false;
+    if ((rec.ref || "").toString().trim()) return true;
     return ["name", "subtitle", "ac", "hp", "init", "speed", "weakSave",
             "strongSave", "resist", "immune"].some((k) => (rec[k] || "").toString().trim()) ||
       (rec.attacks || []).length || (rec.traits || []).length || (rec.tactics || []).length;
@@ -212,6 +231,37 @@ const CombatEnemyModel = (() => {
       (rec.tactics || []).forEach((t) => { if ((t || "").trim()) out.push("  - Tactics: " + t.trim()); });
     });
     return out.join("\n");
+  }
+
+  // A library enemy file (Enemies/Name.md) holds ONE enemy as a "### SourceEnemy:"
+  // heading + a single-enemy block. Strip the heading and parse the lone record.
+  function parseSourceEnemy(source) {
+    const lines = String(source == null ? "" : source).split(/\r?\n/)
+      .filter((l) => !/^\s*###\s+/.test(l));
+    const recs = parseEnemyBlock(lines);
+    return recs[0] || blankEnemy();
+  }
+
+  // Resolve live library references in a record list. Each record with a `ref`
+  // is replaced by the resolver's source record (or a "(missing)" placeholder),
+  // with the combat card's inline count overriding the source's. Inline records
+  // pass through untouched. `resolver(name)` -> source enemy record | null.
+  function expandEnemies(records, resolver) {
+    return (records || []).map((rec) => {
+      if (!rec || !(rec.ref || "").toString().trim()) return rec;
+      const count = Math.max(1, parseInt(rec.count, 10) || 1);
+      const base = (typeof resolver === "function") ? resolver(rec.ref) : null;
+      if (!base) {
+        const miss = blankEnemy();
+        miss.name = rec.ref + " (missing)";
+        miss.count = count;
+        return miss;
+      }
+      const out = Object.assign(blankEnemy(), base);
+      out.ref = rec.ref;
+      out.count = count;
+      return out;
+    });
   }
 
   // The live HP-tracker grammar. Given the current {cur, max} and a raw input
@@ -257,6 +307,8 @@ const CombatEnemyModel = (() => {
     parseEnemyBlock,
     serializeEnemyHeader,
     serializeEnemies,
+    parseSourceEnemy,
+    expandEnemies,
     applyHpInput,
   };
 })();

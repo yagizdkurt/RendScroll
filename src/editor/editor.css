@@ -585,6 +585,11 @@ body.editor-on .editor-chapter-zone {
   background: #100c07;
 }
 .editor-enemy-row input[type="text"] { width: auto; padding: 4px 6px; }
+/* A live library reference renders as a single compact linked row. */
+.editor-enemy-row.editor-enemy-ref { background: #0c0f14; border-color: #2c3a4a; }
+.editor-enemy-ref .ee-ref-name { flex: 1 1 140px; min-width: 100px; color: #cdd8e6; font-weight: 600; }
+/* The "+ enemy" / "+ from library" actions sit on one row beneath the list. */
+.editor-enemy-controls { display: flex; gap: 6px; flex-wrap: wrap; }
 .editor-enemy-statline {
   display: flex;
   gap: 5px;
