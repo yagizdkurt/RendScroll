@@ -778,6 +778,14 @@ function mountCampaignEntries(entries) {
     });
     nav.appendChild(btn);
   });
+  // A standalone "+ New page" affordance, mirroring the Item / Enemy libraries
+  // (the topbar button does the same thing).
+  const create = document.createElement("button");
+  create.className = "nav-create";
+  create.textContent = "+ New page";
+  create.dataset.navIndex = "+";
+  create.addEventListener("click", openNewPageDialog);
+  nav.appendChild(create);
 }
 
 function removeNewPageDialog(backdrop) {

@@ -330,12 +330,22 @@ body:not(.sidebar-collapsed) #enemies-nav.is-collapsed{display:none;}
   white-space:normal;
   line-height:1.2;
 }
-/* The "+ New enemy" affordance reads as a subdued action, not a list entry. */
+/* The "+ New …" affordances read as clear actions: a dashed gold outline sets
+   them apart from list entries while keeping the chrome's restrained palette. */
 .nav-create{
+  margin-top:.35rem;
   font-style:italic;
-  opacity:.75;
+  font-weight:600;
+  color:var(--gold) !important;
+  border:1px dashed var(--gold-deep) !important;
+  opacity:.9;
 }
-.nav-create:hover{opacity:1;}
+.nav-create:hover{
+  opacity:1;
+  background:rgba(201,173,106,.16) !important;
+  border-style:solid !important;
+  border-color:var(--gold) !important;
+}
 
 .nav-context-menu{
   position:fixed;
