@@ -29,6 +29,38 @@ const RendScrollSkillChecks = (() => {
     deception: "cha", intimidation: "cha", performance: "cha", persuasion: "cha",
   };
 
+  const SKILL_OPTION_NAMES = [
+    "Athletics",
+    "Acrobatics",
+    "Sleight of Hand",
+    "Stealth",
+    "Arcana",
+    "History",
+    "Investigation",
+    "Nature",
+    "Religion",
+    "Animal Handling",
+    "Insight",
+    "Medicine",
+    "Perception",
+    "Survival",
+    "Deception",
+    "Intimidation",
+    "Performance",
+    "Persuasion",
+    "STR",
+    "DEX",
+    "CON",
+    "INT",
+    "WIS",
+    "CHA",
+    "Passive Perception",
+    "SWD",
+    "DT",
+    "SWA",
+    "Detect Magic",
+  ];
+
   const SPELL = [
     { re: /^(swd|speak with dead)$/, disp: "SWD", icon: "💀", noDC: true },
     { re: /^(dt|detect thoughts?)$/, disp: "DT", icon: "🧠", noDC: false },
@@ -101,11 +133,16 @@ const RendScrollSkillChecks = (() => {
     return resolveSkill(name).noDC;
   }
 
+  function skillOptions() {
+    return SKILL_OPTION_NAMES.map((name) => ({ value: name, label: name }));
+  }
+
   return {
     resolveSkill,
     isStandardCheck,
     isNoDcCheck,
     normalizedKey,
+    skillOptions,
   };
 })();
 

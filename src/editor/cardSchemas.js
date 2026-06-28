@@ -34,40 +34,16 @@ const EditorSchemas = (() => {
     ? CombatEnemyModel
     : require("../cards/combat/enemyModel.js");
 
+  const SCR = (typeof RendScrollSkillChecks !== "undefined")
+    ? RendScrollSkillChecks
+    : require("../cards/shared/skillCheckRules.js");
+
   const lower = RSP.lower;
   const TRUTHY = /^(t|true|evet|yes|1)$/i;
 
-  const CHECK_SKILL_OPTIONS = [
-    "Athletics",
-    "Acrobatics",
-    "Sleight of Hand",
-    "Stealth",
-    "Arcana",
-    "History",
-    "Investigation",
-    "Nature",
-    "Religion",
-    "Animal Handling",
-    "Insight",
-    "Medicine",
-    "Perception",
-    "Survival",
-    "Deception",
-    "Intimidation",
-    "Performance",
-    "Persuasion",
-    "STR",
-    "DEX",
-    "CON",
-    "INT",
-    "WIS",
-    "CHA",
-    "Passive Perception",
-    "SWD",
-    "DT",
-    "SWA",
-    "Detect Magic",
-  ].map((name) => ({ value: name, label: name }));
+  function checkSkillOptions() {
+    return SCR.skillOptions();
+  }
 
   // Check / outcome / body parsing are owned by the canonical core — these used
   // to be a verbatim copy. Delegating keeps the editor and renderer identical.
@@ -319,14 +295,14 @@ const EditorSchemas = (() => {
     kind: "linesWithChecks",
     checkMode,
     hint,
-    checkOptions: CHECK_SKILL_OPTIONS,
+    checkOptions: checkSkillOptions(),
   });
   const fChecks = {
     key: "checks",
     label: "Checks",
     kind: "checks",
     hint: "Add skills and outcomes.",
-    checkOptions: CHECK_SKILL_OPTIONS,
+    checkOptions: checkSkillOptions(),
   };
 
   function quoteNarrativeText(value) {
@@ -516,7 +492,7 @@ const EditorSchemas = (() => {
   return {
     get(type) { return REGISTRY[type] || null; },
     list() { return ORDER.map((t) => REGISTRY[t]).filter(Boolean); },
-    checkSkillOptions() { return CHECK_SKILL_OPTIONS.slice(); },
+    checkSkillOptions,
     parseChecks,
     serializeChecks,
     serialize,
