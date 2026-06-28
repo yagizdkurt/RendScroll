@@ -19,6 +19,7 @@
   let tabEls = {};
   let activeTab = "diagnostics";
   let renderToken = 0;
+  let exitDialog = null;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -314,6 +315,82 @@
     btn.title = "Open the RendScroll parser debug panel";
     btn.addEventListener("click", api.toggle);
     host.appendChild(btn);
+
+    if (!document.getElementById("rs-exit-app")) {
+      const exit = el("button", "rsd-toggle-btn rsd-exit-btn print-hide", "⏻");
+      exit.id = "rs-exit-app";
+      exit.type = "button";
+      exit.setAttribute("aria-label", "Exit RendScroll");
+      exit.title = "Close the RendScroll Chrome app";
+      exit.addEventListener("click", openExitDialog);
+      host.appendChild(exit);
+    }
+  }
+
+  function closeExitDialog() {
+    if (!exitDialog) return;
+    exitDialog.remove();
+    exitDialog = null;
+    const exit = document.getElementById("rs-exit-app");
+    if (exit) exit.focus();
+  }
+
+  function requestAppExit() {
+    const confirm = exitDialog && exitDialog.querySelector(".rsd-exit-confirm");
+    if (confirm) {
+      confirm.disabled = true;
+      confirm.textContent = "Closing...";
+    }
+
+    try {
+      fetch("/__rendscroll_exit", { method: "POST", keepalive: true })
+        .catch(() => {})
+        .finally(() => window.close());
+    } catch (err) {
+      window.close();
+    }
+  }
+
+  function openExitDialog() {
+    if (exitDialog) {
+      const confirm = exitDialog.querySelector(".rsd-exit-confirm");
+      if (confirm) confirm.focus();
+      return;
+    }
+
+    const backdrop = el("div", "rsd-exit-backdrop print-hide");
+    backdrop.setAttribute("role", "presentation");
+
+    const dialog = el("div", "rsd-exit-dialog");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "rsd-exit-title");
+    dialog.setAttribute("aria-describedby", "rsd-exit-message");
+
+    const title = el("div", "rsd-exit-title", "Close RendScroll?");
+    title.id = "rsd-exit-title";
+    const message = el("div", "rsd-exit-message", "Gonna have a long rest yourself?");
+    message.id = "rsd-exit-message";
+
+    const actions = el("div", "rsd-exit-actions");
+    const cancel = el("button", "rsd-exit-cancel", "Cancel");
+    cancel.type = "button";
+    cancel.addEventListener("click", closeExitDialog);
+
+    const confirm = el("button", "rsd-exit-confirm", "Exit");
+    confirm.type = "button";
+    confirm.addEventListener("click", requestAppExit);
+
+    actions.append(cancel, confirm);
+    dialog.append(title, message, actions);
+    backdrop.appendChild(dialog);
+    backdrop.addEventListener("mousedown", (e) => {
+      if (e.target === backdrop) closeExitDialog();
+    });
+
+    exitDialog = backdrop;
+    document.body.appendChild(backdrop);
+    confirm.focus();
   }
 
   const api = {
@@ -341,6 +418,10 @@
 
   document.addEventListener("scene:loaded", () => api.refresh());
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && exitDialog) {
+      closeExitDialog();
+      return;
+    }
     if (e.key === "Escape" && panel && panel.classList.contains("is-open")) api.close();
   });
 

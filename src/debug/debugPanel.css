@@ -5,7 +5,8 @@
    content). Hidden until .is-open; fully excluded from print/PDF export. */
 
 /* --- toolbar toggle button ------------------------------------------------ */
-#rs-debug-toggle.rsd-toggle-btn {
+#rs-debug-toggle.rsd-toggle-btn,
+#rs-exit-app.rsd-toggle-btn {
   font-family: 'Alegreya Sans SC', sans-serif;
   font-size: 0.82rem;
   letter-spacing: 0.02em;
@@ -16,10 +17,110 @@
   color: var(--gold, #c9ad6a);
   cursor: pointer;
 }
-#rs-debug-toggle.rsd-toggle-btn:hover { background: #34291f; }
+#rs-exit-app.rsd-toggle-btn {
+  background: var(--gold, #c9ad6a);
+  border-color: #e6cf8c;
+  color: #211a13;
+  box-shadow: 0 0 0 1px rgba(255, 229, 154, 0.25), 0 0 12px rgba(201, 173, 106, 0.32);
+}
+#rs-debug-toggle.rsd-toggle-btn:hover,
+#rs-exit-app.rsd-toggle-btn:hover { background: #34291f; }
+#rs-exit-app.rsd-toggle-btn:hover {
+  background: #e3c772;
+  border-color: #f2dda0;
+  color: #1b140d;
+  box-shadow: 0 0 0 1px rgba(255, 232, 168, 0.34), 0 0 16px rgba(227, 199, 114, 0.45);
+}
 #rs-debug-toggle.rsd-toggle-btn.is-active {
   background: var(--gold, #c9ad6a);
   color: #211a13;
+}
+
+/* --- exit confirmation --------------------------------------------------- */
+.rsd-exit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 9, 7, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.rsd-exit-dialog {
+  width: min(420px, 92vw);
+  padding: 22px 24px 20px;
+  border: 1px solid rgba(230, 207, 140, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(54, 41, 27, 0.98), rgba(29, 23, 18, 0.98)),
+    #211a13;
+  color: #e9dbc0;
+  box-shadow:
+    0 20px 55px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 232, 168, 0.16),
+    inset 0 1px 0 rgba(255, 238, 188, 0.12);
+  font-family: 'Alegreya Sans SC', sans-serif;
+}
+
+.rsd-exit-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.15rem;
+  color: #f0d58a;
+  margin-bottom: 8px;
+}
+
+.rsd-exit-message {
+  font-family: 'EB Garamond', serif;
+  font-size: 1.02rem;
+  line-height: 1.35;
+  color: #d8c8a8;
+}
+
+.rsd-exit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.rsd-exit-actions button {
+  min-width: 88px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.rsd-exit-cancel {
+  border: 1px solid #6a5942;
+  background: #2a211b;
+  color: #d5c49f;
+}
+
+.rsd-exit-cancel:hover {
+  background: #34291f;
+  border-color: #8b744d;
+}
+
+.rsd-exit-confirm {
+  border: 1px solid #f2dda0;
+  background: var(--gold, #c9ad6a);
+  color: #211a13;
+  box-shadow: 0 0 14px rgba(227, 199, 114, 0.32);
+}
+
+.rsd-exit-confirm:hover,
+.rsd-exit-confirm:focus {
+  background: #e3c772;
+  color: #1b140d;
+}
+
+.rsd-exit-confirm:disabled {
+  opacity: 0.72;
+  cursor: default;
 }
 
 /* --- panel shell ---------------------------------------------------------- */

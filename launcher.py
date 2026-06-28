@@ -30,6 +30,7 @@ OPTIONS_CURRENT_FILE = "options.current.json"
 # and enemies today; npc/monster/location can be added here without touching the
 # endpoints.
 LIBRARY_DIRS = {"item": "Items", "enemy": "Enemies"}
+EXIT_REQUESTED = threading.Event()
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -332,6 +333,11 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+
+        if path == "/__rendscroll_exit":
+            self._send_json(200, {"ok": True})
+            EXIT_REQUESTED.set()
+            return
 
         if path == "/__create_campaign_file":
             self._create_campaign_file()
@@ -653,7 +659,7 @@ def open_browser(url):
                 "--disable-translate",
                 "--disable-features=Translate",
                 "--lang=tr",
-                "--start-maximized",
+                "--start-fullscreen",
                 "--window-position=0,0",
             ]
             screen_size = get_primary_screen_size()
@@ -746,6 +752,16 @@ def main():
         print_divider()
 
         while True:
+            if EXIT_REQUESTED.is_set():
+                print("Exit requested from RendScroll.")
+                if chrome_process is not None and chrome_process.poll() is None:
+                    chrome_process.terminate()
+                    try:
+                        chrome_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        chrome_process.kill()
+                chrome_closed = chrome_process is not None
+                break
             if chrome_process is not None and chrome_process.poll() is not None:
                 chrome_closed = True
                 print("Chrome window closed.")
