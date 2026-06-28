@@ -275,6 +275,7 @@ const EditorForm = (() => {
   function linesWithChecksEditor(value, field) {
     const wrap = el("div", "editor-lines-checks");
     const segments = Array.isArray(value) && value.length ? value : [{ kind: "text", text: "" }];
+    const getSegmentValue = Symbol("getSegmentValue");
 
     function addText(text) {
       const segment = el("div", "editor-lines-segment");
@@ -283,6 +284,7 @@ const EditorForm = (() => {
       if (field.hint) ta.placeholder = field.hint;
       const rm = button("editor-mini", "−", "Remove text block");
       rm.addEventListener("click", () => segment.remove());
+      segment[getSegmentValue] = () => ({ kind: "text", text: ta.value.trim() });
       segment.appendChild(ta);
       segment.appendChild(rm);
       wrap.appendChild(segment);
@@ -297,6 +299,11 @@ const EditorForm = (() => {
       const checks = checksEditor((segmentValue && segmentValue.checks) || [], field);
       const rm = button("editor-mini", "−", "Remove checks block");
       rm.addEventListener("click", () => segment.remove());
+      segment[getSegmentValue] = () => ({
+        kind: "checksBlock",
+        label: label.value.trim() || "Checks",
+        checks: checks.getValue(),
+      });
       const head = el("div", "editor-lines-check-head");
       head.appendChild(label);
       head.appendChild(rm);
@@ -323,35 +330,9 @@ const EditorForm = (() => {
       wrap,
       actions,
       getValue() {
-        return [...wrap.children].map((node) => {
-          if (node.classList.contains("editor-lines-check-block")) {
-            const label = node.querySelector(".editor-lines-check-head input").value.trim() || "Checks";
-            const entries = [...node.querySelector(".editor-checks").children].map((entryNode) => {
-              if (entryNode.classList.contains("editor-check-category")) {
-                return { kind: "category", label: entryNode.querySelector("input").value.trim() };
-              }
-              if (entryNode.classList.contains("editor-check-raw")) {
-                return { kind: "raw", text: entryNode.querySelector("textarea").value.trim() };
-              }
-              const pickerWrap = entryNode.querySelector(".editor-check-skill-picker");
-              const select = pickerWrap.querySelector("select");
-              const custom = pickerWrap.querySelector("input");
-              const skill = select.value === "__custom__" ? custom.value.trim() : select.value;
-              const outcomes = [...entryNode.querySelectorAll(".editor-check-outcome")].map((row) => ({
-                kind: row.querySelector("select").value,
-                dc: row.querySelector("input").value.trim(),
-                text: row.querySelector("textarea").value.trim(),
-              })).filter((outcome) => outcome.text || (outcome.kind === "dc" && outcome.dc));
-              return { kind: "check", skill, outcomes };
-            }).filter((entry) => {
-              if (entry.kind === "check") return !!entry.skill;
-              if (entry.kind === "category") return !!entry.label;
-              return !!entry.text;
-            });
-            return { kind: "checksBlock", label, checks: entries };
-          }
-          return { kind: "text", text: node.querySelector("textarea").value.trim() };
-        }).filter((segment) => segment.kind === "checksBlock" || segment.text);
+        return [...wrap.children]
+          .map((node) => node[getSegmentValue] && node[getSegmentValue]())
+          .filter((segment) => segment && (segment.kind === "checksBlock" || segment.text));
       },
     };
   }
