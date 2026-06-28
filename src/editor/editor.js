@@ -144,6 +144,25 @@ const Editor = (() => {
     }
   }
 
+  // Create a library item with no scene instance (the Items sidebar "+ New item",
+  // parallel to createEnemyToLibrary). `onCreated(name)` runs after the file is
+  // written (e.g. to open the new item's library view).
+  function createLibraryItem(onCreated) {
+    if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
+    EditorForm.openCreate("sourceitem", state.model, async (block) => {
+      const name = itemNameFromBlock(block);
+      if (!name) { toast("Item has no name", true); return; }
+      try {
+        await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, block)));
+        notifyLibraryChanged("item", name, { created: true });
+        toast("Created library item: " + name);
+        if (typeof onCreated === "function") onCreated(name);
+      } catch (err) {
+        toast(err.message || "Item create failed", true);
+      }
+    });
+  }
+
   function enemyNameFromBlock(block) {
     const m = String(block).match(/^###\s+(?:source\s*enemy|sourceenemy)\s*:\s*(.+?)\s*$/im);
     return m ? m[1].trim() : "";
@@ -445,6 +464,8 @@ const Editor = (() => {
     // Edit a library file via the item form (used by the library sidebar view and
     // by reference-card tools). Works regardless of scene edit mode.
     editLibraryItem,
+    // Create a new library item with no scene instance (Items sidebar "+ New item").
+    createLibraryItem,
     // Create a new enemy library file (combat picker + Enemies sidebar).
     createEnemyToLibrary,
     // Move one inline combat enemy into the library (combat enemy editor).

@@ -327,13 +327,6 @@ function libraryEntries() {
 function mountLibraryEntries(entries) {
   if (!libraryNav) return;
   libraryNav.innerHTML = "";
-  if (!entries.length) {
-    const empty = document.createElement("div");
-    empty.className = "nav-empty";
-    empty.textContent = "No items yet.";
-    libraryNav.appendChild(empty);
-    return;
-  }
   entries.forEach((entry) => {
     const btn = document.createElement("button");
     btn.textContent = entry.name;
@@ -344,6 +337,18 @@ function mountLibraryEntries(entries) {
     btn.addEventListener("click", () => openLibraryItem(entry.name));
     libraryNav.appendChild(btn);
   });
+  // A standalone "+ New item" affordance (items are also created via the editor
+  // insert flow, which additionally drops a scene instance).
+  const create = document.createElement("button");
+  create.className = "nav-create";
+  create.textContent = "+ New item";
+  create.dataset.navIndex = "+";
+  create.addEventListener("click", () => {
+    if (typeof Editor !== "undefined" && Editor.createLibraryItem) {
+      Editor.createLibraryItem((name) => openLibraryItem(name));
+    }
+  });
+  libraryNav.appendChild(create);
 }
 
 // Re-read the library list into the sidebar (after create/edit/delete).
