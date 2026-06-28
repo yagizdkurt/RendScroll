@@ -5,6 +5,7 @@ Runs diagnostics, starts a local HTTP server, opens the renderer, and keeps
 the console alive for logs until the user stops it.
 """
 
+import ctypes
 import http.server
 import importlib.util
 import json
@@ -620,12 +621,29 @@ def configure_chrome_preferences(profile_dir):
         json.dump(preferences, fh, separators=(",", ":"))
 
 
+def get_primary_screen_size():
+    if os.name != "nt":
+        return None
+
+    try:
+        user32 = ctypes.windll.user32
+        user32.SetProcessDPIAware()
+        width = user32.GetSystemMetrics(0)
+        height = user32.GetSystemMetrics(1)
+    except (AttributeError, OSError, ValueError):
+        return None
+
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
 def open_browser(url):
     for chrome_path in chrome_candidates():
         if os.path.exists(chrome_path):
             profile_dir = tempfile.mkdtemp(prefix="rendscroll-chrome-")
             configure_chrome_preferences(profile_dir)
-            process = subprocess.Popen([
+            chrome_args = [
                 chrome_path,
                 f"--app={url}",
                 f"--user-data-dir={profile_dir}",
@@ -634,7 +652,14 @@ def open_browser(url):
                 "--disable-translate",
                 "--disable-features=Translate",
                 "--lang=tr",
-            ])
+                "--start-maximized",
+                "--window-position=0,0",
+            ]
+            screen_size = get_primary_screen_size()
+            if screen_size:
+                chrome_args.append(f"--window-size={screen_size[0]},{screen_size[1]}")
+
+            process = subprocess.Popen(chrome_args)
             return process, profile_dir, "chrome"
 
     webbrowser.open(url)
