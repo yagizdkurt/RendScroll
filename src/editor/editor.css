@@ -1,7 +1,7 @@
 /* Editor mode styling. Everything is scoped under `body.editor-on` (set by the
    controller) so the reader view is pixel-identical when editing is off. */
 
-/* --- sidebar controls (always visible) --- */
+/* --- editor controls (always visible) --- */
 .editor-controls {
   display: flex;
   align-items: center;
@@ -98,30 +98,20 @@ body.editor-on .editor-card:hover {
 .editor-plain-block {
   position: relative;
 }
-.editor-narrative-block {
-  position: relative;
-}
 body.editor-on .editor-plain-block {
   outline: 1px dashed rgba(184, 137, 47, 0.28);
   outline-offset: 4px;
 }
-body.editor-on .editor-narrative-block {
-  outline: 1px dashed rgba(184, 137, 47, 0.35);
-  outline-offset: 3px;
-}
 body.editor-on .editor-plain-block:hover {
   outline-color: rgba(216, 167, 67, 0.75);
-}
-body.editor-on .editor-narrative-block:hover {
-  outline-color: rgba(216, 167, 67, 0.9);
 }
 .editor-card-tools {
   display: none;
   position: absolute;
-  top: -12px;
+  top: -18px;
   right: 6px;
   z-index: 5;
-  gap: 2px;
+  gap: 4px;
 }
 body.editor-on .editor-card:hover > .editor-card-tools {
   display: flex;
@@ -129,30 +119,20 @@ body.editor-on .editor-card:hover > .editor-card-tools {
 .editor-plain-tools {
   display: none;
   position: absolute;
-  top: -12px;
+  top: -18px;
   right: 6px;
   z-index: 6;
-}
-.editor-narrative-tools {
-  display: none;
-  position: absolute;
-  top: -12px;
-  right: 6px;
-  z-index: 7;
 }
 body.editor-on .editor-plain-block:hover > .editor-plain-tools {
   display: flex;
 }
-body.editor-on .editor-narrative-block:hover > .editor-narrative-tools {
-  display: flex;
-}
 .editor-tool {
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.3);
   background: #2a2117;
   color: #e9d9b8;
@@ -323,8 +303,14 @@ body.editor-on .editor-chapter-zone {
   flex-direction: column;
   gap: 4px;
 }
+.editor-field-inline {
+  display: grid;
+  grid-template-columns: minmax(86px, max-content) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+}
 .editor-field > label {
-  font-size: 12px;
+  font-size: 16px;
   letter-spacing: 0.03em;
   opacity: 0.8;
 }
@@ -346,9 +332,6 @@ body.editor-on .editor-chapter-zone {
 }
 .editor-field textarea.editor-plain-body {
   min-height: 340px;
-}
-.editor-field textarea.editor-narrative-body {
-  min-height: 260px;
 }
 .editor-field-row {
   display: flex;
@@ -376,6 +359,22 @@ body.editor-on .editor-chapter-zone {
   color: #1a1208;
   font-weight: 600;
 }
+.editor-btn.danger {
+  background: #8a2d1c;
+  border-color: #c05a3b;
+  color: #f7dfd3;
+  font-weight: 600;
+}
+.editor-btn.danger:hover {
+  background: #a63a24;
+}
+.nav-delete-modal {
+  width: min(420px, 100%);
+}
+.nav-delete-message {
+  margin: 0;
+  color: #ece0c6;
+}
 .editor-list-item {
   display: flex;
   gap: 6px;
@@ -392,6 +391,49 @@ body.editor-on .editor-chapter-zone {
   border: 1px solid #4a3a22;
   background: #2a2117;
   color: #ece0c6;
+}
+
+/* --- item library picker --- */
+.editor-picker-modal {
+  width: min(440px, 100%);
+}
+.editor-picker-search {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #4a3a22;
+  background: #15100a;
+  color: #ece0c6;
+  width: 100%;
+  box-sizing: border-box;
+}
+.editor-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.editor-picker-item {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #ece0c6;
+}
+.editor-picker-item:hover,
+.editor-picker-item:focus-visible {
+  background: rgba(216, 167, 67, 0.16);
+  border-color: #6a5326;
+  outline: none;
+}
+.editor-picker-empty {
+  padding: 10px;
+  opacity: 0.65;
+  font-style: italic;
 }
 
 /* --- structured skill checks --- */

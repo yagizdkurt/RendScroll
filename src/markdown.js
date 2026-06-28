@@ -7,7 +7,22 @@ async function fetchMarkdown(path) {
   return res.text();
 }
 
+let inlineFormattingMounted = false;
+
+function ensureInlineFormatting() {
+  if (inlineFormattingMounted) return;
+  if (typeof marked !== "undefined" && typeof RendScrollInlineFormatting !== "undefined") {
+    marked.use(RendScrollInlineFormatting.extension());
+  }
+  inlineFormattingMounted = true;
+}
+
 // Raw markdown -> HTML string, via marked.js.
 function renderMarkdown(text) {
+  ensureInlineFormatting();
   return marked.parse(text);
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { fetchMarkdown, renderMarkdown, ensureInlineFormatting };
 }

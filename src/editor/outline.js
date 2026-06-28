@@ -8,7 +8,7 @@
    All edit operations are string splices over the original text followed by a
    re-parse — we never reconstruct markdown from a lossy tree.
 
-   Classification mirrors the renderers exactly (src/renderers/*.js) so the
+   Classification mirrors the cards exactly (src/cards/<type>/*.js) so the
    model agrees with what actually gets drawn:
      - column: layout.js:layoutIsAside (left default + the "Side: R" override)
      - types : each renderer's heading regex
@@ -16,28 +16,25 @@
    Knows nothing about the DOM or the sidebar. */
 
 const EditorOutline = (() => {
-  // Turkish-aware lowercase (İ/I), matching every renderer's *Lower().
-  function lower(s) {
-    return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-  }
+  // The canonical RendScroll parser owns classification + the line primitives.
+  // Browser: global `RendScrollParser` (loaded before this file). Node: require.
+  const RSP = (typeof RendScrollParser !== "undefined")
+    ? RendScrollParser
+    : require("../parser/rendscrollParser.js");
 
-  // Split into lines that each KEEP their trailing newline, so join("") is the
-  // exact original (handles mixed LF / CRLF across files).
-  function splitLines(md) {
-    if (md === "") return [];
-    return md.match(/[^\n]*\n|[^\n]+$/g) || [];
-  }
+  // Classification + line primitives are delegated to the shared core so the
+  // editor model and the renderer agree by construction (single source of truth).
+  const lower = RSP.lower;
+  const splitLines = RSP.splitLines;
+  const lineText = RSP.lineText;
+  const cardType = RSP.cardType;
+  const cardTitle = RSP.cardTitle;
+  const canDock = RSP.canDock;
 
-  // Strip the trailing line break from a stored line for pattern testing.
-  function lineText(line) {
-    return line.replace(/\r?\n$/, "");
-  }
-
-  const HEADING_RE = /^(#{1,6})\s+(.*)$/;
-  const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
-  // item.js / ability.js: stuck if label yapışık|connect|combine and truthy.
-  const STUCK_RE = /^(yapışık|connect|combine)\s*:\s*(t|true|yes|1)\s*$/;
-  const SIDE_RE = /^side\s*:\s*(.+)$/i;
+  const HEADING_RE = RSP.regexes.HEADING_RE;
+  const HR_RE = RSP.regexes.HR_RE;
+  const STUCK_RE = RSP.regexes.STUCK_RE;
+  const SIDE_RE = RSP.regexes.SIDE_RE;
 
   function isHeading(text) {
     return HEADING_RE.test(text);
@@ -46,66 +43,10 @@ const EditorOutline = (() => {
     return HR_RE.test(text);
   }
 
-  // Heading content (after "## ") -> card type, or "" when the heading is not a
-  // card (it is then an event divider / page title / plain section).
-  // `level` matters: only Obje/Object/POI render as cards at H2 (obj.js queries
-  // h2+h3); every other card type is H3-only.
-  // IMPORTANT: the colon-form types are matched with case-insensitive regex on
-  // the RAW heading (exactly like the renderers, e.g. item.js's /^_?\s*item:/i).
-  // Turkish lower() must NOT be applied first — it maps "I"->"ı" (dotless), which
-  // turns "Item" into "ıtem" and breaks the match. Only the includes-based checks
-  // (npc / skill checks, which the renderers also do on lowered text) use lower().
-  function cardType(level, content) {
-    const raw = content.trim();
-    if (level === 2) {
-      return /^\s*(obje|object|poi)\s*:/i.test(raw) ? "obj" : "";
-    }
-    if (level !== 3) return "";
-    const tl = lower(raw);
-    if (tl.includes("skill check")) return "skillchecks";
-    if (/^\s*item\s*:/i.test(raw)) return "item";
-    if (/^\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
-    if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
-    if (/^\s*sava[şs]\s*:/i.test(raw)) return "combat";
-    if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
-    if (/^std\s*:/i.test(raw)) return "std";
-    if (tl.includes("npc")) return "npc";
-    if (/^\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
-    return ""; // plain ### section (renders as a normal heading)
-  }
-
   // Every card renders in the left column by default; a "Side: R" line in the
   // body (scanned where the card is built) moves it to the right.
   function defaultColumn(type, content) {
     return "left";
-  }
-
-  // Mirror of layout.js:canDockUnder for model cards.
-  function canDock(card, host) {
-    if (!host) return false;
-    if (card.type === "item" && card.stuck) {
-      return host.type === "obj" || (host.type === "item" && host.stuck);
-    }
-    if (card.type === "ability" && card.stuck) {
-      return host.type === "item" || host.type === "obj" || (host.type === "ability" && host.stuck);
-    }
-    return false;
-  }
-
-  // Card title text (what the renderer shows), used for menus/labels.
-  function cardTitle(type, content) {
-    const c = content.trim();
-    switch (type) {
-      case "npc": return c.replace(/^\s*npc\s*:\s*/i, "").trim() || "NPC";
-      case "item": return c.replace(/^\s*item\s*:\s*/i, "").trim() || "Item";
-      case "ability": return c.replace(/^\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
-      case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
-      case "combat": return c.replace(/^\s*sava[şs]\s*:\s*/i, "").trim() || "Savaş";
-      case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
-      case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
-      case "skillchecks": return c.trim();
-      default: return c.trim();
-    }
   }
 
   // --- Parse ---------------------------------------------------------------
@@ -203,10 +144,6 @@ const EditorOutline = (() => {
     }
     closeCur(lines.length);
 
-    function inCardRange(lineIndex) {
-      return events.some((ev) => ev.cards.some((card) => lineIndex >= card.start && lineIndex < card.end));
-    }
-
     // Pass 3: expose editable non-card heading/body blocks. These are leading
     // plain markdown spans only; card ranges remain owned by their card editors.
     const plainBlocks = [];
@@ -242,24 +179,7 @@ const EditorOutline = (() => {
       });
     });
 
-    // Pass 4: editable standalone narrative blocks. These are consecutive
-    // blockquote source lines outside structured cards, so they can be edited
-    // next to the rendered read-aloud box without taking over card internals.
-    const narrativeBlocks = [];
-    let narrativeId = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (inCardRange(i) || !/^\s*>/.test(lineText(lines[i]))) continue;
-      const start = i;
-      while (i < lines.length && !inCardRange(i) && /^\s*>/.test(lineText(lines[i]))) i++;
-      narrativeBlocks.push({
-        id: narrativeId++,
-        start,
-        end: i,
-      });
-      i--;
-    }
-
-    return { raw: md, lines, eol, events, boundaries, hrLines, plainBlocks, narrativeBlocks };
+    return { raw: md, lines, eol, events, boundaries, hrLines, plainBlocks };
   }
 
   // --- Serialize (exact) ---------------------------------------------------
@@ -298,12 +218,6 @@ const EditorOutline = (() => {
     return model.raw.slice(a, b);
   }
 
-  function narrativeBlockSource(model, block) {
-    const a = offsetOf(model, block.start);
-    const b = block.end >= model.lines.length ? model.raw.length : offsetOf(model, block.end);
-    return model.raw.slice(a, b);
-  }
-
   // Find a card across all events by id.
   function findCard(model, id) {
     for (const ev of model.events) {
@@ -315,10 +229,6 @@ const EditorOutline = (() => {
 
   function findPlainBlock(model, id) {
     return (model.plainBlocks || []).find((b) => b.id === id) || null;
-  }
-
-  function findNarrativeBlock(model, id) {
-    return (model.narrativeBlocks || []).find((b) => b.id === id) || null;
   }
 
   function cardHrGroup(model, ev, card) {
@@ -398,6 +308,39 @@ const EditorOutline = (() => {
         wroteSide = true;
       }
     }
+    return out.join("");
+  }
+
+  function rewriteBlockColumn(model, blockText, column) {
+    if (column !== "left" && column !== "right") return blockText;
+    const lines = splitLines(String(blockText || ""));
+    if (!lines.length) return blockText;
+
+    const hm = lineText(lines[0]).match(HEADING_RE);
+    if (!hm || !cardType(hm[1].length, hm[2])) return blockText;
+
+    const out = [lines[0]];
+    let wroteSide = false;
+    for (let i = 1; i < lines.length; i++) {
+      const text = lineText(lines[i]).trim();
+      if (HEADING_RE.test(lineText(lines[i]))) {
+        out.push(lines[i]);
+        continue;
+      }
+      if (SIDE_RE.test(text)) {
+        if (column === "right" && !wroteSide) {
+          out.push("Side: R" + lineEnding(lines[i], model.eol));
+          wroteSide = true;
+        }
+        continue;
+      }
+      if (column === "right" && !wroteSide && text !== "") {
+        out.push("Side: R" + model.eol);
+        wroteSide = true;
+      }
+      out.push(lines[i]);
+    }
+    if (column === "right" && !wroteSide) out.push("Side: R" + model.eol);
     return out.join("");
   }
 
@@ -503,26 +446,6 @@ const EditorOutline = (() => {
     return spliceText(model, block.start, block.end, replacement);
   }
 
-  function quoteNarrative(text, eol) {
-    const raw = String(text || "").replace(/\r?\n/g, "\n").replace(/[ \t\r\n]+$/, "");
-    if (!raw) return "";
-    return raw.split("\n").map((line) => {
-      if (/^\s*>/.test(line)) return line;
-      return line ? "> " + line : ">";
-    }).join(eol);
-  }
-
-  function replaceNarrativeBlock(model, block, text) {
-    const quoted = quoteNarrative(text, model.eol);
-    const replacement = quoted ? quoted + model.eol : "";
-    return spliceText(model, block.start, block.end, replacement);
-  }
-
-  function narrativeBlock(text) {
-    const quoted = quoteNarrative(text || "New narrative text.", "\n");
-    return quoted || "> New narrative text.";
-  }
-
   function chapterBlock(values) {
     const title = String(values && values.title ? values.title : "New Chapter").trim();
     const level = parseInt(values && values.level, 10) === 1 ? 1 : 2;
@@ -542,16 +465,13 @@ const EditorOutline = (() => {
     deleteCard,
     findCard,
     findPlainBlock,
-    findNarrativeBlock,
     cardSource,
     plainBlockSource,
-    narrativeBlockSource,
     replacePlainBlock,
-    replaceNarrativeBlock,
-    narrativeBlock,
     chapterBlock,
     connectedCardGroup,
     moveCardGroup,
+    rewriteBlockColumn,
     // exposed for anchors.js / tests
     _internals: { cardType, defaultColumn, lower, splitLines, canDock },
   };

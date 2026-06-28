@@ -10,17 +10,23 @@
 <link rel="stylesheet" href="src/style.css">
 <link rel="stylesheet" href="src/editor/editor.css">
 <link rel="stylesheet" href="src/printer/printer.css">
+<link rel="stylesheet" href="src/debug/debugPanel.css">
 </head>
 <body>
   <aside id="sidebar">
     <img class="sidebar-brand" src="src/STDImages/RendScroll2.png" alt="RendScroll">
     <button id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">☰</button>
+    <div class="nav-section-title" id="nav-campaign-title">Campaign</div>
     <nav id="nav"></nav>
+    <div class="nav-section-title" id="nav-library-title">Item Library</div>
+    <nav id="library-nav" aria-label="Item Library"></nav>
     <section id="options" class="options" aria-label="Options"></section>
   </aside>
   <div id="main-area">
     <header id="topbar">
-      <button id="new-page-button" class="topbar-action topbar-new-page" type="button">+ New Page</button>
+      <div id="topbar-primary">
+        <button id="new-page-button" class="topbar-action topbar-new-page" type="button">+ New Page</button>
+      </div>
       <div id="topbar-tools"></div>
     </header>
     <main id="reader">
@@ -32,20 +38,30 @@
   <script src="src/utils/text.js"></script>
   <script src="src/utils/dom.js"></script>
   <script src="src/utils/markdown.js"></script>
+  <!-- RendScroll structural parser: canonical model consumed by the editor now
+       and (Phase 2) the renderer. Must load before outline.js / cardSchemas.js. -->
+  <script src="src/parser/rendscrollParser.js"></script>
+  <!-- Reusable reference library (Items, …): loads standalone library files and
+       resolves SourceItem-backed items / [link=Name] references. Needs the
+       parser; used by app.js and the editor. -->
+  <script src="src/refLibrary.js"></script>
+  <script src="src/cards/shared/skillCheckRules.js"></script>
+  <script src="src/inlineFormatting.js"></script>
   <script src="src/markdown.js"></script>
-  <script src="src/renderers/cardImage.js"></script>
-  <script src="src/renderers/shared/cardMeta.js"></script>
-  <script src="src/renderers/shared/cardParts.js"></script>
-  <script src="src/renderers/skillChecks.js"></script>
-  <script src="src/renderers/npcSections.js"></script>
-  <script src="src/renderers/item.js"></script>
-  <script src="src/renderers/ability.js"></script>
-  <script src="src/renderers/obj.js"></script>
-  <script src="src/renderers/combat.js"></script>
-  <script src="src/renderers/unexpected.js"></script>
-  <script src="src/renderers/std.js"></script>
-  <script src="src/renderers/cardCollapse.js"></script>
-  <script src="src/renderers/layout.js"></script>
+  <script src="src/cards/shared/cardImage.js"></script>
+  <script src="src/cards/shared/cardMeta.js"></script>
+  <script src="src/cards/shared/cardParts.js"></script>
+  <script src="src/cards/skillChecks/skillChecks.js"></script>
+  <script src="src/cards/npc/npc.js"></script>
+  <script src="src/cards/item/item.js"></script>
+  <script src="src/cards/ability/ability.js"></script>
+  <script src="src/cards/obj/obj.js"></script>
+  <script src="src/cards/combat/combat.js"></script>
+  <script src="src/cards/unexpected/unexpected.js"></script>
+  <script src="src/cards/narrative/narrative.js"></script>
+  <script src="src/cards/std/std.js"></script>
+  <script src="src/cards/shared/cardCollapse.js"></script>
+  <script src="src/cards/shared/layout.js"></script>
   <script src="src/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
   <script src="src/editor/outline.js"></script>
@@ -55,8 +71,14 @@
   <script src="src/editor/dragDrop.js"></script>
   <script src="src/editor/contextMenu.js"></script>
   <script src="src/editor/form.js"></script>
+  <!-- Item Library picker: choose an existing library item (or create a new one)
+       when inserting a SourceItem-backed scene Item. Needs form.js + refLibrary.js. -->
+  <script src="src/editor/libraryPicker.js"></script>
   <script src="src/editor/editor.js"></script>
   <!-- Printer mode (export-only; reads the rendered #page, changes nothing) -->
   <script src="src/printer/printer.js"></script>
+  <!-- Debug panel (dev-only; read-only parser diagnostics, excluded from print) -->
+  <script src="src/debug/diagnostics.js"></script>
+  <script src="src/debug/debugPanel.js"></script>
 </body>
 </html>

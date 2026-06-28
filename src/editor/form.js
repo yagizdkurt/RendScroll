@@ -340,9 +340,10 @@ const EditorForm = (() => {
   // --- per-kind field rendering -------------------------------------------
 
   function fieldRow(field, value) {
-    const wrap = el("div", "editor-field");
+    const inlineKinds = new Set(["text", "select"]);
+    const wrap = el("div", "editor-field" + (inlineKinds.has(field.kind) ? " editor-field-inline" : ""));
     const id = "ef-" + field.key;
-    const label = el("label", null, field.label + (field.required ? " *" : ""));
+    const label = el("label", null, field.label + ":" + (field.required ? " *" : ""));
     label.setAttribute("for", id);
     wrap.appendChild(label);
 
@@ -352,6 +353,7 @@ const EditorForm = (() => {
       input.type = "text";
       input.id = id;
       input.value = value || "";
+      if (field.inputMode) input.inputMode = field.inputMode;
       if (field.hint) input.placeholder = field.hint;
       wrap.appendChild(input);
       getValue = () => input.value;
@@ -375,7 +377,7 @@ const EditorForm = (() => {
       label.prepend(cb);
       label.prepend(document.createTextNode(" "));
       getValue = () => cb.checked;
-    } else if (field.kind === "lines") {
+    } else if (field.kind === "lines" || field.kind === "narrativeText") {
       const ta = el("textarea");
       ta.id = id;
       ta.value = value || "";
@@ -496,9 +498,9 @@ const EditorForm = (() => {
     head.appendChild(x);
 
     const body = el("div", "editor-modal-body");
-    const titleField = el("div", "editor-field");
+    const titleField = el("div", "editor-field editor-field-inline");
     const titleId = "ef-plain-title";
-    const titleLabel = el("label", null, "Title");
+    const titleLabel = el("label", null, "Title:");
     titleLabel.setAttribute("for", titleId);
     const titleInput = el("input");
     titleInput.type = "text";
@@ -510,9 +512,9 @@ const EditorForm = (() => {
     let levelInput = null;
     let levelField = null;
     if (block.kind === "section") {
-      levelField = el("div", "editor-field");
+      levelField = el("div", "editor-field editor-field-inline");
       const levelId = "ef-plain-level";
-      const levelLabel = el("label", null, "Columns");
+      const levelLabel = el("label", null, "Columns:");
       levelLabel.setAttribute("for", levelId);
       levelInput = el("select");
       levelInput.id = levelId;
@@ -580,8 +582,8 @@ const EditorForm = (() => {
     head.appendChild(x);
 
     const body = el("div", "editor-modal-body");
-    const titleField = el("div", "editor-field");
-    const titleLabel = el("label", null, "Title");
+    const titleField = el("div", "editor-field editor-field-inline");
+    const titleLabel = el("label", null, "Title:");
     titleLabel.setAttribute("for", "ef-chapter-title");
     const title = el("input");
     title.type = "text";
@@ -590,8 +592,8 @@ const EditorForm = (() => {
     titleField.appendChild(titleLabel);
     titleField.appendChild(title);
 
-    const levelField = el("div", "editor-field");
-    const levelLabel = el("label", null, "Columns");
+    const levelField = el("div", "editor-field editor-field-inline");
+    const levelLabel = el("label", null, "Columns:");
     levelLabel.setAttribute("for", "ef-chapter-level");
     const level = el("select");
     level.id = "ef-chapter-level";
@@ -633,67 +635,12 @@ const EditorForm = (() => {
     title.select();
   }
 
-  function unquoteNarrative(source) {
-    return String(source || "")
-      .replace(/\r?\n$/, "")
-      .split(/\r?\n/)
-      .map((line) => line.replace(/^\s*>\s?/, ""))
-      .join("\n");
-  }
-
-  function openNarrative(block, model, onSubmit) {
-    close();
-    backdrop = el("div", "editor-modal-backdrop");
-    const modal = el("div", "editor-modal editor-modal-narrative");
-
-    const head = el("div", "editor-modal-head");
-    head.appendChild(el("span", null, block ? "Edit Narrative" : "New Narrative"));
-    const x = button("editor-mini", "✕", "Close");
-    x.addEventListener("click", close);
-    head.appendChild(x);
-
-    const body = el("div", "editor-modal-body");
-    const field = el("div", "editor-field");
-    const id = "ef-narrative-body";
-    const label = el("label", null, "Narrative text");
-    label.setAttribute("for", id);
-    const text = el("textarea");
-    text.id = id;
-    text.className = "editor-narrative-body";
-    text.placeholder = "Players see or hear this...";
-    text.value = block ? unquoteNarrative(EditorOutline.narrativeBlockSource(model, block)) : "";
-    field.appendChild(label);
-    field.appendChild(text);
-    body.appendChild(field);
-
-    const foot = el("div", "editor-modal-foot");
-    const cancel = button("editor-btn", "Cancel");
-    cancel.addEventListener("click", close);
-    const ok = button("editor-btn primary", block ? "Apply" : "Insert");
-    ok.addEventListener("click", () => {
-      close();
-      onSubmit(text.value);
-    });
-    foot.appendChild(cancel);
-    foot.appendChild(ok);
-
-    modal.appendChild(head);
-    modal.appendChild(body);
-    modal.appendChild(foot);
-    backdrop.appendChild(modal);
-    backdrop.addEventListener("mousedown", (e) => {
-      if (e.target === backdrop) close();
-    });
-    document.body.appendChild(backdrop);
-    document.addEventListener("keydown", onKey);
-    text.focus();
-  }
-
   function defaults(schema) {
     const v = {};
     schema.fields.forEach((f) => {
       if (f.kind === "list") v[f.key] = [];
       else if (f.kind === "flag") v[f.key] = false;
+      else if (f.defaultOption && typeof RendererOptions !== "undefined") v[f.key] = RendererOptions.get(f.defaultOption) || "";
       else v[f.key] = f.default != null ? f.default : "";
     });
     return v;
@@ -712,7 +659,6 @@ const EditorForm = (() => {
       open(schema, EditorSchemas.parse(schema, src), "Edit " + schema.label, onSubmit);
     },
     openPlain,
-    openNarrative,
     openChapter,
   };
 })();

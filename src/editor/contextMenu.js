@@ -69,28 +69,34 @@ const EditorContextMenu = (() => {
   return {
     openInsert(target, x, y, handlers) {
       const nodes = [group("Insert")];
-      if (handlers.pickNarrative) {
-        nodes.push(item("Narrative", () => handlers.pickNarrative(target)));
-        nodes.push(sep());
-      }
       EditorSchemas.list().forEach((schema) => {
         nodes.push(item(schema.label, () => handlers.pickInsert(schema.type, target)));
       });
       show(x, y, nodes);
     },
 
-    openCard(id, x, y, handlers) {
-      show(x, y, [
+    openCard(id, x, y, handlers, ctx) {
+      const base = ctx || {};
+      const nodes = [
         item("Edit…", () => handlers.editCard(id)),
+        item("Insert before…", () =>
+          handlers.insertMenu(Object.assign({}, base, { beforeCardId: id }), x, y)
+        ),
         item("Insert after…", () =>
-          handlers.insertMenu({ afterCardId: id }, x, y)
+          handlers.insertMenu(Object.assign({}, base, { afterCardId: id }), x, y)
         ),
         sep(),
         item("Move up", () => handlers.moveCard(id, -1)),
         item("Move down", () => handlers.moveCard(id, 1)),
-        sep(),
-        item("Delete", () => handlers.deleteCard(id)),
-      ]);
+      ];
+      // Migration affordance: pull an inline item out into the shared library.
+      if (handlers.cardIsItem && handlers.cardIsItem(id) && handlers.moveItemToLibrary) {
+        nodes.push(sep());
+        nodes.push(item("Move to Library", () => handlers.moveItemToLibrary(id)));
+      }
+      nodes.push(sep());
+      nodes.push(item("Delete", () => handlers.deleteCard(id)));
+      show(x, y, nodes);
     },
   };
 })();

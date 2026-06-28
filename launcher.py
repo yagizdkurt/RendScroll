@@ -24,6 +24,10 @@ HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
 CAMPAIGN_DIR = "Campaign"
+OPTIONS_CURRENT_FILE = "options.current.json"
+# Reusable reference libraries: a ref type -> the folder its files live in. Items
+# today; npc/monster/location can be added here without touching the endpoints.
+LIBRARY_DIRS = {"item": "Items"}
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -111,9 +115,15 @@ def run_lint():
 
 
 def format_issue_message(msg):
-    if msg.startswith('non-standard check "') and msg.endswith('" (misspell or custom?)'):
-        return "non-standard check: " + msg[len('non-standard check "'):-len('" (misspell or custom?)')]
     return msg
+
+
+def ordered_issue_files(files, issues):
+    ordered = list(files)
+    for _, filename, _, _ in issues:
+        if filename not in ordered:
+            ordered.append(filename)
+    return ordered
 
 
 def print_diagnostics(result):
@@ -126,7 +136,7 @@ def print_diagnostics(result):
 
     if issues:
         print_indented()
-        for filename in files:
+        for filename in ordered_issue_files(files, issues):
             file_issues = sorted((x for x in issues if x[1] == filename), key=lambda x: x[2])
             if not file_issues:
                 continue
@@ -198,6 +208,60 @@ def discover_campaign_files(base_dir):
     return entries
 
 
+def library_entry_from_filename(folder, filename):
+    stem, _ = os.path.splitext(filename)
+    return {"name": stem, "path": f"{folder}/{filename}"}
+
+
+def discover_library_files(base_dir, ref_type, with_content=False):
+    """List (and optionally read) the .md files of a library folder.
+
+    Returns [{name, path[, content]}] sorted by name. Unknown ref types and a
+    missing folder both return an empty list — the library is simply empty."""
+    folder = LIBRARY_DIRS.get(ref_type)
+    if not folder:
+        return []
+    root = os.path.join(base_dir, folder)
+    entries = []
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return entries
+
+    for name in names:
+        if name.startswith(".") or not name.lower().endswith(".md"):
+            continue
+        full_path = os.path.join(root, name)
+        if not os.path.isfile(full_path):
+            continue
+        entry = library_entry_from_filename(folder, name)
+        if with_content:
+            try:
+                with open(full_path, encoding="utf-8") as fh:
+                    entry["content"] = fh.read()
+            except OSError:
+                entry["content"] = ""
+        entries.append(entry)
+
+    entries.sort(key=lambda e: e["name"].casefold())
+    return entries
+
+
+def clean_library_name(value):
+    """Sanitize a client-supplied library file name into a safe stem.
+
+    Rejects anything with path separators, parent refs, or that is empty after
+    collapsing whitespace, so it can never escape the library folder."""
+    if not isinstance(value, str):
+        return None
+    name = re.sub(r"\s+", " ", value).strip()
+    if not name or name in (".", ".."):
+        return None
+    if "/" in name or "\\" in name or "\x00" in name:
+        return None
+    return name[:120]
+
+
 def clean_campaign_title(value):
     if not isinstance(value, str):
         return "Untitled"
@@ -241,11 +305,28 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path.split("?", 1)[0] == "/__campaign_files":
+        path = self.path.split("?", 1)[0]
+        if path == "/__campaign_files":
             self._send_json(200, discover_campaign_files(os.getcwd()))
             return
 
+        if path == "/__library_files":
+            ref_type = self._query_param("type", "item")
+            self._send_json(200, discover_library_files(os.getcwd(), ref_type))
+            return
+
+        if path == "/__library_bundle":
+            ref_type = self._query_param("type", "item")
+            self._send_json(200, discover_library_files(os.getcwd(), ref_type, with_content=True))
+            return
+
         super().do_GET()
+
+    def _query_param(self, key, default=None):
+        from urllib.parse import urlparse, parse_qs
+        qs = parse_qs(urlparse(self.path).query)
+        values = qs.get(key)
+        return values[0] if values else default
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
@@ -254,8 +335,20 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._create_campaign_file()
             return
 
+        if path == "/__create_library_file":
+            self._create_library_file()
+            return
+
+        if path == "/__delete_campaign_file":
+            self._delete_campaign_file()
+            return
+
         if path == "/__save":
             self._save_campaign_file()
+            return
+
+        if path == "/__save_options":
+            self._save_options()
             return
 
         self._send_json(404, {"ok": False, "error": "unknown endpoint"})
@@ -293,6 +386,89 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             },
         )
 
+    def _create_library_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            ref_type = str(data.get("type") or "item")
+            name = clean_library_name(data.get("name"))
+            content = data["content"]
+        except (ValueError, KeyError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        folder = LIBRARY_DIRS.get(ref_type)
+        if not folder:
+            self._send_json(400, {"ok": False, "error": f"unknown library type: {ref_type}"})
+            return
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid name"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        os.makedirs(os.path.join(base, folder), exist_ok=True)
+        filename = f"{name}.md"
+        target = os.path.realpath(os.path.join(base, folder, filename))
+
+        try:
+            with open(target, "x", encoding="utf-8", newline="\n") as fh:
+                fh.write(content)
+        except FileExistsError:
+            self._send_json(409, {"ok": False, "error": "item already exists"})
+            return
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Created: {os.path.relpath(target, base)}", GREEN), flush=True)
+        self._send_json(200, {"ok": True, "entry": library_entry_from_filename(folder, filename)})
+
+    def _resolve_writable(self, rel_path):
+        """Resolve `rel_path` to an absolute path only if it stays inside one of
+        the writable roots (Campaign/ + every library folder). Returns the path
+        or None when it escapes them. Shared by save and delete."""
+        base = os.path.realpath(os.getcwd())
+        target = os.path.realpath(os.path.join(base, rel_path))
+        roots = [CAMPAIGN_DIR] + list(LIBRARY_DIRS.values())
+        for root in roots:
+            root_real = os.path.realpath(os.path.join(base, root))
+            try:
+                if os.path.commonpath([root_real, target]) == root_real:
+                    return target
+            except ValueError:
+                continue  # different drive on Windows
+        return None
+
+    def _delete_campaign_file(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            rel_path = data["path"]
+        except (ValueError, KeyError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        target = self._resolve_writable(rel_path)
+        if not target:
+            self._send_json(403, {"ok": False, "error": "path outside writable roots"})
+            return
+        if not target.lower().endswith(".md"):
+            self._send_json(403, {"ok": False, "error": "only .md files"})
+            return
+        if not os.path.isfile(target):
+            self._send_json(404, {"ok": False, "error": "file not found"})
+            return
+
+        try:
+            os.remove(target)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Deleted: {os.path.relpath(target, base)}", YELLOW), flush=True)
+        self._send_json(200, {"ok": True})
+
     def _save_campaign_file(self):
         # The editor saves scene markdown back to disk via POST /__save.
         if self.path.split("?", 1)[0] != "/__save":
@@ -309,17 +485,13 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside Campaign/. Rejects "..", absolute paths, and anything
-        # escaping the project. CWD is base_dir (see main()).
+        # live inside a writable root (Campaign/ or a library folder). Rejects
+        # "..", absolute paths, and anything escaping the project. CWD is
+        # base_dir (see main()).
         base = os.path.realpath(os.getcwd())
-        save_root = os.path.realpath(os.path.join(base, CAMPAIGN_DIR))
-        target = os.path.realpath(os.path.join(base, rel_path))
-        try:
-            inside = os.path.commonpath([save_root, target]) == save_root
-        except ValueError:
-            inside = False  # different drive on Windows
-        if not inside:
-            self._send_json(403, {"ok": False, "error": "path outside Campaign/"})
+        target = self._resolve_writable(rel_path)
+        if not target:
+            self._send_json(403, {"ok": False, "error": "path outside writable roots"})
             return
         if not target.lower().endswith(".md"):
             self._send_json(403, {"ok": False, "error": "only .md files"})
@@ -333,6 +505,36 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         print(paint(f"Saved: {os.path.relpath(target, base)}", GREEN), flush=True)
+        self._send_json(200, {"ok": True})
+
+    def _save_options(self):
+        # The renderer persists the user's customization choices via
+        # POST /__save_options. The target is a fixed top-level file
+        # (options.current.json) — no client-supplied path, so there is no
+        # traversal surface. The file is gitignored (the .gitignore `*` rule),
+        # so personal preferences never land in commits.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        if not isinstance(data, dict):
+            self._send_json(400, {"ok": False, "error": "expected a JSON object"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        target = os.path.join(base, OPTIONS_CURRENT_FILE)
+        try:
+            with open(target, "w", encoding="utf-8", newline="\n") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=2)
+                fh.write("\n")
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Saved: {OPTIONS_CURRENT_FILE}", GREEN), flush=True)
         self._send_json(200, {"ok": True})
 
     def log_request(self, code="-", size="-"):
@@ -381,8 +583,8 @@ def chrome_candidates():
     return paths
 
 
-def configure_chrome_print_preferences(profile_dir):
-    """Seed the temporary Chrome profile with clean PDF export defaults."""
+def configure_chrome_preferences(profile_dir):
+    """Seed the temporary Chrome profile with app-specific defaults."""
     default_dir = os.path.join(profile_dir, "Default")
     os.makedirs(default_dir, exist_ok=True)
 
@@ -400,10 +602,16 @@ def configure_chrome_print_preferences(profile_dir):
         "isCssBackgroundEnabled": True,
     }
     preferences = {
+        "intl": {
+            "accept_languages": "tr,tr-TR,en-US,en",
+        },
         "printing": {
             "print_preview_sticky_settings": {
                 "appState": json.dumps(app_state, separators=(",", ":")),
             }
+        },
+        "translate": {
+            "enabled": False,
         }
     }
 
@@ -416,13 +624,16 @@ def open_browser(url):
     for chrome_path in chrome_candidates():
         if os.path.exists(chrome_path):
             profile_dir = tempfile.mkdtemp(prefix="rendscroll-chrome-")
-            configure_chrome_print_preferences(profile_dir)
+            configure_chrome_preferences(profile_dir)
             process = subprocess.Popen([
                 chrome_path,
                 f"--app={url}",
                 f"--user-data-dir={profile_dir}",
                 "--no-first-run",
                 "--disable-first-run-ui",
+                "--disable-translate",
+                "--disable-features=Translate",
+                "--lang=tr",
             ])
             return process, profile_dir, "chrome"
 

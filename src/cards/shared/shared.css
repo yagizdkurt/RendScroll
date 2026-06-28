@@ -1,0 +1,154 @@
+﻿/* ---------- Shared card figure (header row + portrait) ---------- */
+/* Used by Item / Ability / Obje / Combat / Std / Unexpected cards: the header
+   content (title, meta, leading description) sits on the left and the Image
+   portrait top-right. Built by cardFigure() in cards/shared/cardImage.js, and ONLY
+   when an Image is present — so a card without an image reserves no portrait. */
+.page .card-figure{
+  display:flex;
+  gap:.7rem;
+  align-items:flex-start;
+  margin:0 0 .5rem;
+}
+.page .card-figure-main{
+  flex:1 1 auto;
+  min-width:0;
+}
+.page .card-figure-main > :first-child{margin-top:0;}
+.page .card-figure-main > :last-child{margin-bottom:0;}
+
+/* The portrait frame, shared by every card type (incl. the NPC identity grid). */
+.page .card-portrait{
+  flex:0 0 7.5rem;
+  align-self:stretch;
+  min-height:8.2rem;
+  border:1px solid rgba(156,126,60,.75);
+  border-radius:4px;
+  background:
+    var(--card-portrait) no-repeat center / cover,
+    linear-gradient(180deg,rgba(253,241,220,.72),rgba(232,226,200,.72));
+  box-shadow:inset 0 0 14px rgba(120,90,40,.18);
+}
+
+/* When the collapse system marks the figure as the visible head (.card-head),
+   drop the inherited right padding so the portrait still meets the card edge;
+   the toggle sits over the portrait's top-right corner. */
+.page .card-figure.card-head{padding-right:0;}
+
+/* "Yapışık" item: bir önceki obje/yapışık item ile tek bir kesintisiz blok
+   gibi birleşir. Host alt kenarını, item üst kenarını paylaşılan tek bir
+   ayraca indirir. (Yerleşim layout.js'te, aynı sütuna indirilir.) */
+.page .obj-card.has-stuck-below,
+.page .item-card.has-stuck-below,
+.page .ability-card.has-stuck-below{
+  margin-bottom:0;
+  border-bottom-left-radius:0;
+  border-bottom-right-radius:0;
+}
+
+/* ---------- Card collapse (aç/kapa) ---------- */
+/* The title bar hosts the toggle in its top-right corner. Extra right padding
+   keeps long titles from running under the button. */
+.page .card-head{
+  position:relative;
+  padding-right:2rem;
+}
+
+/* Thin header bar for title-less collapsible cards: just hosts the toggle and
+   stays visible when collapsed. */
+.page .card-bare-head{
+  min-height:1.5rem;
+  margin:0 0 .4rem;
+}
+
+.page .card-toggle{
+  position:absolute;
+  top:0;
+  right:0;
+  width:1.5rem;
+  height:1.5rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  font-size:.9rem;
+  line-height:1;
+  color:var(--maroon);
+  background:rgba(232,226,200,.65);
+  border:1px solid rgba(156,126,60,.6);
+  border-radius:4px;
+  cursor:pointer;
+  transition:transform .15s ease, background .15s ease;
+}
+.page .card-toggle:hover{background:rgba(214,205,170,.9);}
+/* Collapsed: the caret points right (▸) instead of down (▾). */
+.page .is-collapsed > .card-head .card-toggle{transform:rotate(-90deg);}
+
+/* Collapsed card: hide everything except the title bar. */
+.page .is-collapsed > :not(.card-head){display:none;}
+/* With the body hidden, drop the title's bottom rule/margin so it reads as a
+   compact header. */
+.page .is-collapsed > .card-head{
+  margin-bottom:0;
+  padding-bottom:0;
+  border-bottom:none;
+}
+
+/* ---------- Heading collapse (ana olaylar: H1/H2) ---------- */
+/* The toggle reuses .card-toggle's look; the heading hosts it absolutely so the
+   centered heading text is undisturbed. Extra right padding keeps text clear. */
+.page h1.heading-collapsible,
+.page h2.heading-collapsible{position:relative;padding-right:2.2rem;}
+.page h1.heading-collapsible > .card-toggle,
+.page h2.heading-collapsible > .card-toggle{top:50%;transform:translateY(-50%);}
+/* Collapsed: the caret points right (▸). */
+.page h1.heading-collapsed > .card-toggle,
+.page h2.heading-collapsed > .card-toggle{transform:translateY(-50%) rotate(-90deg);}
+/* Units (header-band siblings or grid children) hidden because their owning
+   heading is collapsed. */
+.page .is-hidden-by-heading{display:none;}
+
+/* ---------- Inline / card text sizing ---------- */
+.page .rs-inline-size{line-height:1.1;}
+
+.page .sc-card p,
+.page .npc-card p,
+.page .obj-card p,
+.page .item-card p,
+.page .ability-card p,
+.page .combat-card p,
+.page .unexpected-card p,
+.page .narrative-card p,
+.page .std-card p{
+  font-size:calc(1.14rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
+.page .sc-card blockquote.read-aloud p,
+.page .npc-card blockquote.read-aloud p,
+.page .obj-card blockquote.read-aloud p,
+.page .item-card blockquote.read-aloud p,
+.page .ability-card blockquote.read-aloud p,
+.page .combat-card blockquote.read-aloud p,
+.page .unexpected-card blockquote.read-aloud p,
+.page .narrative-card blockquote.read-aloud p,
+.page .std-card blockquote.read-aloud p{
+  font-size:calc(1.13rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
+.page .sc-card li,
+.page .npc-card li,
+.page .obj-card li,
+.page .item-card li,
+.page .ability-card li,
+.page .combat-card li,
+.page .unexpected-card li,
+.page .narrative-card li,
+.page .std-card li{
+  font-size:calc(1.1rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}
+
+.page .sc-text,
+.page .item-meta-value,
+.page .ability-meta-value,
+.page .npc-stat-value{
+  font-size:calc(1rem * var(--ro-text) * var(--rs-card-text-scale, 1));
+}

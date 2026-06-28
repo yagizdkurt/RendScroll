@@ -341,7 +341,8 @@ Failed checks belong in `Unexpected:`, not in the check list. Failure should cha
 
 ## Item Cards
 
-Use `### Item: Name`.
+Use `### Item: Name` for a scene item. Library/base items in `Items/` use
+`### SourceItem: Name`.
 
 ```md
 ### Item: Lantern of Still Rain
@@ -356,8 +357,28 @@ Properties:
 - The lantern goes dark for 1 hour if it is fully submerged.
 ```
 
+Scene items can inherit their default fields from a library SourceItem:
+
+```md
+### Item: Lantern of Still Rain
+SourceItem: Lantern of Still Rain
+```
+
+Any empty scene item field renders from the SourceItem. A value of `-` clears an
+inherited value:
+
+```md
+### Item: Lantern of Still Rain
+SourceItem: Lantern of Still Rain
+Rarity: -
+```
+
+`Side:`, `Text Size:`, `Combine:` / `Yapışık:`, and `Closed:` are scene-item
+settings and do not inherit from SourceItem.
+
 Item fields:
 
+- `SourceItem:` optional library item name to inherit from.
 - `Type:` item category.
 - `Rarity:` numeric rarity. Use `1` for Common, `2` for Rare, and `3` for Epic.
 - `Image:` optional image key.

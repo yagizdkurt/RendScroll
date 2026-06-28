@@ -20,9 +20,15 @@
    column, nothing for the default left). */
 
 const EditorSchemas = (() => {
-  function lower(s) {
-    return s.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-  }
+  // The canonical RendScroll parser owns the check/directive/body parsing helpers
+  // (parseChecks, parseLinesWithChecks, …). Browser: global `RendScrollParser`
+  // (loaded before this file). Node: require it. Delegating here keeps the editor
+  // and the renderer parsing identical by construction.
+  const RSP = (typeof RendScrollParser !== "undefined")
+    ? RendScrollParser
+    : require("../parser/rendscrollParser.js");
+
+  const lower = RSP.lower;
   const TRUTHY = /^(t|true|evet|yes|1)$/i;
 
   const CHECK_SKILL_OPTIONS = [
@@ -57,183 +63,15 @@ const EditorSchemas = (() => {
     "Detect Magic",
   ].map((name) => ({ value: name, label: name }));
 
-  const CHECK_LABEL_RE = /^(skill\s+)?checks?\s*:\s*$/i;
-  const NPC_TOPIC_RE = /^[ \t]*[\wÇĞİÖŞÜçğıöşü][\wÇĞİÖŞÜçğıöşü ]*:[ \t]*$/;
-  const COMBAT_LABEL_RE = /^[A-Za-zÇĞİÖŞÜçğıöşü ]+:\s*$/;
-
-  function trimOuterBlankLines(lines) {
-    const out = lines.slice();
-    while (out.length && out[0].trim() === "") out.shift();
-    while (out.length && out[out.length - 1].trim() === "") out.pop();
-    return out;
-  }
-
-  function ensureColon(text) {
-    const t = String(text || "").trim();
-    return /:\s*$/.test(t) || t.includes(":") ? t : t + ":";
-  }
-
-  function parseOutcome(text) {
-    const f = text.match(/^F:\s*(.*)$/i);
-    if (f) return { kind: "failure", text: f[1].trim() };
-    const dc = text.match(/^(\d+):\s*(.*)$/);
-    if (dc) return { kind: "dc", dc: dc[1], text: dc[2].trim() };
-    return { kind: "plain", text: text.trim() };
-  }
-
-  function serializeOutcome(outcome) {
-    const kind = outcome && outcome.kind ? outcome.kind : "dc";
-    const text = outcome && outcome.text != null ? String(outcome.text).trim() : "";
-    if (!text) return "";
-    if (kind === "failure") return "F: " + text;
-    if (kind === "plain") return text;
-    const dc = outcome && outcome.dc != null ? String(outcome.dc).trim() : "";
-    return (dc || "10") + ": " + text;
-  }
-
-  function parseChecks(text) {
-    const entries = [];
-    let current = null;
-
-    function pushCheck() {
-      if (current) entries.push(current);
-      current = null;
-    }
-
-    String(text || "").split(/\r?\n/).forEach((line) => {
-      const t = line.trim();
-      if (!t) return;
-
-      const item = t.match(/^[-*]\s+(.+)$/);
-      if (item) {
-        pushCheck();
-        current = {
-          kind: "check",
-          skill: item[1].trim().replace(/:\s*$/, ""),
-          outcomes: [],
-        };
-        return;
-      }
-
-      const quote = t.match(/^>\s*(.*)$/);
-      if (quote) {
-        if (!current) {
-          entries.push({ kind: "raw", text: line });
-          return;
-        }
-        current.outcomes.push(parseOutcome(quote[1]));
-        return;
-      }
-
-      pushCheck();
-      if (t.endsWith(":")) entries.push({ kind: "category", label: t.replace(/:\s*$/, "") });
-      else entries.push({ kind: "raw", text: line });
-    });
-
-    pushCheck();
-    return entries;
-  }
-
-  function serializeChecks(entries) {
-    let out = "";
-    (entries || []).forEach((entry) => {
-      if (!entry) return;
-      if (entry.kind === "category") {
-        const label = String(entry.label || "").trim();
-        if (label) out += ensureColon(label) + "\n";
-        return;
-      }
-      if (entry.kind === "raw") {
-        const text = String(entry.text || "").replace(/[ \t\r\n]+$/, "");
-        if (text) out += text + "\n";
-        return;
-      }
-      if (entry.kind !== "check") return;
-      const skill = String(entry.skill || "").trim();
-      if (!skill) return;
-      out += "- " + ensureColon(skill) + "\n";
-      (entry.outcomes || []).forEach((outcome) => {
-        const line = serializeOutcome(outcome);
-        if (line.trim()) out += "> " + line + "\n";
-      });
-    });
-    return out.replace(/[ \t\r\n]+$/, "");
-  }
-
-  function isEmbeddedBoundary(line, mode) {
-    const t = line.trim();
-    if (CHECK_LABEL_RE.test(t)) return true;
-    if (mode === "obj") return /^loot\s*:\s*$/i.test(t);
-    if (mode === "combat") return COMBAT_LABEL_RE.test(t);
-    if (mode === "npc") return NPC_TOPIC_RE.test(t);
-    return false;
-  }
-
-  function parseLinesWithChecks(text, mode) {
-    const segments = [];
-    let textLines = [];
-    let active = null;
-    let checkLines = [];
-
-    function flushText() {
-      const lines = trimOuterBlankLines(textLines);
-      if (lines.length) segments.push({ kind: "text", text: lines.join("\n") });
-      textLines = [];
-    }
-
-    function flushChecks() {
-      if (active) {
-        segments.push({
-          kind: "checksBlock",
-          label: active.label,
-          checks: parseChecks(checkLines.join("\n")),
-        });
-      }
-      active = null;
-      checkLines = [];
-    }
-
-    String(text || "").split(/\r?\n/).forEach((line) => {
-      const t = line.trim();
-      if (active) {
-        if (isEmbeddedBoundary(line, mode)) {
-          flushChecks();
-          if (CHECK_LABEL_RE.test(t)) active = { label: t.replace(/:\s*$/, "") };
-          else textLines.push(line);
-        } else {
-          checkLines.push(line);
-        }
-        return;
-      }
-
-      if (CHECK_LABEL_RE.test(t)) {
-        flushText();
-        active = { label: t.replace(/:\s*$/, "") };
-      } else {
-        textLines.push(line);
-      }
-    });
-
-    flushChecks();
-    flushText();
-    return segments;
-  }
-
-  function serializeLinesWithChecks(segments) {
-    const parts = [];
-    (segments || []).forEach((segment) => {
-      if (!segment) return;
-      if (segment.kind === "checksBlock") {
-        const checks = serializeChecks(segment.checks);
-        const label = ensureColon(segment.label || "Checks");
-        parts.push(checks ? label + "\n" + checks : label);
-      } else {
-        const text = String(segment.text || "").replace(/[ \t\r\n]+$/, "");
-        if (text) parts.push(text);
-      }
-    });
-    return parts.join("\n");
-  }
+  // Check / outcome / body parsing are owned by the canonical core — these used
+  // to be a verbatim copy. Delegating keeps the editor and renderer identical.
+  const ensureColon = RSP.ensureColon;
+  const parseOutcome = RSP.parseOutcome;
+  const serializeOutcome = RSP.serializeOutcome;
+  const parseChecks = RSP.parseChecks;
+  const serializeChecks = RSP.serializeChecks;
+  const parseLinesWithChecks = RSP.parseLinesWithChecks;
+  const serializeLinesWithChecks = RSP.serializeLinesWithChecks;
 
   // --- generic serialize ---------------------------------------------------
 
@@ -260,6 +98,9 @@ const EditorSchemas = (() => {
         }
       } else if (f.kind === "lines") {
         if (v != null && String(v).trim() !== "") out += String(v).replace(/[ \t\r\n]+$/, "") + eol;
+      } else if (f.kind === "narrativeText") {
+        const text = quoteNarrativeText(v);
+        if (text) out += f.mdLabel + ":" + eol + text + eol;
       } else if (f.kind === "checks") {
         const checks = serializeChecks(v);
         if (checks) out += checks + eol;
@@ -294,7 +135,7 @@ const EditorSchemas = (() => {
     const body = rawLines.slice(headIdx + 1);
 
     // Build label lookups.
-    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks"]);
+    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks", "narrativeText"]);
     const labeled = schema.fields.filter((f) => f.mdLabel && !catchAllKinds.has(f.kind));
     const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
     const hasColumn = schema.fields.some((f) => f.key === "column");
@@ -355,6 +196,8 @@ const EditorSchemas = (() => {
       if (linesField.kind === "checks") values[linesField.key] = parseChecks(text);
       else if (linesField.kind === "linesWithChecks") {
         values[linesField.key] = parseLinesWithChecks(text, linesField.checkMode);
+      } else if (linesField.kind === "narrativeText") {
+        values[linesField.key] = unquoteNarrativeText(stripTextLabel(text, linesField.mdLabel));
       } else values[linesField.key] = text;
     }
     return values;
@@ -394,6 +237,10 @@ const EditorSchemas = (() => {
     options: [{ value: "left", label: "Left" }, { value: "right", label: "Right" }],
     default: "left",
   };
+  const fTextSize = {
+    key: "textSize", label: "Text Size", kind: "text", mdLabel: "Text Size",
+    inputMode: "numeric", defaultOption: "defaultCardTextSize",
+  };
   const rarityField = (md) => ({
     key: "rarity", label: "Rarity", kind: "select", mdLabel: md,
     options: [
@@ -420,6 +267,34 @@ const EditorSchemas = (() => {
     checkOptions: CHECK_SKILL_OPTIONS,
   };
 
+  function quoteNarrativeText(value) {
+    const raw = String(value || "").replace(/\r?\n/g, "\n").replace(/[ \t\r\n]+$/, "");
+    if (!raw) return "";
+    return raw.split("\n").map((line) => {
+      if (/^\s*>/.test(line)) return line;
+      return line ? "> " + line : ">";
+    }).join("\n");
+  }
+
+  function unquoteNarrativeText(value) {
+    return String(value || "")
+      .replace(/[ \t\r\n]+$/, "")
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*>\s?/, ""))
+      .join("\n");
+  }
+
+  function stripTextLabel(text, label) {
+    const lines = String(text || "").split(/\r?\n/);
+    const wanted = lower(String(label || "Text"));
+    if (lines.length) {
+      const first = lower(lines[0].trim()).match(/^([^:]+):\s*$/);
+      if (first && first[1].trim() === wanted) lines.shift();
+    }
+    while (lines.length && lines[0].trim() === "") lines.shift();
+    return lines.join("\n");
+  }
+
   // --- schema registry -----------------------------------------------------
 
   const REGISTRY = {};
@@ -438,16 +313,19 @@ const EditorSchemas = (() => {
     { key: "ac", label: "AC", kind: "text", mdLabel: "AC" },
     fImage, fBg,
     fColumn,
+    fTextSize,
     fBodyWithChecks("İlk Diyalog: / Sorarsa: / Bildikleri: / dialogue topics / Checks: …", "npc"),
     fClosed,
   ]);
 
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
-    { key: "tur", label: "Type (Tür)", kind: "text", mdLabel: "Tür" },
+    { key: "sourceItem", label: "SourceItem", kind: "text", mdLabel: "SourceItem" },
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
     rarityField("Nadirlik"),
     fImage,
     fColumn,
+    fTextSize,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, extra lines…"),
     fStuck, fClosed,
@@ -477,6 +355,7 @@ const EditorSchemas = (() => {
     { key: "cooldown", label: "Cooldown (Bekleme)", kind: "text", mdLabel: "Bekleme" },
     rarityField("Nadirlik"),
     fColumn,
+    fTextSize,
     { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
     fBody("> description, Lore: …"),
     fStuck, fClosed,
@@ -486,6 +365,7 @@ const EditorSchemas = (() => {
     fTitle,
     fImage, fBg,
     fColumn,
+    fTextSize,
     fBodyWithChecks("> description, Checks: / Loot: …", "obj"),
     fClosed,
   ]);
@@ -494,6 +374,7 @@ const EditorSchemas = (() => {
     fTitle,
     fImage,
     fColumn,
+    fTextSize,
     fBodyWithChecks("> opening, Stat: / Taktik: …", "combat"),
     fClosed,
   ]);
@@ -501,6 +382,7 @@ const EditorSchemas = (() => {
   define("unexpected", "Unexpected", keywordHeading("Unexpected"), [
     { key: "title", label: "Title (optional)", kind: "text" },
     fColumn,
+    fTextSize,
     fBody("- contingency lines…"),
     fClosed,
   ]);
@@ -509,6 +391,7 @@ const EditorSchemas = (() => {
     { key: "title", label: "Title (optional)", kind: "text" },
     fImage,
     fColumn,
+    fTextSize,
     fBody("> read-aloud / paragraphs…"),
     fClosed,
   ]);
@@ -519,11 +402,38 @@ const EditorSchemas = (() => {
   }, [
     fChecks,
     fColumn,
+    fTextSize,
     fClosed,
   ]);
 
+  define("sourceitem", "SourceItem", {
+    heading(values) {
+      return "SourceItem: " + (values.title || "").trim();
+    },
+    parseHeading(content, values) {
+      const m = content.match(/^\s*(source\s*item|sourceitem)\s*:\s*(.*)$/i);
+      values.title = m ? m[2].trim() : content.trim();
+    },
+  }, [
+    fTitle,
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Tür" },
+    rarityField("Nadirlik"),
+    fImage,
+    { key: "properties", label: "Properties (Özellikler)", kind: "list", mdLabel: "Özellikler" },
+    fBody("> description, extra lines…"),
+  ]);
+
+  define("narrative", "Narrative", {
+    heading() { return "Narrative"; },
+    parseHeading(content, values) { values.column = "left"; },
+  }, [
+    fColumn,
+    fTextSize,
+    { key: "text", label: "Text", kind: "narrativeText", mdLabel: "Text", hint: "Read-aloud text...", required: true },
+  ]);
+
   // Order shown in the insert menu.
-  const ORDER = ["npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std"];
+  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std"];
 
   return {
     get(type) { return REGISTRY[type] || null; },

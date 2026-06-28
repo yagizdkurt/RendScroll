@@ -1,10 +1,10 @@
 /* Editor mode controller.
    Owns editor state (on/off, current scene path, the outline model, dirty flag),
-   mounts the sidebar controls, and orchestrates re-render + save. All markdown
+   mounts the editor controls, and orchestrates re-render + save. All markdown
    manipulation goes through EditorOutline; all card<->source mapping through
    EditorAnchors; forms/menus through EditorForm / EditorContextMenu.
 
-   The reader pipeline (toHtml + renderPage, from src/app.js) is reused verbatim:
+   The reader pipeline (renderPage, from src/app.js) is reused verbatim:
    after every model change we re-render from the serialized model and re-decorate.
    When editor mode is OFF nothing here runs beyond caching the scene source. */
 
@@ -58,11 +58,21 @@ const Editor = (() => {
     if (next !== state.model) applyModel(next);
   }
 
+  function blockWithTargetColumn(block, target) {
+    if (!target || (target.column !== "left" && target.column !== "right")) return block;
+    // A library reference line has no body to take a "Side:" directive.
+    if (/^\s*\[[a-z][a-z0-9-]*=[^\]\r\n]+\]\s*$/i.test(block)) return block;
+    return EditorOutline.rewriteBlockColumn(state.model, block, target.column);
+  }
+
   // Insert markdown `block` for a new card relative to a target descriptor.
-  // target = { afterCardId, eventRef } resolved by the caller (menu/anchors).
+  // target = { beforeCardId, afterCardId, eventRef, column } resolved by menus/anchors.
   function insertCardBlock(block, target) {
     let lineIndex;
-    if (target && target.afterCardId != null) {
+    if (target && target.beforeCardId != null) {
+      const found = EditorOutline.findCard(state.model, target.beforeCardId);
+      lineIndex = found ? found.card.start : firstEventEnd();
+    } else if (target && target.afterCardId != null) {
       const found = EditorOutline.findCard(state.model, target.afterCardId);
       lineIndex = found ? found.card.end : firstEventEnd();
     } else if (target && target.eventRef) {
@@ -70,7 +80,7 @@ const Editor = (() => {
     } else {
       lineIndex = firstEventEnd();
     }
-    applyModel(EditorOutline.insertAtLine(state.model, lineIndex, block));
+    applyModel(EditorOutline.insertAtLine(state.model, lineIndex, blockWithTargetColumn(block, target)));
   }
 
   // Insert point at the end of an event's cards (before a trailing <hr>).
@@ -97,10 +107,91 @@ const Editor = (() => {
     applyModel(EditorOutline.replacePlainBlock(state.model, block, values));
   }
 
-  function replaceNarrativeBlock(id, text) {
-    const block = EditorOutline.findNarrativeBlock(state.model, id);
-    if (!block) return;
-    applyModel(EditorOutline.replaceNarrativeBlock(state.model, block, text));
+  // --- library-backed items -----------------------------------------------
+  // SourceItems live once in /Items as standalone files; scenes hold lightweight
+  // Item instances whose empty fields inherit from the named SourceItem.
+
+  function ensureTrailingNewline(text) {
+    const t = String(text || "");
+    return /\n$/.test(t) ? t : t + "\n";
+  }
+
+  // Tell the rest of the app a library file changed: app.js re-mounts the Item
+  // Library sidebar and re-renders the current view so references resolve.
+  function notifyLibraryChanged(type, name, extra) {
+    document.dispatchEvent(new CustomEvent("library:changed", {
+      detail: Object.assign({ type, name }, extra || {}),
+    }));
+  }
+
+  function itemNameFromBlock(block) {
+    const m = String(block).match(/^###\s+(?:source\s*item|sourceitem|item)\s*:\s*(.+?)\s*$/im);
+    return m ? m[1].trim() : "";
+  }
+
+  // New item from the create form -> write /Items/Name.md as SourceItem, then
+  // insert a scene Item instance with SourceItem: Name.
+  async function createItemToLibrary(block, target) {
+    const name = itemNameFromBlock(block);
+    if (!name || typeof RefLibrary === "undefined") { insertCardBlock(block, target); return; }
+    try {
+      await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, block)));
+      insertCardBlock(RefLibrary.itemInstanceContent(name), target);
+      notifyLibraryChanged("item", name, { created: true });
+      toast("Created library item: " + name);
+    } catch (err) {
+      toast(err.message || "Item create failed", true);
+    }
+  }
+
+  function cardIsItem(id) {
+    const found = EditorOutline.findCard(state.model, id);
+    return !!(found && found.card.type === "item");
+  }
+
+  // Migration: extract an inline item card into /Items and leave a scene Item
+  // instance that points at the new SourceItem.
+  async function moveItemToLibrary(id) {
+    if (typeof RefLibrary === "undefined") return;
+    const found = EditorOutline.findCard(state.model, id);
+    if (!found || found.card.type !== "item") return;
+    const name = found.card.title;
+    if (!name) { toast("Item has no name", true); return; }
+    const src = EditorOutline.cardSource(state.model, found.card);
+    try {
+      await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, src)));
+      applyModel(EditorOutline.replaceCard(state.model, found.card, RefLibrary.itemInstanceContent(name)));
+      notifyLibraryChanged("item", name, { created: true });
+      toast("Moved to library: " + name);
+    } catch (err) {
+      toast(err.message || "Move failed", true);
+    }
+  }
+
+  // Edit the underlying library file (from a reference card's "Library" button):
+  // open the item form on the file's source and save back to /Items, so every
+  // scene that references it updates on the next render.
+  function editLibraryItem(type, name) {
+    if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
+    const def = RefLibrary.def(type);
+    const entry = RefLibrary.lookup(type, name);
+    if (!def || !entry) { toast("Library item not found: " + name, true); return; }
+    const libModel = EditorOutline.parse(entry.source);
+    const libCard = libModel.events.flatMap((e) => e.cards)[0];
+    if (!libCard) { toast("Library file has no card", true); return; }
+    const path = def.folder + "/" + name + ".md";
+    EditorForm.openEdit(libCard, libModel, async (block) => {
+      try {
+        await EditorSave.save(path, ensureTrailingNewline(block));
+        await RefLibrary.refresh(type, name);
+        // app.js re-renders the right view (scene with decorations, or the
+        // library view) in response to this; don't rerender the scene here.
+        notifyLibraryChanged(type, name, { edited: true });
+        toast("Saved library item: " + name);
+      } catch (err) {
+        toast(err.message || "Save failed", true);
+      }
+    });
   }
 
   // --- handlers handed to anchors/menus ----------------------------------
@@ -130,33 +221,35 @@ const Editor = (() => {
         EditorForm.openPlain(block, state.model, (values) => replacePlainBlock(id, values));
       }
     },
-    editNarrativeBlock(id) {
-      const block = EditorOutline.findNarrativeBlock(state.model, id);
-      if (block && typeof EditorForm !== "undefined") {
-        EditorForm.openNarrative(block, state.model, (text) => replaceNarrativeBlock(id, text));
-      }
-    },
-    cardMenu(id, x, y) {
+    cardMenu(id, x, y, ctx) {
       // Listeners persist after toggling off (no re-render), so gate here.
       if (!state.enabled) return;
-      if (typeof EditorContextMenu !== "undefined") EditorContextMenu.openCard(id, x, y, handlers);
+      if (typeof EditorContextMenu !== "undefined") EditorContextMenu.openCard(id, x, y, handlers, ctx);
     },
     insertMenu(target, x, y) {
       if (!state.enabled) return;
       if (typeof EditorContextMenu !== "undefined") EditorContextMenu.openInsert(target, x, y, handlers);
     },
     pickInsert(type, target) {
-      if (typeof EditorForm !== "undefined") {
-        EditorForm.openCreate(type, state.model, (block) => insertCardBlock(block, target));
+      if (typeof EditorForm === "undefined") return;
+      // Items are inserted as a reference to a library file, never embedded as a
+      // card body. Open a picker of existing items (or create a new one).
+      if (type === "item" && typeof RefLibrary !== "undefined" && typeof EditorLibraryPicker !== "undefined") {
+        EditorLibraryPicker.open({
+          onPick: (name) => insertCardBlock(RefLibrary.itemInstanceContent(name), target),
+          onCreateNew: () => EditorForm.openCreate("item", state.model, (block) => createItemToLibrary(block, target)),
+        });
+        return;
       }
-    },
-    pickNarrative(target) {
-      if (typeof EditorForm !== "undefined") {
-        EditorForm.openNarrative(null, state.model, (text) =>
-          insertCardBlock(EditorOutline.narrativeBlock(text), target)
-        );
+      if (type === "item" && typeof RefLibrary !== "undefined") {
+        EditorForm.openCreate(type, state.model, (block) => createItemToLibrary(block, target));
+        return;
       }
+      EditorForm.openCreate(type, state.model, (block) => insertCardBlock(block, target));
     },
+    moveItemToLibrary,
+    cardIsItem,
+    editLibraryItem,
     insertChapter(target) {
       if (typeof EditorForm !== "undefined") {
         EditorForm.openChapter((values) =>
@@ -173,12 +266,14 @@ const Editor = (() => {
   // --- render / save -----------------------------------------------------
 
   function decorate() {
-    if (state.model && state.enabled) EditorAnchors.decorate(page, state.model, handlers);
+    if (state.model && state.enabled) {
+      EditorAnchors.decorate(page, state.model, handlers);
+    }
   }
 
   function rerender() {
     // Reuse the reader pipeline verbatim (globals from src/app.js).
-    renderPage(toHtml(EditorOutline.serialize(state.model)));
+    renderPage(EditorOutline.serialize(state.model));
     decorate();
   }
 
@@ -198,7 +293,8 @@ const Editor = (() => {
   let toggleBtn, saveBtn, dirtyDot, toastEl;
 
   function mountControls() {
-    const host = document.getElementById("topbar-tools") ||
+    const host = document.getElementById("topbar-primary") ||
+      document.getElementById("topbar-tools") ||
       document.getElementById("options") || document.getElementById("sidebar");
     const box = document.createElement("div");
     box.className = "editor-controls";
@@ -242,7 +338,7 @@ const Editor = (() => {
 
   function clearDecorations() {
     if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
-    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-narrative-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
+    page.querySelectorAll(".editor-card-tools, .editor-plain-tools, .editor-insert-zone, .editor-chapter-zone").forEach((n) => n.remove());
     page.querySelectorAll("[data-block-id]").forEach((n) => {
       n.removeAttribute("data-block-id");
       n.classList.remove("editor-card");
@@ -251,10 +347,6 @@ const Editor = (() => {
     page.querySelectorAll("[data-plain-block-id]").forEach((n) => {
       n.removeAttribute("data-plain-block-id");
       n.classList.remove("editor-plain-block");
-    });
-    page.querySelectorAll("[data-narrative-block-id]").forEach((n) => {
-      n.removeAttribute("data-narrative-block-id");
-      n.classList.remove("editor-narrative-block");
     });
   }
 
@@ -293,7 +385,17 @@ const Editor = (() => {
     });
   }
 
-  return { init, getState: () => state, _handlers: handlers };
+  return {
+    init,
+    getState: () => state,
+    // Re-render the current scene with editing decorations (used by app.js after
+    // a library change while the editor is on).
+    rerender,
+    // Edit a library file via the item form (used by the library sidebar view and
+    // by reference-card tools). Works regardless of scene edit mode.
+    editLibraryItem,
+    _handlers: handlers,
+  };
 })();
 
 Editor.init();
