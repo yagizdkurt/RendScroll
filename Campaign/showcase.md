@@ -139,7 +139,6 @@ Failed check:
 
 ### Object: Brass Bell
 > The bell looks small and plain. There is no writing on it, but when its edge is touched, every shelf in the room trembles faintly at the same time.
-BG: angel
 Checks:
 - Investigation:
 > 12: There is a socket beneath the bell made for a clapper, but the clapper is missing.
