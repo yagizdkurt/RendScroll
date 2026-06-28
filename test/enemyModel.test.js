@@ -1,0 +1,100 @@
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const CEM = require("../src/cards/combat/enemyModel.js");
+const EditorSchemas = require("../src/editor/cardSchemas.js");
+
+const KATE = [
+  "- Kate | Village Woman • Humanoid | AC 10 | HP 15 | Init +1 | Speed 30 ft",
+  "  - Attack: Rusty Knife | +4 | 1d4+2 Piercing",
+  "  - Weak Save: Wisdom",
+  "  - Strong Save: Dexterity",
+  "  - Resist: Fire",
+  "  - Immune: Poison",
+  "  - Trait: Keen Senses",
+  "  - Tactics: Attacks the nearest creature.",
+  "  - Tactics: Below half HP she panics.",
+].join("\n");
+
+test("parseEnemyBlock reads identity, stats, attacks, saves, traits, tactics", () => {
+  const [rec] = CEM.parseEnemyBlock(KATE);
+  assert.equal(rec.name, "Kate");
+  assert.equal(rec.subtitle, "Village Woman • Humanoid");
+  assert.equal(rec.ac, "10");
+  assert.equal(rec.hp, "15");
+  assert.equal(rec.init, "+1");
+  assert.equal(rec.speed, "30 ft");
+  assert.deepEqual(rec.attacks, [{ name: "Rusty Knife", hit: "+4", damage: "1d4+2 Piercing" }]);
+  assert.equal(rec.weakSave, "Wisdom");
+  assert.equal(rec.strongSave, "Dexterity");
+  assert.equal(rec.resist, "Fire");
+  assert.equal(rec.immune, "Poison");
+  assert.deepEqual(rec.traits, ["Keen Senses"]);
+  assert.deepEqual(rec.tactics, ["Attacks the nearest creature.", "Below half HP she panics."]);
+});
+
+test("serializeEnemies round-trips a canonical stat block", () => {
+  assert.equal(CEM.serializeEnemies(CEM.parseEnemyBlock(KATE)), KATE);
+});
+
+test("count token round-trips and omits when 1", () => {
+  const recs = CEM.parseEnemyBlock("- Goblin | AC 15 | HP 7 | Init +2 | x3");
+  assert.equal(recs[0].count, 3);
+  assert.equal(CEM.serializeEnemies(recs), "- Goblin | AC 15 | HP 7 | Init +2 | x3");
+  const one = CEM.parseEnemyBlock("- Rat | AC 10 | HP 1 | Init +0");
+  assert.equal(one[0].count, 1);
+  assert.equal(CEM.serializeEnemies(one), "- Rat | AC 10 | HP 1 | Init +0");
+});
+
+test("unlabelled bullets are kept as traits (back-compat with old rosters)", () => {
+  const [rec] = CEM.parseEnemyBlock([
+    "- Goblin | AC 15 | HP 7",
+    "  - Nimble Escape: Disengage as a bonus action",
+  ]);
+  assert.deepEqual(rec.traits, ["Nimble Escape: Disengage as a bonus action"]);
+});
+
+test("initMod and formatInitMod treat init as a signed modifier", () => {
+  assert.equal(CEM.initMod("+1"), 1);
+  assert.equal(CEM.initMod("-2"), -2);
+  assert.equal(CEM.initMod("3"), 3);
+  assert.equal(CEM.formatInitMod("1"), "+1");
+  assert.equal(CEM.formatInitMod("-2"), "-2");
+  assert.equal(CEM.formatInitMod("0"), "+0");
+});
+
+test("combat schema serialize/parse round-trips the Enemies block", () => {
+  const schema = EditorSchemas.get("combat");
+  const md = [
+    "### Savaş: Ambush",
+    "> The brush rustles…",
+    "Enemies:",
+    "- Goblin | AC 15 | HP 7 | Init +2 | x3",
+    "  - Attack: Scimitar | +4 | 1d6+2 Slashing",
+    "",
+  ].join("\n");
+
+  const values = EditorSchemas.parse(schema, md);
+  assert.equal(values.enemies.length, 1);
+  assert.equal(values.enemies[0].count, 3);
+  assert.equal(values.enemies[0].attacks[0].damage, "1d6+2 Slashing");
+  assert.match(JSON.stringify(values.body), /rustles/);
+
+  const out = EditorSchemas.serialize(schema, values);
+  assert.match(out, /^Enemies:$/m);
+  assert.match(out, /^- Goblin \| AC 15 \| HP 7 \| Init \+2 \| x3$/m);
+  assert.match(out, /^ {2}- Attack: Scimitar \| \+4 \| 1d6\+2 Slashing$/m);
+});
+
+test("applyHpInput implements the damage/heal grammar", () => {
+  const start = { cur: 15, max: 30 };
+  assert.deepEqual(CEM.applyHpInput(start, "8"), { cur: 7, max: 30 });
+  assert.deepEqual(CEM.applyHpInput(start, "-5"), { cur: 20, max: 30 });
+  assert.deepEqual(CEM.applyHpInput(start, "-"), { cur: 30, max: 30 });
+  assert.deepEqual(CEM.applyHpInput(start, "_10"), { cur: 25, max: 40 });
+  assert.deepEqual(CEM.applyHpInput({ cur: 5, max: 30 }, "9"), { cur: 0, max: 30 });
+  assert.deepEqual(CEM.applyHpInput({ cur: 28, max: 30 }, "-9"), { cur: 30, max: 30 });
+  assert.deepEqual(CEM.applyHpInput(start, ""), { cur: 15, max: 30 });
+});

@@ -28,6 +28,12 @@ const EditorSchemas = (() => {
     ? RendScrollParser
     : require("../parser/rendscrollParser.js");
 
+  // Structured combat-enemy parse/serialize lives in one shared module so the
+  // editor (save path) and the reader (render path) never drift.
+  const CEM = (typeof CombatEnemyModel !== "undefined")
+    ? CombatEnemyModel
+    : require("../cards/combat/enemyModel.js");
+
   const lower = RSP.lower;
   const TRUTHY = /^(t|true|evet|yes|1)$/i;
 
@@ -96,6 +102,9 @@ const EditorSchemas = (() => {
           out += f.mdLabel + ":" + eol;
           items.forEach((it) => (out += "- " + it + eol));
         }
+      } else if (f.kind === "enemies") {
+        const block = CEM.serializeEnemies(v);
+        if (block) out += f.mdLabel + ":" + eol + block + eol;
       } else if (f.kind === "lines") {
         if (v != null && String(v).trim() !== "") out += String(v).replace(/[ \t\r\n]+$/, "") + eol;
       } else if (f.kind === "narrativeText") {
@@ -122,6 +131,7 @@ const EditorSchemas = (() => {
     const values = {};
     schema.fields.forEach((f) => {
       if (f.kind === "list") values[f.key] = [];
+      else if (f.kind === "enemies") values[f.key] = [];
       else if (f.kind === "checks" || f.kind === "linesWithChecks") values[f.key] = [];
       else if (f.kind === "flag") values[f.key] = false;
       else values[f.key] = "";
@@ -179,6 +189,21 @@ const EditorSchemas = (() => {
             j++;
           }
           values[f.key] = items;
+          i = j - 1;
+          matched = true;
+        } else if (f.kind === "enemies") {
+          // consume following bullet lines (top-level enemies + indented
+          // abilities), tolerating one blank line between rows.
+          const block = [];
+          let j = i + 1;
+          while (j < body.length) {
+            const bl = body[j];
+            if (bl.trim() === "") { j++; continue; }
+            if (!/^\s*[-*]\s+/.test(bl)) break;
+            block.push(bl);
+            j++;
+          }
+          values[f.key] = CEM.parseEnemyBlock(block);
           i = j - 1;
           matched = true;
         }
@@ -375,7 +400,8 @@ const EditorSchemas = (() => {
     fImage,
     fColumn,
     fTextSize,
-    fBodyWithChecks("> opening, Stat: / Taktik: …", "combat"),
+    fBodyWithChecks("> opening, Taktik: …", "combat"),
+    { key: "enemies", label: "Enemies", kind: "enemies", mdLabel: "Enemies" },
     fClosed,
   ]);
 

@@ -54,3 +54,141 @@
 .page .combat-section .combat-section-title{margin-top:0;}
 .page .combat-section .skillchecks{margin:0;}
 .page .combat-section .skillchecks > :first-child{margin-top:0;}
+
+/* ---------- Enemy stat blocks (bestiary cards) ---------- */
+.page .combat-roster{display:flex; flex-direction:column; gap:.6rem;}
+.page .enemy-block{
+  padding:.55rem .65rem .6rem;
+  border:1px solid var(--gold-deep);
+  border-left:4px solid var(--maroon-bar);
+  border-radius:5px;
+  background:rgba(255,251,245,.62);
+  box-shadow:inset 0 0 10px rgba(120,40,30,.06);
+}
+
+/* Header: large name + subtitle on the left, stat badges on the right. */
+.page .enemy-head{
+  display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between;
+  gap:.3rem .6rem; padding-bottom:.35rem; margin-bottom:.4rem;
+  border-bottom:2px solid var(--rule);
+}
+.page .enemy-name{
+  font-family:'Cinzel',serif; font-weight:700; color:var(--maroon);
+  font-size:1.18rem; line-height:1.1; letter-spacing:.02em; text-transform:uppercase;
+}
+.page .enemy-sub{font-family:'EB Garamond',serif; font-style:italic; font-size:.85rem; color:#6a4a3e;}
+.page .enemy-badges{display:flex; flex-wrap:wrap; gap:.25rem; align-items:center;}
+.page .ebadge{
+  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.04em;
+  font-size:.78rem; padding:.12rem .4rem; border-radius:4px; white-space:nowrap;
+  border:1px solid var(--gold-deep); background:rgba(210,180,120,.25); color:#5a3a18;
+}
+.page .ebadge-ac{background:rgba(196,160,92,.32); border-color:#b08a3c; color:#5a3f12;}
+.page .ebadge-hp{background:rgba(150,40,30,.16); border-color:#a8412c; color:#7a241a;}
+.page .ebadge-init{background:rgba(70,70,90,.12); color:#3a3550;}
+.page .ebadge-count{background:rgba(120,40,30,.12); color:var(--maroon-bar);}
+
+/* Combat-stats row. */
+.page .enemy-stats{display:flex; flex-wrap:wrap; gap:.3rem .9rem; margin-bottom:.2rem;}
+.page .enemy-stat{display:flex; gap:.3rem; align-items:baseline;}
+.page .enemy-stat .es-label{font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:#8a6a52;}
+.page .enemy-stat .es-val{font-weight:700; color:#3a241c; font-size:.92rem;}
+
+/* Section labels (ATTACK / DEFENSES / TRAITS / TACTICS). */
+.page .enemy-section{margin-top:.45rem;}
+.page .enemy-section-label{
+  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--maroon-bar); font-size:.76rem; margin-bottom:.22rem;
+}
+
+/* Attack cards. */
+.page .attack-card{
+  padding:.3rem .45rem; margin:.2rem 0; border-radius:4px;
+  border:1px solid rgba(176,138,60,.45); border-left:3px solid var(--gold-deep);
+  background:rgba(255,247,232,.7);
+}
+.page .attack-name{font-family:'Cinzel',serif; font-weight:600; color:var(--maroon); font-size:.92rem;}
+.page .attack-line{font-size:.84rem; color:#4a3228; margin-top:.05rem;}
+.page .attack-line .atk-hit{font-weight:700;}
+.page .attack-line .atk-sep{margin:0 .3rem; color:#a98a5e;}
+
+/* Defenses grid. */
+.page .enemy-defenses{display:flex; flex-wrap:wrap; gap:.25rem .9rem;}
+.page .enemy-def{display:flex; gap:.3rem; align-items:baseline;}
+.page .enemy-def .ed-label{font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; color:#8a6a52;}
+.page .enemy-def .ed-val{font-weight:600; color:#3a241c; font-size:.86rem;}
+
+/* Traits list. */
+.page ul.enemy-traits{margin:.1rem 0 0; padding-left:1.1rem; font-size:.86rem; color:#3a2a22; line-height:1.4;}
+.page ul.enemy-traits li{margin:.05rem 0;}
+
+/* Tactics: a DM-note / lore box. */
+.page .enemy-section.tactics-box{
+  padding:.4rem .5rem; border-radius:4px;
+  border:1px dashed rgba(120,40,30,.4); background:rgba(120,40,30,.06);
+}
+.page .tactics-box .tactics-body{font-family:'EB Garamond',serif; font-style:italic; font-size:.88rem; color:#4a2e26; line-height:1.45;}
+.page .tactics-box .tactics-line{margin:.1rem 0;}
+
+/* ---------- Live combat runner ---------- */
+.page .combat-runner{margin-top:.6rem; padding-top:.5rem; border-top:1px dashed var(--rule);}
+.page .combat-setup-title{
+  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--maroon-bar); font-size:.78rem; margin:.4rem 0 .25rem;
+}
+.page .combat-start-btn{
+  font-family:'Alegreya Sans SC',sans-serif; font-weight:800; letter-spacing:.04em;
+  cursor:pointer; padding:.4rem .9rem; border-radius:4px;
+  border:1px solid var(--gold-deep); background:var(--maroon); color:#f7e6cf;
+}
+.page .combat-start-btn:hover{background:var(--maroon-bar);}
+.page .combat-mini{
+  font:inherit; font-size:.8rem; cursor:pointer; padding:.18rem .5rem; border-radius:4px;
+  border:1px solid var(--gold-deep); background:rgba(255,250,244,.7); color:var(--maroon);
+}
+.page .combat-mini:hover{background:#fff;}
+.page .combat-end-btn{margin-top:.5rem;}
+
+.page .combat-setup{display:flex; flex-direction:column; gap:.25rem;}
+.page .combat-players,.page .combat-enemy-rolls{display:flex; flex-direction:column; gap:.25rem;}
+.page .combat-player-row,.page .combat-roll-row{display:flex; gap:.3rem; align-items:center;}
+.page .combat-runner input{
+  font:inherit; padding:.2rem .4rem; border-radius:4px;
+  border:1px solid var(--gold-deep); background:#fffdf9; color:#2a1a14;
+}
+.page .combat-player-row .cp-name{flex:1 1 auto; min-width:80px;}
+.page .combat-player-row .cp-init,.page .combat-roll-row .cr-roll{width:64px; text-align:center;}
+.page .combat-roll-row .cr-name{flex:1 1 auto; font-size:.84rem; color:#5a3a30;}
+
+/* Turn order: horizontal row of boxes, each Box(name · init). */
+.page .combat-order{margin-top:.4rem;}
+.page .combat-order-row{display:flex; flex-wrap:wrap; gap:.4rem;}
+.page .combat-order-box{
+  display:flex; align-items:center; gap:.4rem;
+  padding:.22rem .5rem; border-radius:5px; border:1px solid var(--gold-deep);
+}
+.page .combat-order-box .co-name{font-size:.88rem; font-weight:600; color:#3a241c;}
+.page .combat-order-box .co-init{
+  font-family:'Cinzel',serif; font-weight:800; color:#fff;
+  background:var(--maroon); border-radius:4px; padding:0 .35rem; min-width:1.3rem; text-align:center;
+  font-size:.82rem;
+}
+.page .combat-order-box.is-player{background:rgba(60,90,60,.16); border-color:#5a7a4a;}
+.page .combat-order-box.is-enemy{background:rgba(120,40,30,.12);}
+
+.page .combat-hptracker{margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;}
+.page .combat-hp-row{display:flex; gap:.35rem; align-items:center;}
+.page .combat-hp-row .ch-name{flex:1 1 auto; font-size:.9rem; color:#3a241c;}
+.page .combat-hp-row .ch-hp{
+  font-family:'Cinzel',serif; font-weight:700; color:var(--maroon);
+  min-width:3.4rem; text-align:right; font-size:.92rem;
+}
+.page .combat-hp-row .ch-input{width:54px; text-align:center;}
+.page .combat-hp-row .combat-hit-btn{
+  font-size:.95rem; line-height:1; cursor:pointer; padding:.22rem .45rem; border-radius:4px;
+  border:1px solid var(--gold-deep); background:var(--maroon-bar); color:#f7e6cf;
+}
+.page .combat-hp-row .combat-hit-btn:hover{background:var(--maroon);}
+.page .combat-hp-row.dead .ch-name,.page .combat-hp-row.dead .ch-hp{
+  text-decoration:line-through; opacity:.55;
+}

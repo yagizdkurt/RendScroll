@@ -419,6 +419,124 @@ const EditorForm = (() => {
       wrap.appendChild(add);
       getValue = () =>
         [...list.querySelectorAll(".editor-list-item input")].map((i) => i.value.trim()).filter(Boolean);
+    } else if (field.kind === "enemies") {
+      const list = el("div", "editor-enemy-list");
+      const rows = Array.isArray(value) ? value.slice() : [];
+
+      function miniInput(cls, val, ph, numeric) {
+        const inp = el("input", cls);
+        inp.type = "text";
+        inp.value = val != null ? val : "";
+        if (ph) inp.placeholder = ph;
+        if (numeric) inp.inputMode = "numeric";
+        return inp;
+      }
+      // A small "Label [input]" pair for the defenses line.
+      function labeledInput(cls, labelText, val, ph) {
+        const cell = el("div", "ee-def-cell");
+        cell.appendChild(el("span", "ee-def-label", labelText));
+        const inp = miniInput(cls, val, ph);
+        cell.appendChild(inp);
+        return { cell, inp };
+      }
+      function linesArea(val, ph) {
+        const ta = el("textarea", "ee-lines");
+        ta.rows = 2;
+        ta.placeholder = ph;
+        ta.value = (val || []).join("\n");
+        return ta;
+      }
+
+      function addEnemy(rec) {
+        rec = rec || {};
+        const row = el("div", "editor-enemy-row");
+
+        // Identity + numeric stats on one compact line.
+        const name = miniInput("ee-name", rec.name, "Name");
+        const ac = miniInput("ee-num", rec.ac, "AC", true);
+        const hp = miniInput("ee-num", rec.hp, "HP", true);
+        const init = miniInput("ee-num ee-init", rec.init, "Init", false);
+        const speed = miniInput("ee-num ee-speed", rec.speed, "Spd");
+        const count = miniInput("ee-num", rec.count != null && rec.count !== 1 ? rec.count : "", "×", true);
+        const rm = button("editor-mini", "−", "Remove enemy");
+        rm.addEventListener("click", () => row.remove());
+        const statline = el("div", "editor-enemy-statline");
+        [name, ac, hp, init, speed, el("span", "ee-x", "×"), count, rm].forEach((n) => statline.appendChild(n));
+        row.appendChild(statline);
+
+        // Subtitle / creature type.
+        const subtitle = miniInput("ee-subtitle", rec.subtitle, "Type / subtitle (e.g. Village Woman • Humanoid)");
+        row.appendChild(subtitle);
+
+        // Attacks: a repeatable [name | +hit | damage] sub-list.
+        const attacksWrap = el("div", "ee-attacks");
+        attacksWrap.appendChild(el("div", "ee-sub-label", "Attacks"));
+        const attacksList = el("div", "ee-attacks-list");
+        function addAttack(a) {
+          a = a || {};
+          const arow = el("div", "ee-attack-row");
+          const an = miniInput("ee-atk-name", a.name, "Attack name");
+          const ah = miniInput("ee-atk-hit", a.hit, "+hit");
+          const ad = miniInput("ee-atk-dmg", a.damage, "Damage");
+          const arm = button("editor-mini", "−", "Remove attack");
+          arm.addEventListener("click", () => arow.remove());
+          [an, ah, ad, arm].forEach((n) => arow.appendChild(n));
+          attacksList.appendChild(arow);
+        }
+        (rec.attacks || []).forEach(addAttack);
+        const addAtk = button("editor-mini", "+ attack");
+        addAtk.addEventListener("click", () => addAttack({}));
+        attacksWrap.appendChild(attacksList);
+        attacksWrap.appendChild(addAtk);
+        row.appendChild(attacksWrap);
+
+        // Defenses: weak/strong saves + resistances/immunities.
+        const def = el("div", "ee-defenses");
+        const weak = labeledInput("ee-def", "Weak Save", rec.weakSave, "e.g. Wisdom");
+        const strong = labeledInput("ee-def", "Strong Save", rec.strongSave, "e.g. Dexterity");
+        const resist = labeledInput("ee-def", "Resist", rec.resist, "e.g. Fire");
+        const immune = labeledInput("ee-def", "Immune", rec.immune, "e.g. Poison");
+        [weak, strong, resist, immune].forEach((d) => def.appendChild(d.cell));
+        row.appendChild(def);
+
+        // Traits + tactics, one entry per line.
+        const traitsLbl = el("div", "ee-sub-label", "Traits (one per line)");
+        const traits = linesArea(rec.traits, "Keen Senses\nPack Tactics");
+        const tacticsLbl = el("div", "ee-sub-label", "Tactics (one per line)");
+        const tactics = linesArea(rec.tactics, "Attacks the nearest creature.\nBelow half HP she panics.");
+        row.append(traitsLbl, traits, tacticsLbl, tactics);
+
+        row._getEnemy = () => ({
+          name: name.value.trim(),
+          subtitle: subtitle.value.trim(),
+          ac: ac.value.trim(),
+          hp: hp.value.trim(),
+          init: init.value.trim(),
+          speed: speed.value.trim(),
+          count: parseInt(count.value, 10) || 1,
+          attacks: [...attacksList.querySelectorAll(".ee-attack-row")].map((ar) => ({
+            name: ar.querySelector(".ee-atk-name").value.trim(),
+            hit: ar.querySelector(".ee-atk-hit").value.trim(),
+            damage: ar.querySelector(".ee-atk-dmg").value.trim(),
+          })).filter((a) => a.name || a.hit || a.damage),
+          weakSave: weak.inp.value.trim(),
+          strongSave: strong.inp.value.trim(),
+          resist: resist.inp.value.trim(),
+          immune: immune.inp.value.trim(),
+          traits: traits.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
+          tactics: tactics.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
+        });
+
+        list.appendChild(row);
+      }
+
+      (rows.length ? rows : [{}]).forEach(addEnemy);
+      const add = button("editor-mini", "+ enemy");
+      add.addEventListener("click", () => addEnemy({}));
+      wrap.appendChild(list);
+      wrap.appendChild(add);
+
+      getValue = () => [...list.querySelectorAll(".editor-enemy-row")].map((row) => row._getEnemy());
     } else {
       getValue = () => value;
     }

@@ -566,3 +566,79 @@ body.editor-on .editor-chapter-zone {
   background: #3a1d14;
   color: #f0c6b4;
 }
+
+/* Enemy stat-block editor (kind: "enemies"). Numeric stats are tiny (max 3
+   digits) and sit on one line; only Name is moderate. Richer sections (attacks,
+   defenses, traits, tactics) stack compactly below. */
+.editor-enemy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.editor-enemy-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid #3a2e1c;
+  border-radius: 6px;
+  background: #100c07;
+}
+.editor-enemy-row input[type="text"] { width: auto; padding: 4px 6px; }
+.editor-enemy-statline {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.editor-enemy-statline .ee-name { flex: 1 1 140px; min-width: 100px; }
+/* AC / HP / Init / Speed / count - compact stat fields. */
+.editor-enemy-statline input.ee-num { width: 42px; flex: 0 0 42px; text-align: center; }
+.editor-enemy-statline input.ee-speed { width: 50px; flex-basis: 50px; }
+.editor-enemy-statline .ee-x { color: #8c7a55; font-size: 12px; }
+.editor-enemy-row .ee-subtitle { width: 100%; }
+
+.editor-enemy-row .ee-sub-label {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #b79b5e;
+  margin-top: 2px;
+}
+.editor-enemy-row .ee-attacks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.editor-enemy-row .ee-attack-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.editor-enemy-row .ee-atk-name { flex: 1 1 auto; min-width: 90px; }
+.editor-enemy-row .ee-atk-hit { width: 52px; text-align: center; flex: 0 0 auto; }
+.editor-enemy-row .ee-atk-dmg { flex: 1 1 110px; min-width: 90px; }
+
+.editor-enemy-row .ee-defenses {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.editor-enemy-row .ee-def-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 120px;
+}
+.editor-enemy-row .ee-def-label {
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #8c7a55;
+}
+.editor-enemy-row .ee-def { width: 100%; }
+.editor-enemy-row textarea.ee-lines {
+  min-height: 88px;
+  height: 88px;
+  padding: 4px 6px;
+}
