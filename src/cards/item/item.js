@@ -32,6 +32,8 @@ const ITEM_RARITIES = {
 
 const ITEM_NON_META_LABELS = new Set(["dm", "özellikler", "properties", "sourceitem", "source item"]);
 const ITEM_RARITY_LABELS = new Set(["nadirlik", "rarity"]);
+const ITEM_TYPE_LABELS = new Set(["tür", "type"]);
+const ITEM_DAMAGE_LABELS = new Set(["hasar", "damage"]);
 const ITEM_PROPERTIES_LABELS = new Set(["özellikler", "properties"]);
 
 /* "Yapışık: T" / "Connect: T" flag'i: item'ı bir önceki objeye/yapışık item'a yapıştırır. */
@@ -54,6 +56,7 @@ const ItemData = (() => {
     const l = lower(label).replace(/\s+/g, " ").trim();
     if (l === "tür" || l === "type") return "type";
     if (l === "nadirlik" || l === "rarity") return "rarity";
+    if (l === "hasar" || l === "damage") return "damage";
     return l;
   }
   function isClear(value) {
@@ -219,6 +222,34 @@ function itemMetaLines(node) {
   return parseMetaLines(node, ITEM_NON_META_LABELS);
 }
 
+// Type -> a category-colored pill (DnD 5e taxonomy via ItemTypes); Damage ->
+// dice + damage-type icons with per-type color (shared renderDamage). Both fall
+// back to plain text when their helper module isn't loaded.
+function itemTypePill(value) {
+  if (typeof ItemTypes === "undefined") return null;
+  const pill = document.createElement("span");
+  pill.className = "item-type-pill";
+  const category = ItemTypes.category(value);
+  if (category) pill.classList.add("item-type-" + category);
+  pill.textContent = ItemTypes.label(value);
+  return pill;
+}
+
+function itemDamageValue(value) {
+  if (typeof renderDamage === "undefined") return null;
+  const box = document.createElement("span");
+  box.className = "item-damage";
+  renderDamage(box, value, { prefix: "item-" });
+  return box;
+}
+
+function itemCustomValue(label, value) {
+  const key = rsLower(label);
+  if (ITEM_TYPE_LABELS.has(key)) return itemTypePill(value);
+  if (ITEM_DAMAGE_LABELS.has(key)) return itemDamageValue(value);
+  return null;
+}
+
 function itemMetaBlock(rows) {
   return renderMetaGrid(rows, {
     className: "item-meta",
@@ -226,6 +257,7 @@ function itemMetaBlock(rows) {
     valueClass: "item-meta-value",
     isRarityLabel: (label) => ITEM_RARITY_LABELS.has(rsLower(label)),
     rarity: { className: "item-rarity", rarities: ITEM_RARITIES },
+    customValue: itemCustomValue,
   });
 }
 

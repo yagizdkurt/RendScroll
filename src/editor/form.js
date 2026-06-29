@@ -154,42 +154,6 @@ const EditorForm = (() => {
         ta.value = (val || []).join("\n");
         return ta;
       }
-      const DAMAGE_TYPES = (typeof StdIcons !== "undefined" && StdIcons.types)
-        ? StdIcons.types("damage")
-        : [
-          "acid", "bludgeoning", "cold", "fire", "force", "lightning",
-          "necrotic", "piercing", "poison", "psychic", "radiant",
-          "slashing", "thunder",
-        ];
-      function damageLabel(type) {
-        return String(type || "").replace(/^\w/, (c) => c.toUpperCase());
-      }
-      function knownDamageType(type) {
-        const key = String(type || "").trim().toLowerCase();
-        return DAMAGE_TYPES.includes(key) ? key : "";
-      }
-      function damageSelect(value) {
-        const sel = el("select", "ee-dmg-type");
-        const empty = el("option", null, "Type");
-        empty.value = "";
-        sel.appendChild(empty);
-        DAMAGE_TYPES.forEach((type) => {
-          const opt = el("option", null, damageLabel(type));
-          opt.value = type;
-          sel.appendChild(opt);
-        });
-        const custom = el("option", null, "Custom");
-        custom.value = "__custom__";
-        sel.appendChild(custom);
-        sel.value = value || "";
-        return sel;
-      }
-      function normalizeDamageExtra(value) {
-        const raw = String(value || "").trim().replace(/\s+/g, "");
-        if (!raw) return "";
-        return /^[+-]/.test(raw) ? raw : "+" + raw;
-      }
-
       // A live library reference renders as a compact linked row (no inline stats);
       // the full enemy is resolved from Enemies/Name.md at render time.
       function addRefEnemy(rec) {
@@ -260,89 +224,15 @@ const EditorForm = (() => {
           const ahead = el("div", "ee-attack-head");
           [an, ah, arm].forEach((n) => ahead.appendChild(n));
 
-          const damageBox = el("div", "ee-damage-editor");
-          const damageList = el("div", "ee-damage-list");
-          const parsedDamage = (typeof CombatEnemyModel !== "undefined" && CombatEnemyModel.parseDamageTerms)
-            ? CombatEnemyModel.parseDamageTerms(a.damage)
-            : null;
-
-          function addDamagePart(part) {
-            const data = part || {};
-            const knownType = knownDamageType(data.type);
-            const customType = data.type && !knownType ? String(data.type).trim() : "";
-            const drow = el("div", "ee-damage-row");
-            const countInp = miniInput("ee-dmg-count", data.count != null ? data.count : "1", "1", true);
-            const sidesSel = el("select", "ee-dmg-sides");
-            [4, 6, 8, 10, 12, 20].forEach((side) => {
-              const opt = el("option", null, "d" + side);
-              opt.value = String(side);
-              sidesSel.appendChild(opt);
-            });
-            sidesSel.value = String(data.sides || 4);
-            const extraInp = miniInput("ee-dmg-extra", data.extra || "", "+2");
-            const typeSel = damageSelect(customType ? "__custom__" : knownType);
-            const customInp = miniInput("ee-dmg-custom", customType, "Custom type");
-            const drm = button("editor-mini", "−", "Remove damage");
-            drm.addEventListener("click", () => drow.remove());
-            function syncCustom() {
-              customInp.classList.toggle("is-visible", typeSel.value === "__custom__");
-            }
-            typeSel.addEventListener("change", syncCustom);
-            syncCustom();
-
-            drow.append(countInp, sidesSel, extraInp, typeSel, customInp, drm);
-            drow._getDamagePart = () => {
-              const count = countInp.value.trim() || "1";
-              const sides = sidesSel.value;
-              const extra = normalizeDamageExtra(extraInp.value);
-              const type = typeSel.value === "__custom__" ? customInp.value.trim() : typeSel.value;
-              const changed = count !== "1" || sides !== "4" || extra || type;
-              return changed ? { count, sides, extra, type } : null;
-            };
-            damageList.appendChild(drow);
-          }
-
-          function addRawDamage(raw) {
-            const rawRow = el("div", "ee-damage-raw");
-            const rawInp = miniInput("ee-dmg-raw", raw, "Damage");
-            const rmRaw = button("editor-mini", "−", "Remove damage");
-            rmRaw.addEventListener("click", () => rawRow.remove());
-            rawRow.append(rawInp, rmRaw);
-            rawRow._getDamagePart = () => {
-              const text = rawInp.value.trim();
-              return text ? { raw: text } : null;
-            };
-            damageList.appendChild(rawRow);
-          }
-
-          if (parsedDamage) parsedDamage.forEach(addDamagePart);
-          else if ((a.damage || "").trim()) addRawDamage(a.damage);
-          else addDamagePart({});
-
-          const addDmg = button("editor-mini", "+ damage", "Add damage");
-          addDmg.addEventListener("click", () => addDamagePart({}));
-          damageBox.append(damageList, addDmg);
-          arow.append(ahead, damageBox);
-          arow._getAttack = () => {
-            const parts = [...damageList.children].map((node) => node._getDamagePart && node._getDamagePart()).filter(Boolean);
-            const structured = [];
-            const raw = [];
-            parts.forEach((part) => {
-              if (part.raw) raw.push(part.raw);
-              else structured.push(part);
-            });
-            const structuredText = (typeof CombatEnemyModel !== "undefined" && CombatEnemyModel.serializeDamageTerms)
-              ? CombatEnemyModel.serializeDamageTerms(structured)
-              : structured.map((part) => {
-                const type = part.type ? " " + part.type : "";
-                return part.count + "d" + part.sides + part.extra + type;
-              }).join(" + ");
-            return {
-              name: an.value.trim(),
-              hit: ah.value.trim(),
-              damage: raw.concat(structuredText ? [structuredText] : []).join(" + "),
-            };
-          };
+          // The count/dice/bonus/type rows are the shared DamageEditor so the
+          // combat editor and the item Damage field stay identical.
+          const damage = DamageEditor.build(a.damage, { el, button });
+          arow.append(ahead, damage.wrap);
+          arow._getAttack = () => ({
+            name: an.value.trim(),
+            hit: ah.value.trim(),
+            damage: damage.getValue(),
+          });
           attacksList.appendChild(arow);
         }
         (rec.attacks || []).forEach(addAttack);

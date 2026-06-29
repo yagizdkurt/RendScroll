@@ -282,40 +282,12 @@ function formatAttackDamage(damage) {
   return t && !/\bdamage\b/i.test(t) ? t + " damage" : t;
 }
 
+// Render an attack's damage through the shared renderer. The "attack-" prefix
+// reproduces the combat-specific classes (attack-damage-term, attack-die-icon,
+// …) so combat.css and the output are unchanged; the fallback keeps the legacy
+// "… damage" wording.
 function appendAttackDamage(parent, damage) {
-  const terms = CombatEnemyModel.parseDamageTerms(damage);
-  if (!terms || typeof StdIcons === "undefined") {
-    parent.appendChild(combatEl("span", "attack-damage-text", formatAttackDamage(damage)));
-    return;
-  }
-
-  terms.forEach((term, idx) => {
-    if (idx > 0) parent.appendChild(combatEl("span", "attack-damage-plus", "+"));
-
-    const typeKey = term.type ? StdIcons.key("damage", term.type) : null;
-    const termCls = "attack-damage-term" + (typeKey ? " damage-type-" + typeKey : "");
-    const wrap = combatEl("span", termCls);
-    if (term.count > 1) wrap.appendChild(combatEl("span", "attack-dice-count", String(term.count)));
-    const icon = StdIcons.icon("dice", term.sides, {
-      className: "attack-die-icon",
-      alt: "d" + term.sides,
-      title: "d" + term.sides,
-      size: 20,
-    });
-    if (icon) wrap.appendChild(icon);
-    if (term.extra) wrap.appendChild(combatEl("span", "attack-damage-extra", term.extra));
-    if (term.type) {
-      const dmgIcon = typeKey && StdIcons.icon("damage", typeKey, {
-        className: "attack-damage-icon",
-        alt: term.type,
-        title: term.type,
-        size: 20,
-      });
-      if (dmgIcon) wrap.appendChild(dmgIcon);
-      else wrap.appendChild(combatEl("span", "attack-damage-type", term.type));
-    }
-    parent.appendChild(wrap);
-  });
+  renderDamage(parent, damage, { prefix: "attack-", fallback: formatAttackDamage });
 }
 
 function tacticRules(tactics) {

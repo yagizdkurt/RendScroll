@@ -145,7 +145,7 @@ test("SourceItem schema has no instance-only slots", () => {
     body: "> Pale light.",
   });
 
-  assert.deepEqual(keys, ["title", "tur", "rarity", "image", "properties", "body"]);
+  assert.deepEqual(keys, ["title", "tur", "damage", "rarity", "image", "properties", "body"]);
   assert.match(out, /^### SourceItem: Lantern$/m);
   assert.match(out, /^Type: Tool$/m);
   assert.match(out, /^Rarity: 2$/m);

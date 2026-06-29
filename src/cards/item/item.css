@@ -90,6 +90,43 @@
 .page .item-rarity.rarity-2{background:#2f6fa8;}
 .page .item-rarity.rarity-3{background:#7550a8;}
 
+/* Standardized DnD 5e item type, as a category-colored pill (see itemTypes.js). */
+.page .item-type-pill{
+  display:inline-block;
+  padding:.1em .6em;
+  border-radius:3px;
+  color:#fff8e8;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  font-size:.82rem;
+  letter-spacing:.03em;
+  line-height:1.3;
+  background:#76664a;
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.22);
+}
+.page .item-type-pill.item-type-weapon{background:#9c4630;}
+.page .item-type-pill.item-type-armor{background:#3d6a8a;}
+.page .item-type-pill.item-type-gear{background:#6a5a8a;}
+
+/* Standardized item damage: dice + damage-type icons, colored by .damage-type-*
+   (shared.css). Mirrors the combat attack-damage layout at a card-meta scale. */
+.page .item-damage{
+  display:inline-flex; align-items:center; flex-wrap:wrap; gap:.3rem;
+}
+.page .item-damage-term{
+  display:inline-flex; align-items:center; gap:.2rem; color:#3a241c;
+}
+.page .item-damage-term .item-dice-count,
+.page .item-damage-term .item-damage-extra,
+.page .item-damage-term .item-damage-type{color:inherit;}
+.page .item-dice-count,.page .item-damage-extra{font-weight:800;}
+.page .item-damage-plus{font-weight:800; color:#8a6a52; margin:0 .04rem;}
+.page .item-die-icon,.page .item-damage-icon{
+  display:inline-block; width:1.4rem; height:1.4rem; object-fit:contain;
+  vertical-align:middle; flex:0 0 auto;
+}
+.page .item-damage-type{color:#6a4a3e;}
+
 .page .item-description{
   margin:.45rem 0;
   padding:.5rem .7rem;

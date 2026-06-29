@@ -52,6 +52,11 @@
   <script src="src/markdown.js"></script>
   <script src="src/cards/shared/cardImage.js"></script>
   <script src="src/cards/shared/StdIcons.js"></script>
+  <!-- Shared dice/damage model + renderer (combat attacks and item damage) and
+       the DnD 5e item-type vocabulary. Load before the card builders that use them. -->
+  <script src="src/cards/shared/damageModel.js"></script>
+  <script src="src/cards/shared/damageRender.js"></script>
+  <script src="src/cards/shared/itemTypes.js"></script>
   <script src="src/cards/shared/cardMeta.js"></script>
   <script src="src/cards/shared/cardParts.js"></script>
   <!-- Runtime card registry: each card builder below self-registers here; app.js
@@ -78,8 +83,13 @@
   <script src="src/editor/anchors.js"></script>
   <script src="src/editor/dragDrop.js"></script>
   <script src="src/editor/contextMenu.js"></script>
+  <!-- Shared damage-parts editor: reused by the combat attack editor (form.js)
+       and the item Damage field. Must load before form.js. -->
+  <script src="src/editor/damageEditor.js"></script>
   <script src="src/editor/form.js"></script>
   <script src="src/cards/skillChecks/skillChecks.editor.js"></script>
+  <!-- Item editor fields (Type picker + Damage). Registers with form.js. -->
+  <script src="src/cards/item/item.editor.js"></script>
   <!-- Item Library picker: choose an existing library item (or create a new one)
        when inserting a SourceItem-backed scene Item. Needs form.js + refLibrary.js. -->
   <script src="src/editor/libraryPicker.js"></script>

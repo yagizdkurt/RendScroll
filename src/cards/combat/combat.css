@@ -176,19 +176,7 @@
   display:inline-block; width:1.875rem; height:1.875rem; object-fit:contain;
   vertical-align:middle; flex:0 0 auto;
 }
-.page .damage-type-acid,
-.page .damage-type-necrotic,
-.page .damage-type-poison{color:#4f8b2f;}
-.page .damage-type-bludgeoning,
-.page .damage-type-piercing,
-.page .damage-type-slashing{color:#6f6258;}
-.page .damage-type-fire,
-.page .damage-type-force{color:#c74422;}
-.page .damage-type-lightning,
-.page .damage-type-thunder{color:#5d5aa8;}
-.page .damage-type-cold{color:#2f9fc7;}
-.page .damage-type-psychic{color:#b14ca0;}
-.page .damage-type-radiant{color:#c99922;}
+/* Per-damage-type colors are shared across cards — see cards/shared/shared.css. */
 
 /* Tactics: DM behavior rules. */
 .page .enemy-section.tactics-box{
