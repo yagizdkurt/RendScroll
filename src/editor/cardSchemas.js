@@ -435,6 +435,14 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
+  define("picture", "Picture", keywordHeading("Picture"), [
+    { key: "title", label: "Caption (optional)", kind: "text" },
+    { key: "image", label: "Image", kind: "text", mdLabel: "Image", required: true },
+    { key: "size", label: "Size (% of column)", kind: "text", mdLabel: "Size", inputMode: "numeric" },
+    fColumn,
+    fClosed,
+  ]);
+
   define("skillchecks", "Skill Checks", {
     heading() { return "Skill Checks"; },
     parseHeading(content, values) { values.column = "left"; },
@@ -487,7 +495,7 @@ const EditorSchemas = (() => {
   ]);
 
   // Order shown in the insert menu.
-  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std"];
+  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture"];
 
   return {
     get(type) { return REGISTRY[type] || null; },

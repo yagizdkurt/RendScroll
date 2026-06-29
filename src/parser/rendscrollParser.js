@@ -61,7 +61,7 @@ const RendScrollParser = (() => {
   // as the card builders do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
   const DIRECTIVE_NAMES = new Set([
-    "side", "image", "bg", "closed", "textsize", "yapışık", "connect", "combine",
+    "side", "image", "bg", "closed", "textsize", "size", "yapışık", "connect", "combine",
   ]);
   const STUCK_NAMES = new Set(["yapışık", "connect", "combine"]);
   const TRUTHY = new Set(["t", "true", "yes", "1", "evet"]);
@@ -97,6 +97,7 @@ const RendScrollParser = (() => {
     if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
     if (/^\s*narrative\s*$/i.test(raw)) return "narrative";
     if (/^std\s*:/i.test(raw)) return "std";
+    if (/^\s*picture\s*:/i.test(raw)) return "picture";
     if (tl.includes("npc")) return "npc";
     if (/^\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
     return ""; // plain ### section (renders as a normal heading)
@@ -116,6 +117,7 @@ const RendScrollParser = (() => {
       case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
       case "narrative": return "Narrative";
       case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
+      case "picture": return c.replace(/^\s*picture\s*:\s*/i, "").trim() || "Picture";
       case "skillchecks": return c.trim();
       default: return c.trim();
     }
@@ -333,6 +335,12 @@ const RendScrollParser = (() => {
         if (name === "textsize") {
           const size = Number(value);
           if (!/^\d+(?:\.\d+)?$/.test(value) || size < 8 || size > 32) return null;
+        }
+        // "Size:" on a Picture card is a column-width percentage (5–100). A
+        // non-numeric value (e.g. prose "Size: Large") falls through to body.
+        if (name === "size") {
+          const pct = Number(value);
+          if (!/^\d+(?:\.\d+)?$/.test(value) || pct < 5 || pct > 100) return null;
         }
         if (value === "") return { kind: "malformed", reason: "directive missing value" };
         return { kind: "directive", name, rawLabel: m[1].trim(), value };

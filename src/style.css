@@ -5,6 +5,7 @@
 @import url("./styles/references.css");
 @import url("./cards/ability/ability.css");
 @import url("./cards/std/std.css");
+@import url("./cards/picture/picture.css");
 @import url("./cards/obj/obj.css");
 @import url("./cards/combat/combat.css");
 @import url("./cards/unexpected/unexpected.css");

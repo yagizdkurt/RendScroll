@@ -90,6 +90,7 @@ const CARD_BUILDERS = {
   unexpected: buildUnexpectedCard,
   narrative: buildNarrativeCard,
   std: buildStdCard,
+  picture: buildPictureCard,
 };
 
 const CARD_TEXT_SIZE_DEFAULT_PX = 18.24; // current .page p default: 1.14rem at 16px
@@ -135,6 +136,7 @@ function isolateCardSource(type, src) {
     case "combat": src = normalizeCombatMarkdown(src); break;
     case "narrative": src = normalizeNarrativeMarkdown(src); break;
     case "std": src = normalizeStdMarkdown(src); break;
+    case "picture": src = normalizePictureMarkdown(src); break;
     case "unexpected": src = normalizeUnexpectedMarkdown(src); break;
     default: break; // "echo"/unknown: rendered as a plain heading + body
   }
