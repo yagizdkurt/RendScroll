@@ -30,57 +30,40 @@ to you as something that *feels* like sitting down with a leather-bound tome —
 parchment, deep bordeaux, ink-and-gold headings, and a quiet hush that says *the
 game is about to begin.*
 
-You don't learn a tool. You write the way you already think — top to bottom, in the
-order the scene happens — and RendScroll renders it into a page you can run a table
-from at a single glance.
-
 No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 
 ---
 
-## 🆕 New in this chapter
+## 🆕 Whats new
 
-RendScroll grew up. What started as a renderer is now a **complete DM workbench** —
-write, build, reuse, and run a fight, all from the same book.
-
-- **🖋️ A real visual editor — no Markdown required.** Flip on edit mode and shape any
-  card through clean forms: pick the type, fill the fields, drop it exactly where it
-  belongs. **Drag to reorder, right-click for actions,** and an **insert menu** that
-  knows every card RendScroll speaks. Prefer raw text? It's still just Markdown
-  underneath — both halves stay in perfect sync.
-
-- **⚔️ Combat helper.** Give an encounter its enemies and
+- **Combat helper.** Give an encounter its enemies and
   a **Start Combat** button appears. Roll into **initiative and turn order**, then
   **track every enemy's HP** as the blades fall — No attack roller or bloated features.
 
-- **🗂️ An Item Library that ends copy-paste.** Write a magic item *once*, then summon
+- **An Item Library that ends copy-paste.** Write a magic item *once*, then summon
   it anywhere with `[item=Name]` or weave it inline with `[link=Name]`. Edit the
-  source and **every scene updates with it.** One source of truth for your whole
-  campaign.
+  source and **every scene updates with it.**
 
-- **🐉 An Enemy Library of reusable stat blocks.** Build a creature once and call it
+- **An Enemy Library.** Build a creature once and call it
   into any combat. Browse, add, and edit your bestiary from the sidebar — your
   monsters travel with you from session to session.
 
-- **🧭 A sidebar that runs the show.** Collapsible **Campaign · Items · Enemies**
-  sections, each with a clear **“+ New”** action. Spin up a fresh page, item, or
-  enemy without ever leaving the book — and collapse the whole rail to a row of
-  glowing glyphs when you want the table to breathe.
-
-- **🎨 Iconography that reads at a glance.** Standardized **damage-type icons**, dice,
-  AC/HP/initiative crests — a fireball *looks* like fire, a slash *looks* like steel,
-  so stat blocks parse in the half-second you actually have.
 
 ---
 
 ## ⚔️ Why it feels good at the table
 
+**complete DM workbench** — write, build, reuse, all from the same book.
+
 - **The page reads itself, in play order.** Scenes flow top to bottom, event by
   event — no flipping between sections mid-encounter to find what happens next.
 
-- **Two columns, your call.** Everything flows down the **left** by default; send any
-  card to the **right** — your toolbox lane for NPCs, skill checks, loot, and stat
-  blocks — with a single `Side: R` line, so it waits exactly where your eyes land.
+- **A real visual editor — no Markdown required.** Flip on edit mode and shape any
+  card through clean forms: pick the type, fill the fields, drop it exactly where it
+  belongs.
+
+- **Iconography that reads at a glance.** Standardized **damage-type icons**, dice,
+  AC/HP/initiative crests — stat blocks parse in the half-second you actually have.
 
 - **Never read the wrong line again.** What players hear *glows apart* from your
   secret DM notes. Read-aloud text is clean and unmistakable; your hidden truths stay
