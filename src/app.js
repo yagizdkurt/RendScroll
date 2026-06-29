@@ -77,21 +77,12 @@ function enhanceBaseStyling(root) {
    collapse. */
 
 // Card type -> builder(headingEl, bodyEls) -> card element (or null to leave the
-// bare heading, mirroring each old enhancer's "no body -> skip" behaviour).
-const CARD_BUILDERS = {
-  skillchecks: buildSkillChecksCard,
-  npc: buildNpcCard,
-  item: buildItemCard,
-  sourceitem: buildSourceItemCard,
-  ability: buildAbilityCard,
-  obj: buildObjCard,
-  combat: buildCombatCard,
-  sourceenemy: buildSourceEnemyCard,
-  unexpected: buildUnexpectedCard,
-  narrative: buildNarrativeCard,
-  std: buildStdCard,
-  picture: buildPictureCard,
-};
+// bare heading, mirroring each old enhancer's "no body -> skip" behaviour). The
+// builders self-register into RendScrollCards (cards/shared/cardRegistry.js); this
+// looks them up by type so there is no hand-synced table to keep in step.
+function cardBuilder(type) {
+  return (typeof RendScrollCards !== "undefined") ? RendScrollCards.builder(type) : null;
+}
 
 const CARD_TEXT_SIZE_DEFAULT_PX = 18.24; // current .page p default: 1.14rem at 16px
 const CARD_TEXT_SIZE_RE = /^\s*text\s*size\s*:\s*(\d+(?:\.\d+)?)\s*$/i;
@@ -121,25 +112,14 @@ function applyCardTextSize(cardEl, size) {
   cardEl.style.setProperty("--rs-card-text-scale", String(size / CARD_TEXT_SIZE_DEFAULT_PX));
 }
 
-/* Per-card source isolation, selected by the parsed card type. Each helper only
-   isolates directive/label lines WITHIN its own card (the card source starts with
-   its heading), so a card written with "Az Enter" still parses. This is the
-   AST-scoped replacement for the old global normalize* pipeline. */
+/* Per-card source isolation, selected by the parsed card type. Each type's helper
+   only isolates directive/label lines WITHIN its own card (the card source starts
+   with its heading), so a card written with "Az Enter" still parses. The helper is
+   registered alongside the builder (cards/shared/cardRegistry.js); a type with no
+   normalizer (echo/sourceenemy/unknown) renders as a plain heading + body. */
 function isolateCardSource(type, src) {
-  switch (type) {
-    case "skillchecks": src = normalizeSkillChecksMarkdown(src); break;
-    case "item": src = normalizeItemMarkdown(src); break;
-    case "sourceitem": src = normalizeItemMarkdown(src); break;
-    case "npc": src = normalizeNpcMarkdown(src); break;
-    case "obj": src = normalizeObjMarkdown(src); break;
-    case "ability": src = normalizeAbilityMarkdown(src); break;
-    case "combat": src = normalizeCombatMarkdown(src); break;
-    case "narrative": src = normalizeNarrativeMarkdown(src); break;
-    case "std": src = normalizeStdMarkdown(src); break;
-    case "picture": src = normalizePictureMarkdown(src); break;
-    case "unexpected": src = normalizeUnexpectedMarkdown(src); break;
-    default: break; // "echo"/unknown: rendered as a plain heading + body
-  }
+  const normalize = (typeof RendScrollCards !== "undefined") ? RendScrollCards.normalizer(type) : null;
+  if (normalize) src = normalize(src);
   return normalizeClosedMarkdown(src); // "Closed:" may appear in any card
 }
 
@@ -185,7 +165,7 @@ function renderSectionHeading(doc, section) {
 function renderCardFromSource(type, src) {
   const renderSrc = prepareCardSourceForRender(type, stripCardTextSize(src));
   const els = markedToElements(isolateCardSource(type, renderSrc));
-  const builder = CARD_BUILDERS[type];
+  const builder = cardBuilder(type);
   if (!builder) return { cardEl: null, els };
   const cardEl = builder(els[0], els.slice(1));
   return { cardEl, els };
@@ -318,56 +298,81 @@ async function load(path) {
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));
 }
 
-/* ----- Item Library: sidebar list + dedicated reader view ----------------- */
+/* ----- Reference libraries (Items, Enemies, …): sidebar list + reader view ---
+   ONE parameterized implementation drives every ref kind in RefLibrary's REF_TYPES.
+   Per-kind UI specifics (sidebar nav element, kicker label, the editor "+ New …"
+   callback) live in LIBRARY_VIEWS; the view/mount/refresh/open/delete logic is
+   shared. Adding a ref kind is a LIBRARY_VIEWS entry + a sidebar <nav> in
+   index.html, not a second ~100-line copy of this block.
 
-// The library's files (via RefLibrary, loaded at boot), as [{ name, path }].
-function libraryEntries() {
+   Library enemies differ from items only in this config: they are concrete stat
+   blocks referenced from combat cards (not inserted as standalone scene cards), and
+   their view state uses currentView === "enemy" instead of "library". */
+const LIBRARY_VIEWS = {
+  item: {
+    view: "library", kicker: "Items", noun: "item", nameAttr: "itemName",
+    nav: () => libraryNav,
+    create: (cb) => Editor.createLibraryItem && Editor.createLibraryItem(cb),
+  },
+  enemy: {
+    view: "enemy", kicker: "Enemies", noun: "enemy", nameAttr: "enemyName",
+    nav: () => enemiesNav,
+    create: (cb) => Editor.createEnemyToLibrary && Editor.createEnemyToLibrary(cb),
+  },
+};
+
+function libraryConfig(kind) { return LIBRARY_VIEWS[kind]; }
+
+// The kind's files (via RefLibrary, loaded at boot), as [{ name, path }].
+function libraryEntries(kind) {
   if (typeof RefLibrary === "undefined") return [];
-  return RefLibrary.entries("item").map((e) => ({ name: e.name, path: e.path }));
+  return RefLibrary.entries(kind).map((e) => ({ name: e.name, path: e.path }));
 }
 
-function mountLibraryEntries(entries) {
-  if (!libraryNav) return;
-  libraryNav.innerHTML = "";
-  entries.forEach((entry) => {
+function mountLibraryNav(kind) {
+  const cfg = libraryConfig(kind);
+  const navEl = cfg.nav();
+  if (!navEl) return;
+  navEl.innerHTML = "";
+  libraryEntries(kind).forEach((entry) => {
     const btn = document.createElement("button");
     btn.textContent = entry.name;
-    btn.dataset.itemName = entry.name;
+    btn.dataset[cfg.nameAttr] = entry.name;
     btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
     btn.title = entry.name;
-    btn.classList.toggle("active", currentView === "library" && entry.name === currentLibraryName);
-    btn.addEventListener("click", () => openLibraryItem(entry.name));
-    libraryNav.appendChild(btn);
+    btn.classList.toggle("active", currentView === cfg.view && entry.name === currentLibraryName);
+    btn.addEventListener("click", () => openLibrary(kind, entry.name));
+    navEl.appendChild(btn);
   });
-  // A standalone "+ New item" affordance (items are also created via the editor
-  // insert flow, which additionally drops a scene instance).
+  // A standalone "+ New …" affordance (entries are also created via the editor
+  // insert / picker flow, which additionally wires them into a scene/combat card).
   const create = document.createElement("button");
   create.className = "nav-create";
-  create.textContent = "+ New item";
+  create.textContent = "+ New " + cfg.noun;
   create.dataset.navIndex = "+";
   create.addEventListener("click", () => {
-    if (typeof Editor !== "undefined" && Editor.createLibraryItem) {
-      Editor.createLibraryItem((name) => openLibraryItem(name));
-    }
+    if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name));
   });
-  libraryNav.appendChild(create);
+  navEl.appendChild(create);
 }
 
-// Re-read the library list into the sidebar (after create/edit/delete).
-function refreshLibrarySidebar() {
-  mountLibraryEntries(libraryEntries());
+// Re-read every library list into the sidebar (after create/edit/delete).
+function refreshLibrarySidebars() {
+  Object.keys(LIBRARY_VIEWS).forEach(mountLibraryNav);
 }
 
-// Switch the reader area to a single library item's card + management toolbar.
-function openLibraryItem(name) {
-  currentView = "library";
+// Switch the reader area to a single library entry's card + management toolbar.
+function openLibrary(kind, name) {
+  const cfg = libraryConfig(kind);
+  currentView = cfg.view;
   currentLibraryName = name;
   currentPath = null;
-  document.querySelectorAll("#nav button, #enemies-nav button").forEach((b) => b.classList.remove("active"));
-  document.querySelectorAll("#library-nav button").forEach((b) =>
-    b.classList.toggle("active", b.dataset.itemName === name)
+  document.querySelectorAll("#nav button, #library-nav button, #enemies-nav button")
+    .forEach((b) => b.classList.remove("active"));
+  cfg.nav().querySelectorAll("button").forEach((b) =>
+    b.classList.toggle("active", b.dataset[cfg.nameAttr] === name)
   );
-  renderLibraryItemView(name);
+  renderLibraryView(kind, name);
   page.parentElement.scrollTop = 0;
 }
 
@@ -381,7 +386,8 @@ function libraryToolbarButton(label, title, onClick, extraClass) {
   return b;
 }
 
-function renderLibraryItemView(name) {
+function renderLibraryView(kind, name) {
+  const cfg = libraryConfig(kind);
   page.innerHTML = "";
   const view = document.createElement("div");
   view.className = "library-view";
@@ -390,7 +396,7 @@ function renderLibraryItemView(name) {
   head.className = "library-view-head";
   const kicker = document.createElement("div");
   kicker.className = "library-view-kicker";
-  kicker.textContent = "Items";
+  kicker.textContent = cfg.kicker;
   const titleEl = document.createElement("div");
   titleEl.className = "library-view-title";
   titleEl.textContent = name;
@@ -399,41 +405,42 @@ function renderLibraryItemView(name) {
 
   const toolbar = document.createElement("div");
   toolbar.className = "library-view-toolbar";
-  toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this item", () => {
+  toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this " + cfg.noun, () => {
     if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
-      Editor.editLibraryItem("item", name);
+      Editor.editLibraryItem(kind, name);
     }
   }));
   toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
-    if (typeof RefLibrary !== "undefined") await RefLibrary.refresh("item", name);
-    renderLibraryItemView(name);
+    if (typeof RefLibrary !== "undefined") await RefLibrary.refresh(kind, name);
+    renderLibraryView(kind, name);
   }));
-  toolbar.appendChild(libraryToolbarButton("Delete", "Delete this item", () => deleteLibraryItem(name), "danger"));
+  toolbar.appendChild(libraryToolbarButton("Delete", "Delete this " + cfg.noun, () => deleteLibrary(kind, name), "danger"));
 
   view.appendChild(head);
   view.appendChild(toolbar);
 
-  const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve("item", name) : { ok: false };
+  const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve(kind, name) : { ok: false };
   if (resolved.ok) {
     const { cardEl } = renderCardFromSource(resolved.cardType, resolved.source);
-    view.appendChild(cardEl || refMissingCard("item", name));
+    view.appendChild(cardEl || refMissingCard(kind, name));
     enhanceBaseStyling(view);
     enhanceCardCollapse(view);
   } else {
-    view.appendChild(refMissingCard("item", name));
+    view.appendChild(refMissingCard(kind, name));
   }
 
   page.appendChild(view);
 }
 
-async function deleteLibraryItem(name) {
+async function deleteLibrary(kind, name) {
+  const cfg = libraryConfig(kind);
   if (typeof RefLibrary === "undefined") return;
-  const entry = RefLibrary.lookup("item", name);
+  const entry = RefLibrary.lookup(kind, name);
   if (!entry) return;
   if (!(await confirmDeleteCampaignEntry({ label: name, path: entry.path }))) return;
   try {
-    await RefLibrary.deleteFile("item", name);
-    document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: "item", name, removed: true } }));
+    await RefLibrary.deleteFile(kind, name);
+    document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: kind, name, removed: true } }));
     // Leave the library view: go back to the first campaign scene (or empty).
     if (campaignEntries.length) {
       await load(campaignEntries[0].path);
@@ -443,124 +450,7 @@ async function deleteLibraryItem(name) {
       page.innerHTML = "";
     }
   } catch (err) {
-    alert(err.message || "Item deletion failed.");
-  }
-}
-
-/* ----- Enemy Library: sidebar list + dedicated reader view ----------------
-   Mirrors the Item Library above, but library enemies are concrete stat blocks
-   (rendered via the combat roster) and are referenced from combat cards, not
-   inserted as standalone scene cards. View state uses currentView === "enemy". */
-
-function enemyLibraryEntries() {
-  if (typeof RefLibrary === "undefined") return [];
-  return RefLibrary.entries("enemy").map((e) => ({ name: e.name, path: e.path }));
-}
-
-function mountEnemyEntries(entries) {
-  if (!enemiesNav) return;
-  enemiesNav.innerHTML = "";
-  entries.forEach((entry) => {
-    const btn = document.createElement("button");
-    btn.textContent = entry.name;
-    btn.dataset.enemyName = entry.name;
-    btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
-    btn.title = entry.name;
-    btn.classList.toggle("active", currentView === "enemy" && entry.name === currentLibraryName);
-    btn.addEventListener("click", () => openLibraryEnemy(entry.name));
-    enemiesNav.appendChild(btn);
-  });
-  // A standalone "+ New enemy" affordance (combat cards also create via the picker).
-  const create = document.createElement("button");
-  create.className = "nav-create";
-  create.textContent = "+ New enemy";
-  create.dataset.navIndex = "+";
-  create.addEventListener("click", () => {
-    if (typeof Editor !== "undefined" && Editor.createEnemyToLibrary) {
-      Editor.createEnemyToLibrary((name) => openLibraryEnemy(name));
-    }
-  });
-  enemiesNav.appendChild(create);
-}
-
-function refreshEnemySidebar() {
-  mountEnemyEntries(enemyLibraryEntries());
-}
-
-function openLibraryEnemy(name) {
-  currentView = "enemy";
-  currentLibraryName = name;
-  currentPath = null;
-  document.querySelectorAll("#nav button, #library-nav button").forEach((b) => b.classList.remove("active"));
-  document.querySelectorAll("#enemies-nav button").forEach((b) =>
-    b.classList.toggle("active", b.dataset.enemyName === name)
-  );
-  renderLibraryEnemyView(name);
-  page.parentElement.scrollTop = 0;
-}
-
-function renderLibraryEnemyView(name) {
-  page.innerHTML = "";
-  const view = document.createElement("div");
-  view.className = "library-view";
-
-  const head = document.createElement("div");
-  head.className = "library-view-head";
-  const kicker = document.createElement("div");
-  kicker.className = "library-view-kicker";
-  kicker.textContent = "Enemies";
-  const titleEl = document.createElement("div");
-  titleEl.className = "library-view-title";
-  titleEl.textContent = name;
-  head.appendChild(kicker);
-  head.appendChild(titleEl);
-
-  const toolbar = document.createElement("div");
-  toolbar.className = "library-view-toolbar";
-  toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this enemy", () => {
-    if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
-      Editor.editLibraryItem("enemy", name);
-    }
-  }));
-  toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
-    if (typeof RefLibrary !== "undefined") await RefLibrary.refresh("enemy", name);
-    renderLibraryEnemyView(name);
-  }));
-  toolbar.appendChild(libraryToolbarButton("Delete", "Delete this enemy", () => deleteLibraryEnemy(name), "danger"));
-
-  view.appendChild(head);
-  view.appendChild(toolbar);
-
-  const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve("enemy", name) : { ok: false };
-  if (resolved.ok) {
-    const { cardEl } = renderCardFromSource(resolved.cardType, resolved.source);
-    view.appendChild(cardEl || refMissingCard("enemy", name));
-    enhanceBaseStyling(view);
-    enhanceCardCollapse(view);
-  } else {
-    view.appendChild(refMissingCard("enemy", name));
-  }
-
-  page.appendChild(view);
-}
-
-async function deleteLibraryEnemy(name) {
-  if (typeof RefLibrary === "undefined") return;
-  const entry = RefLibrary.lookup("enemy", name);
-  if (!entry) return;
-  if (!(await confirmDeleteCampaignEntry({ label: name, path: entry.path }))) return;
-  try {
-    await RefLibrary.deleteFile("enemy", name);
-    document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: "enemy", name, removed: true } }));
-    if (campaignEntries.length) {
-      await load(campaignEntries[0].path);
-    } else {
-      currentView = "scene";
-      currentLibraryName = null;
-      page.innerHTML = "";
-    }
-  } catch (err) {
-    alert(err.message || "Enemy deletion failed.");
+    alert(err.message || ("The " + cfg.noun + " could not be deleted."));
   }
 }
 
@@ -1074,18 +964,17 @@ function installRefLinkHandler() {
 // re-render whatever the reader is showing so new/edited references resolve.
 function installLibraryChangeHandler() {
   document.addEventListener("library:changed", () => {
-    refreshLibrarySidebar();
-    refreshEnemySidebar();
+    refreshLibrarySidebars();
     if (currentView === "library" && currentLibraryName) {
       // The edited/deleted item may be the one on screen.
       if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("item", currentLibraryName)) {
-        renderLibraryItemView(currentLibraryName);
+        renderLibraryView("item", currentLibraryName);
       }
       return;
     }
     if (currentView === "enemy" && currentLibraryName) {
       if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("enemy", currentLibraryName)) {
-        renderLibraryEnemyView(currentLibraryName);
+        renderLibraryView("enemy", currentLibraryName);
       }
       return;
     }
@@ -1123,8 +1012,7 @@ async function init() {
     try { await RefLibrary.init(); } catch (_) { /* empty library */ }
   }
   installRefLinkHandler();
-  refreshLibrarySidebar();
-  refreshEnemySidebar();
+  refreshLibrarySidebars();
   installLibraryChangeHandler();
   setupCollapsibleSections();
 

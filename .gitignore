@@ -8,6 +8,9 @@
 !RendScroll.exe
 !launcher.py
 !index.html
+# package.json declares the jsdom dev-dependency used by the DOM-render tests
+# (node --test). node_modules / package-lock.json stay ignored.
+!package.json
 
 # and Source folders...
 !src/

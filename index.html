@@ -54,6 +54,9 @@
   <script src="src/cards/shared/StdIcons.js"></script>
   <script src="src/cards/shared/cardMeta.js"></script>
   <script src="src/cards/shared/cardParts.js"></script>
+  <!-- Runtime card registry: each card builder below self-registers here; app.js
+       looks builders/normalizers up by type. Must load before the builders. -->
+  <script src="src/cards/shared/cardRegistry.js"></script>
   <script src="src/cards/skillChecks/skillChecks.js"></script>
   <script src="src/cards/npc/npc.js"></script>
   <script src="src/cards/item/item.js"></script>

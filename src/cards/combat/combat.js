@@ -581,3 +581,10 @@ function buildHpRow(label, maxHp) {
   row.append(combatEl("span", "ch-name", label), hp, input, hit);
   return row;
 }
+
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   sourceenemy (library base enemy) has no per-type source isolation. */
+if (typeof RendScrollCards !== "undefined") {
+  RendScrollCards.register("combat", { build: buildCombatCard, normalize: normalizeCombatMarkdown });
+  RendScrollCards.register("sourceenemy", { build: buildSourceEnemyCard });
+}

@@ -69,3 +69,8 @@ function buildUnexpectedCard(head, nodes) {
 
     return card;
 }
+
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+if (typeof RendScrollCards !== "undefined") {
+  RendScrollCards.register("unexpected", { build: buildUnexpectedCard, normalize: normalizeUnexpectedMarkdown });
+}

@@ -187,3 +187,8 @@ function buildAbilityCard(head, nodes) {
 
     return card;
 }
+
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+if (typeof RendScrollCards !== "undefined") {
+  RendScrollCards.register("ability", { build: buildAbilityCard, normalize: normalizeAbilityMarkdown });
+}

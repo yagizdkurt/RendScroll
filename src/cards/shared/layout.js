@@ -18,19 +18,25 @@ function layoutIsAside(node) {
   return !!(node.classList && node.classList.contains("card-right"));
 }
 
-// Whether a "Yapışık" card (node) may dock seamlessly under the last-placed
-// host card. A stuck item hangs off an Obje or another stuck item; a stuck
-// ability hangs off an item, an Obje, or another stuck ability.
+// Read a card type ("item"/"obj"/…) off a rendered card <div> by its "<type>-card"
+// class, and whether it is a "<type>-stuck" docked card. The DOM adapter that lets
+// layout reuse the parser's canonical dock rule instead of re-encoding it.
+function cardTypeOf(node) {
+  const cls = [...node.classList].find((c) => /-card$/.test(c));
+  return cls ? cls.replace(/-card$/, "") : null;
+}
+function cardStuckOf(node, type) {
+  return !!type && node.classList.contains(type + "-stuck");
+}
+
+// Whether a "Yapışık" card (node) may dock seamlessly under the last-placed host
+// card. The rule itself lives once in the parser (RendScrollParser.dockAllows); a
+// stuck item hangs off an Obje or another stuck item, a stuck ability off an item,
+// an Obje, or another stuck ability.
 function canDockUnder(node, host) {
-  const c = node.classList;
-  const h = host.classList;
-  if (c.contains("item-card") && c.contains("item-stuck")) {
-    return h.contains("obj-card") || h.contains("item-stuck");
-  }
-  if (c.contains("ability-card") && c.contains("ability-stuck")) {
-    return h.contains("item-card") || h.contains("obj-card") || h.contains("ability-stuck");
-  }
-  return false;
+  const nt = cardTypeOf(node);
+  const ht = cardTypeOf(host);
+  return RendScrollParser.dockAllows(nt, cardStuckOf(node, nt), ht, cardStuckOf(host, ht));
 }
 
 // --- Sticky docking, shared by every placement context (header / H1 full

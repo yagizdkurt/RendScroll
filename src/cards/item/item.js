@@ -313,3 +313,10 @@ function buildSourceItemCard(head, nodes) {
 
 if (typeof window !== "undefined") window.ItemData = ItemData;
 if (typeof module !== "undefined" && module.exports) module.exports = { ItemData };
+
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   sourceitem (library base item) renders through the same builder + normalizer. */
+if (typeof RendScrollCards !== "undefined") {
+  RendScrollCards.register("item", { build: buildItemCard, normalize: normalizeItemMarkdown });
+  RendScrollCards.register("sourceitem", { build: buildSourceItemCard, normalize: normalizeItemMarkdown });
+}

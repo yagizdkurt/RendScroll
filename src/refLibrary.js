@@ -15,7 +15,8 @@
 
 const RefLibrary = (() => {
   // type -> { folder, cardType }. cardType is the existing renderer/parser card
-  // type the resolved source renders as (see CARD_BUILDERS in src/app.js).
+  // type the resolved source renders as (see the RendScrollCards registry,
+  // src/cards/shared/cardRegistry.js).
   const REF_TYPES = {
     item: { folder: "Items", cardType: "sourceitem" },
     enemy: { folder: "Enemies", cardType: "sourceenemy" },

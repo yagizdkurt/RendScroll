@@ -32,16 +32,10 @@ const EditorAnchors = (() => {
     return cards.filter((c) => ANCHORABLE.has(c.type));
   }
 
-  // Mirror of layout.js:canDockUnder — can `node` dock under `host`?
+  // Docking rule lives once in the parser; this replays it over model cards (same
+  // shape the parser uses), so layout and anchoring can never silently drift.
   function canDock(node, host) {
-    if (!host) return false;
-    if (node.type === "item" && node.stuck) {
-      return host.type === "obj" || (host.type === "item" && host.stuck);
-    }
-    if (node.type === "ability" && node.stuck) {
-      return host.type === "item" || host.type === "obj" || (host.type === "ability" && host.stuck);
-    }
-    return false;
+    return RendScrollParser.canDock(node, host);
   }
 
   // Replay dockOrPlace over a row's cards (source order) -> { left:[], right:[] }
