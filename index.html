@@ -54,13 +54,15 @@
   <script src="src/inlineFormatting.js"></script>
   <script src="src/markdown.js"></script>
   <script src="src/cards/shared/cardImage.js"></script>
+  <!-- AST card-node accessors (directives / column / body lines) used by the
+       builders to read the parsed model instead of re-sniffing the DOM. -->
+  <script src="src/cards/shared/cardDirectives.js"></script>
   <script src="src/cards/shared/StdIcons.js"></script>
   <!-- Shared dice/damage model + renderer (combat attacks and item damage) and
        the DnD 5e item-type vocabulary. Load before the card builders that use them. -->
   <script src="src/cards/shared/damageModel.js"></script>
   <script src="src/cards/shared/damageRender.js"></script>
   <script src="src/cards/shared/itemTypes.js"></script>
-  <script src="src/cards/shared/cardMeta.js"></script>
   <script src="src/cards/shared/cardParts.js"></script>
   <!-- Runtime card registry: each card builder below self-registers here; app.js
        looks builders/normalizers up by type. Must load before the builders. -->

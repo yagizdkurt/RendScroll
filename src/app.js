@@ -81,8 +81,8 @@ function enhanceBaseStyling(root) {
    before: base styling, per-card collapse, the two-column layout, and heading
    collapse. */
 
-// Card type -> builder(headingEl, bodyEls) -> card element (or null to leave the
-// bare heading, mirroring each old enhancer's "no body -> skip" behaviour). The
+// Card type -> builder(card, headingEl, bodyEls) -> card element (or null to leave
+// the bare heading, mirroring each old enhancer's "no body -> skip" behaviour). The
 // builders self-register into RendScrollCards (cards/shared/cardRegistry.js); this
 // looks them up by type so there is no hand-synced table to keep in step.
 function cardBuilder(type) {
@@ -117,17 +117,6 @@ function applyCardTextSize(cardEl, size) {
   cardEl.style.setProperty("--rs-card-text-scale", String(size / CARD_TEXT_SIZE_DEFAULT_PX));
 }
 
-/* Per-card source isolation, selected by the parsed card type. Each type's helper
-   only isolates directive/label lines WITHIN its own card (the card source starts
-   with its heading), so a card written with "Az Enter" still parses. The helper is
-   registered alongside the builder (cards/shared/cardRegistry.js); a type with no
-   normalizer (echo/sourceenemy/unknown) renders as a plain heading + body. */
-function isolateCardSource(type, src) {
-  const normalize = (typeof RendScrollCards !== "undefined") ? RendScrollCards.normalizer(type) : null;
-  if (normalize) src = normalize(src);
-  return normalizeClosedMarkdown(src); // "Closed:" may appear in any card
-}
-
 // Render a markdown string and return its top-level ELEMENT nodes (the old
 // pipeline only ever walked element siblings, so text/whitespace nodes are
 // dropped here too).
@@ -139,6 +128,17 @@ function markedToElements(md) {
 
 function cardRawSource(doc, card) {
   return doc.raw.slice(card.range.startOffset, card.range.endOffset);
+}
+
+// First card AST node in a parsed document (used to hand builders the structured
+// model for a single card's source). Returns null when the source has no card.
+function firstCardNode(doc) {
+  for (const section of doc.sections) {
+    for (const block of section.blocks) {
+      if (block.kind === "card") return block;
+    }
+  }
+  return null;
 }
 
 function itemSourceResolver(name) {
@@ -165,15 +165,32 @@ function renderSectionHeading(doc, section) {
   return h;
 }
 
+// Carry the per-card "Closed:" collapse directive from the AST onto the card
+// element (cardCollapse.js reads dataset.ccDirective). The directive is no longer
+// rendered as a body <p>, so the builder no longer drops it — we stamp it here.
+function stampClosed(cardEl, card) {
+  if (!cardEl || !cardEl.dataset || !card) return;
+  const v = cardDirective(card, "closed");
+  if (/^(t|true)$/i.test(v)) cardEl.dataset.ccDirective = "closed";
+  else if (/^(f|false)$/i.test(v)) cardEl.dataset.ccDirective = "open";
+}
+
 // Card source (heading + body) -> its built card element. Shared by scene cards
-// and library SourceItem views so item rendering stays on one path.
+// and library SourceItem views so item rendering stays on one path. The builder
+// reads structured directives/checks/body from the parsed AST node, so only the
+// heading goes through marked here (no more re-parsing the whole card just to feed
+// the builder DOM it re-sniffed). Parsing the PREPARED source means an Item's
+// resolved SourceItem merge is reflected in the node the builder sees.
 function renderCardFromSource(type, src) {
   const renderSrc = prepareCardSourceForRender(type, stripCardTextSize(src));
-  const els = markedToElements(isolateCardSource(type, renderSrc));
   const builder = cardBuilder(type);
-  if (!builder) return { cardEl: null, els };
-  const cardEl = builder(els[0], els.slice(1));
-  return { cardEl, els };
+  // No builder (e.g. echo): render the whole block straight through marked.
+  if (!builder) return { cardEl: null, els: markedToElements(normalizeClosedMarkdown(renderSrc)) };
+  const card = firstCardNode(RendScrollParser.parseRendScroll(renderSrc));
+  const head = markedToElements(renderSrc.split(/\r?\n/)[0] || "")[0] || null;
+  const cardEl = builder(card, head, []);
+  if (cardEl) stampClosed(cardEl, card);
+  return { cardEl, els: head ? [head] : [] };
 }
 
 // Stamp a card with a normalized reference name so inline [link=…] can find it.

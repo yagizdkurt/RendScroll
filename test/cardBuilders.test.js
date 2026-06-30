@@ -30,11 +30,11 @@ const SCRIPTS = [
   "src/inlineFormatting.js",
   "src/markdown.js",
   "src/cards/shared/cardImage.js",
+  "src/cards/shared/cardDirectives.js",
   "src/cards/shared/StdIcons.js",
   "src/cards/shared/damageModel.js",
   "src/cards/shared/damageRender.js",
   "src/cards/shared/itemTypes.js",
-  "src/cards/shared/cardMeta.js",
   "src/cards/shared/cardParts.js",
   "src/cards/shared/cardRegistry.js",
   "src/cards/skillChecks/skillChecks.js",
@@ -76,13 +76,26 @@ before(() => {
       parser: RendScrollParser,
       cards: RendScrollCards,
       renderCard: function (type, src) {
-        var norm = RendScrollCards.normalizer(type);
-        var s = normalizeClosedMarkdown(norm ? norm(src) : src);
+        // Mirror app.js renderCardFromSource: the builder reads the parsed AST node;
+        // only the heading line goes through marked (for the title element).
+        var doc = RendScrollParser.parseRendScroll(src);
+        var card = null;
+        doc.sections.forEach(function (sec) {
+          sec.blocks.forEach(function (b) { if (!card && b.kind === "card") card = b; });
+        });
         var tmp = document.createElement("div");
-        tmp.innerHTML = renderMarkdown(s);
-        var els = Array.prototype.slice.call(tmp.children);
+        tmp.innerHTML = renderMarkdown(src.split(/\\r?\\n/)[0] || "");
+        var head = tmp.children[0] || null;
         var build = RendScrollCards.builder(type);
-        return build ? build(els[0], els.slice(1)) : null;
+        var el = build ? build(card, head, []) : null;
+        // Mirror app.js stampClosed: carry the "Closed:" directive to the element.
+        if (el && card) {
+          var v = "";
+          (card.directives || []).forEach(function (d) { if (d.name === "closed") v = d.value; });
+          if (/^(t|true)$/i.test(v)) el.dataset.ccDirective = "closed";
+          else if (/^(f|false)$/i.test(v)) el.dataset.ccDirective = "open";
+        }
+        return el;
       },
     };
   `;
@@ -123,4 +136,146 @@ test("item: builds an item-card with the item name and meta", () => {
   assert.ok(card, "no card produced");
   assert.ok(card.classList.contains("item-card"), "expected .item-card");
   assert.match(card.textContent, /Iron Sword/);
+});
+
+/* ----------------------------------------------------------------------------
+   Structure regression net (P1 migration safety net).
+
+   These assert the STRUCTURE each builder produces from a representative source,
+   captured before the AST-in-builder migration so the refactor is provably
+   non-regressing. They intentionally check class/shape/section invariants (not
+   exact text/markup) so they survive incidental output changes but catch a
+   builder that stops routing a directive/field correctly.
+---------------------------------------------------------------------------- */
+
+test("item: meta grid, rarity badge, type pill, damage, properties, description, Side", () => {
+  const card = win.__T.renderCard(
+    "item",
+    "### Item: Blade\nSide: R\nTür: Weapon\nNadirlik: 2\nHasar: 1d8 kesme\n\n> A keen blade.\n\nÖzellikler:\n- Sharp\n"
+  );
+  assert.ok(card.classList.contains("item-card"), "expected .item-card");
+  assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
+  assert.ok(card.querySelector(".item-meta"), "expected .item-meta grid");
+  assert.ok(card.querySelector(".item-rarity"), "expected rarity badge");
+  assert.ok(card.querySelector(".item-type-pill"), "expected type pill");
+  assert.ok(card.querySelector(".item-damage"), "expected damage value");
+  assert.ok(card.querySelector(".item-properties"), "expected .item-properties");
+  assert.ok(card.querySelector(".item-description"), "expected .item-description");
+});
+
+test("item: Yapışık: T marks the card .item-stuck", () => {
+  const card = win.__T.renderCard("item", "### Item: Ring\nYapışık: T\nTür: Wondrous\n");
+  assert.ok(card.classList.contains("item-stuck"), "expected .item-stuck");
+});
+
+test("ability: label, meta, rarity, properties, lore, description", () => {
+  const card = win.__T.renderCard(
+    "ability",
+    "### Spell: Fireball\nTür: Evocation\nMaliyet: 3\nNadirlik: 3\n\n> A roaring blast.\n\nÖzellikler:\n- Loud\nLore:\n> Ancient flame.\n"
+  );
+  assert.ok(card.classList.contains("ability-card"), "expected .ability-card");
+  const label = card.querySelector(".ability-label");
+  assert.ok(label && /SPELL/.test(label.textContent), "expected SPELL label");
+  assert.ok(card.querySelector(".ability-meta"), "expected .ability-meta");
+  assert.ok(card.querySelector(".ability-rarity"), "expected rarity badge");
+  assert.ok(card.querySelector(".ability-properties"), "expected .ability-properties");
+  assert.ok(card.querySelector(".ability-lore"), "expected .ability-lore");
+  assert.ok(card.querySelector(".ability-description"), "expected .ability-description");
+});
+
+test("combat: roster rows, checks, runner, Side, portrait", () => {
+  const card = win.__T.renderCard(
+    "combat",
+    "### Savaş: Ambush\nImage: goblin.png\nSide: R\nStat:\n- AC 15 | HP 20\nEnemies:\n- Goblin | AC 15 | HP 7\n- Orc | AC 13 | HP 15\nChecks:\n- Perception:\n> 10: spot them\n"
+  );
+  assert.ok(card.classList.contains("combat-card"), "expected .combat-card");
+  assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
+  assert.strictEqual(card.querySelectorAll(".enemy-block").length, 2, "expected 2 roster rows");
+  assert.ok(card.querySelector(".skillchecks"), "expected a .skillchecks section");
+  assert.ok(card.querySelector(".combat-runner"), "expected the live combat runner");
+  assert.match(card.textContent, /Ambush/);
+});
+
+test("npc: stat row, personality, dialogue subcard, checks, portrait", () => {
+  const card = win.__T.renderCard(
+    "npc",
+    "### NPC: Bob\nImage: bob.png\nRace: Human\nKişilik:\n> Friendly.\nSelam:\n> Hi there.\nChecks:\n- Insight:\n> 10: he is honest\n"
+  );
+  assert.ok(card.classList.contains("npc-card"), "expected .npc-card");
+  assert.ok(card.querySelector(".npc-stat-row"), "expected a .npc-stat-row (Race)");
+  assert.ok(card.querySelector(".npc-subcard"), "expected a dialogue .npc-subcard");
+  assert.ok(card.querySelector(".skillchecks"), "expected a Checks .skillchecks");
+  assert.match(card.textContent, /Bob/);
+});
+
+test("obj: title, checks section, loot panel, BG watermark", () => {
+  const card = win.__T.renderCard(
+    "obj",
+    "### Obje: Chest\nBG: chest.png\n> A heavy chest.\nChecks:\n- Investigation:\n> 10: a false bottom\nLoot:\n- 20 gold\n"
+  );
+  assert.ok(card.classList.contains("obj-card"), "expected .obj-card");
+  assert.ok(/Point Of Interest/.test(card.textContent), "expected POI title");
+  assert.ok(card.querySelector(".obj-section .skillchecks"), "expected a Checks section");
+  assert.ok(card.querySelector(".obj-loot"), "expected a .obj-loot panel");
+  assert.ok(/chest\.png/.test(card.getAttribute("style") || ""), "expected --obj-bg watermark");
+});
+
+test("skillchecks: card, grid, skill name, category, Side", () => {
+  const card = win.__T.renderCard(
+    "skillchecks",
+    "### Skill Checks\nSide: R\nCombat:\n- Athletics:\n> 10: climb the wall\n"
+  );
+  assert.ok(card.classList.contains("sc-card"), "expected .sc-card");
+  assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
+  assert.ok(card.querySelector(".sc-grid"), "expected a .sc-grid");
+  assert.ok(card.querySelector(".sc-skill-name"), "expected a .sc-skill-name");
+  assert.ok(card.querySelector(".sc-category"), "expected a .sc-category");
+});
+
+test("picture: img, caption, --pic-width, Side", () => {
+  const card = win.__T.renderCard("picture", "### Picture: Castle\nImage: castle.png\nSize: 50\nSide: R\n");
+  assert.ok(card.classList.contains("picture-card"), "expected .picture-card");
+  assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
+  assert.ok(card.querySelector("img"), "expected an <img>");
+  assert.ok(card.querySelector(".picture-caption"), "expected a caption");
+  assert.ok(/--pic-width:\s*50%/.test(card.getAttribute("style") || ""), "expected --pic-width: 50%");
+});
+
+test("audio: player, caption, Side", () => {
+  const card = win.__T.renderCard("audio", "### Audio: Tavern\nFile: tavern\nSide: R\n");
+  assert.ok(card.classList.contains("audio-card"), "expected .audio-card");
+  assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
+  assert.ok(card.querySelector("audio"), "expected an <audio> element");
+  assert.ok(card.querySelector(".audio-caption"), "expected a caption");
+});
+
+test("std: title + portrait + body", () => {
+  const card = win.__T.renderCard("std", "### STD: Arrival\nImage: gate.png\n> You arrive at the gate.\n");
+  assert.ok(card.classList.contains("std-card"), "expected .std-card");
+  assert.ok(card.querySelector(".std-title"), "expected .std-title");
+  assert.match(card.textContent, /Arrival/);
+});
+
+test("unexpected: title + body, Side", () => {
+  const card = win.__T.renderCard("unexpected", "### Unexpected: Twist\nSide: R\n- The bridge collapses.\n");
+  assert.ok(card.classList.contains("unexpected-card"), "expected .unexpected-card");
+  assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
+  assert.ok(card.querySelector(".unexpected-title"), "expected .unexpected-title");
+  assert.match(card.textContent, /Twist/);
+});
+
+test("Closed directive: stamped onto the card element for the collapse pass", () => {
+  const closed = win.__T.renderCard("std", "### STD: Note\nClosed: T\n> Body.\n");
+  assert.strictEqual(closed.dataset.ccDirective, "closed", "Closed: T -> ccDirective closed");
+  const open = win.__T.renderCard("std", "### STD: Note\nClosed: F\n> Body.\n");
+  assert.strictEqual(open.dataset.ccDirective, "open", "Closed: F -> ccDirective open");
+  const none = win.__T.renderCard("std", "### STD: Note\n> Body.\n");
+  assert.strictEqual(none.dataset.ccDirective, undefined, "no directive -> unset");
+});
+
+test("sourceenemy: renders a roster from a lone enemy block", () => {
+  const card = win.__T.renderCard("sourceenemy", "### SourceEnemy: Kate\n- Kate | AC 10 | HP 15\n");
+  assert.ok(card.classList.contains("sourceenemy-card"), "expected .sourceenemy-card");
+  assert.strictEqual(card.querySelectorAll(".enemy-block").length, 1, "expected 1 roster row");
+  assert.match(card.textContent, /Kate/);
 });

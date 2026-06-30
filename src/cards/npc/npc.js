@@ -29,37 +29,6 @@ const NPC_PERSONALITY_LABELS = new Set([
 
 const NPC_STAT_LINE = /^(race|age|occupation|alignment|hp|ac)\s*:\s*(.*)$/i;
 
-// A whole line that is just "Başlık:" (letters/spaces + colon). Dialog answers
-// start with ">" or "-", so they never match — the distinction stays safe.
-const NPC_TITLE_LINE = /^[ \t]*[\wÇĞİÖŞÜçğıöşü][\wÇĞİÖŞÜçğıöşü ]*:[ \t]*$/;
-
-/* Text phase (runs before marked): inside an NPC section, make sure each bare
-   "Başlık:" line is its own paragraph by inserting a blank line before it.
-   This lets topics be written with "Az Enter" (no blank lines) and still render
-   as subcards instead of being glued into the previous list/blockquote. */
-function normalizeNpcMarkdown(text) {
-  const out = [];
-  let inNpc = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^### .*NPC/i.test(line)) { inNpc = true; out.push(line); continue; }
-    if (/^#{1,3} /.test(line)) { inNpc = false; out.push(line); continue; }
-    // Isolate directive/stat lines as their own paragraphs (blank line on both
-    // sides) so they don't get glued into neighbouring blockquotes/lists.
-    if (inNpc && (/^bg\s*:/i.test(line.trim()) || /^image\s*:/i.test(line.trim()) || /^side\s*:/i.test(line.trim()) || NPC_STAT_LINE.test(line.trim()) || /^checks\s*:\s*$/i.test(line.trim()))) {
-      if (out.length && out[out.length - 1].trim() !== "") out.push("");
-      out.push(line);
-      out.push("");
-      continue;
-    }
-    if (inNpc && NPC_TITLE_LINE.test(line)) {
-      const prev = out.length ? out[out.length - 1] : "";
-      if (prev.trim() !== "") out.push("");
-    }
-    out.push(line);
-  }
-  return out.join("\n");
-}
-
 function npcIsFieldLabel(node) {
   if (node.tagName !== "P") return false;
 
@@ -110,21 +79,17 @@ function npcDialogueDivider(text) {
   return divider;
 }
 
-function npcSubheadingText(node) {
-  if (node.tagName === "H4") return node.textContent.trim();
-  if (node.tagName !== "P") return "";
-
-  const text = node.textContent.trim();
-
-  // Legacy "#### Başlık" shorthand (marked needs a space after the hashes).
+// A body line that opens a dialogue topic subcard. "#### Başlık" shorthand or a
+// bare "Başlık:" line that is NOT a known NPC field label. Returns the title text
+// (or "" when the line is not a topic). Dialog answers start with ">" or "-", so
+// they never match.
+function npcTopicFromLine(line) {
+  const text = String(line).trim();
   const hashed = text.match(/^#{4}\s*(.+)$/);
   if (hashed) return hashed[1].trim();
-
-  // Plain "Başlık:" line that is NOT a known NPC field label -> a dialog topic.
   if (text.endsWith(":") && text.length <= 40 && !NPC_FIELD_LABELS.has(rsLower(text))) {
     return text;
   }
-
   return "";
 }
 
@@ -135,11 +100,6 @@ function npcSubheading(text) {
   return subtitle;
 }
 
-// A bare "Checks:" line switches the NPC card into skill-check mode.
-function npcIsChecksLabel(node) {
-  return node.tagName === "P" && /^checks\s*:\s*$/i.test(rsLower(node.textContent.trim()));
-}
-
 // A small uppercase label above the Checks sub-section (same look as Obje).
 function npcSectionTitle(text) {
   const el = document.createElement("div");
@@ -148,10 +108,12 @@ function npcSectionTitle(text) {
   return el;
 }
 
-// Build one NPC card from its heading + body nodes (produced by marked from the
-// card's parsed source). A title-only NPC still returns a real card so editor
-// anchors can attach tools to it.
-function buildNpcCard(head, nodes) {
+// Build one NPC card from its parsed AST node. BG/Image/Side come from the
+// resolved directives; "Checks:" blocks from cardNode.checkGroups; identity
+// (stats / personality) and dialogue topics are parsed from cardNode.body text,
+// in source order. A title-only NPC still returns a real card so editor anchors
+// can attach tools to it.
+function buildNpcCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "npc-card";
 
@@ -169,142 +131,117 @@ function buildNpcCard(head, nodes) {
     const statsCol = document.createElement("div");
     statsCol.className = "npc-identity-col npc-identity-stats";
     identity.appendChild(statsCol);
-
-    // The portrait column is created lazily, only when an Image is present, so a
-    // card with no image reserves no empty third column.
-    let portraitCol = null;
-
     card.appendChild(identity);
 
     let hasIdentity = false;
-    let identityTarget = null;
+    let identityTarget = null;  // identity column receiving the following content
     let dialogueDivider = null;
     let currentSubcard = null;
-    let inChecks = false;     // collecting nodes for the Checks sub-section
-    let checksBox = null;     // .skillchecks container, created on first Checks
-    const checkNodes = [];    // collected and rendered together after the loop
+    let buf = [];               // plain content lines awaiting a marked render
 
-    nodes.forEach((node) => {
-      // "BG: file" picks the watermark behind this card. The CSS ::before
-      // falls back to the standard npc image when --npc-bg is left unset.
-      const bg = node.tagName === "P" && node.textContent.trim().match(/^bg\s*:\s*(.+)$/i);
-      if (bg) {
-        card.style.setProperty("--npc-bg", 'url("' + cardBgUrl(bg[1]) + '")');
-        return; // the BG line itself is dropped
-      }
+    // "BG: file" picks the watermark behind this card; "Image:" the portrait.
+    const bg = cardDirective(cardNode, "bg").trim();
+    if (bg) card.style.setProperty("--npc-bg", 'url("' + cardBgUrl(bg) + '")');
+    if (cardIsRight(cardNode)) card.classList.add("card-right");
+    const portrait = cardPortrait(cardDirective(cardNode, "image").trim());
+    if (portrait) {
+      hasIdentity = true;
+      const portraitCol = document.createElement("div");
+      portraitCol.className = "npc-identity-col npc-identity-portrait";
+      portraitCol.appendChild(portrait);
+      identity.appendChild(portraitCol);
+      identity.classList.add("npc-has-portrait");
+    }
 
-      // "Side: R" moves the card to the right column; the line itself is dropped.
-      const side = node.tagName === "P" && node.textContent.trim().match(CARD_SIDE_LINE);
-      if (side) {
-        if (cardSideIsRight(side[1])) card.classList.add("card-right");
+    // Render the buffered content run and route each produced node to the active
+    // target (an identity column, the current dialogue subcard, or the card).
+    function flushBuf() {
+      if (!buf.length) return;
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderMarkdown(buf.join("\n"));
+      [...tmp.children].forEach((node) => {
+        const target = identityTarget || currentSubcard || card;
+        target.appendChild(npcCloneContent(node));
+      });
+      buf = [];
+    }
+
+    cardOrderedBody(cardNode).forEach((seg) => {
+      if (seg.kind === "checks") {
+        // "Checks:" renders as a sub-section (same look as Obje), leaving any
+        // open dialog subcard / identity column.
+        flushBuf();
+        currentSubcard = null;
+        identityTarget = null;
+        const section = document.createElement("div");
+        section.className = "obj-section";
+        section.appendChild(npcSectionTitle("Checks"));
+        const box = document.createElement("div");
+        box.className = "skillchecks";
+        section.appendChild(box);
+        card.appendChild(section);
+        renderSkillChecks(box, seg.checks);
         return;
       }
+      seg.lines.forEach((line) => {
+        const t = line.trim();
+        if (t === "") { buf.push(line); return; }
 
-      const text = node.tagName === "P" ? node.textContent.trim() : "";
-      const lowerText = rsLower(text);
-      const image = text.match(CARD_IMAGE_LINE);
-      if (image) {
-        identityTarget = null;
-        const portrait = cardPortrait(image[1]);
-        if (portrait) {
+        const stat = t.match(NPC_STAT_LINE);
+        if (stat) {
+          flushBuf();
           hasIdentity = true;
-          if (!portraitCol) {
-            portraitCol = document.createElement("div");
-            portraitCol.className = "npc-identity-col npc-identity-portrait";
-            identity.appendChild(portraitCol);
-            identity.classList.add("npc-has-portrait");
+          currentSubcard = null;
+          const rawLabel = stat[1].trim();
+          const label = /^(hp|ac)$/i.test(rawLabel)
+            ? rawLabel.toUpperCase()
+            : rawLabel.replace(/^\w/, (c) => c.toUpperCase());
+          if (stat[2].trim()) {
+            statsCol.appendChild(npcStatRow(label, stat[2].trim()));
+            identityTarget = null;
+          } else {
+            statsCol.appendChild(npcTextFieldLabel(label + ":"));
+            identityTarget = statsCol;
           }
-          portraitCol.innerHTML = "";
-          portraitCol.appendChild(portrait);
+          return;
         }
-        return; // the Image line is represented by the portrait frame
-      }
 
-      const stat = text.match(NPC_STAT_LINE);
-      if (stat) {
-        hasIdentity = true;
-        inChecks = false;
-        currentSubcard = null;
-        const rawLabel = stat[1].trim();
-        const label = /^(hp|ac)$/i.test(rawLabel)
-          ? rawLabel.toUpperCase()
-          : rawLabel.replace(/^\w/, (c) => c.toUpperCase());
-        if (stat[2].trim()) {
-          statsCol.appendChild(npcStatRow(label, stat[2].trim()));
+        if (NPC_PERSONALITY_LABELS.has(rsLower(t))) {
+          flushBuf();
+          hasIdentity = true;
+          currentSubcard = null;
+          personalityCol.appendChild(npcTextFieldLabel(t));
+          identityTarget = personalityCol;
+          return;
+        }
+
+        const topic = npcTopicFromLine(t);
+        if (topic) {
+          flushBuf();
           identityTarget = null;
-        } else {
-          statsCol.appendChild(npcTextFieldLabel(label + ":"));
-          identityTarget = statsCol;
+          if (!dialogueDivider) {
+            dialogueDivider = npcDialogueDivider("Dialogues");
+            card.appendChild(dialogueDivider);
+          }
+          currentSubcard = document.createElement("div");
+          currentSubcard.className = "npc-subcard";
+          currentSubcard.appendChild(npcSubheading(topic));
+          card.appendChild(currentSubcard);
+          return;
         }
-        return;
-      }
 
-      if (NPC_PERSONALITY_LABELS.has(lowerText)) {
-        hasIdentity = true;
-        inChecks = false;
-        currentSubcard = null;
-        personalityCol.appendChild(npcTextFieldLabel(text));
-        identityTarget = personalityCol;
-        return;
-      }
-
-      // "Checks:" opens a skill-check sub-section (same look as Obje). It is
-      // appended to the card itself, so it leaves any open dialog subcard.
-      if (npcIsChecksLabel(node)) {
-        inChecks = true;
-        currentSubcard = null;
-        identityTarget = null;
-        if (!checksBox) {
-          const section = document.createElement("div");
-          section.className = "obj-section";
-          section.appendChild(npcSectionTitle("Checks"));
-          checksBox = document.createElement("div");
-          checksBox.className = "skillchecks";
-          section.appendChild(checksBox);
-          card.appendChild(section);
-        }
-        return; // the label paragraph itself is dropped
-      }
-
-      const subheading = npcSubheadingText(node);
-      if (subheading) {
-        inChecks = false; // a dialog topic ends the Checks collection
-        identityTarget = null;
-        if (!dialogueDivider) {
-          dialogueDivider = npcDialogueDivider("Dialogues");
-          card.appendChild(dialogueDivider);
-        }
-        currentSubcard = document.createElement("div");
-        currentSubcard.className = "npc-subcard";
-        currentSubcard.appendChild(npcSubheading(subheading));
-        card.appendChild(currentSubcard);
-        return;
-      }
-
-      if (inChecks) {
-        checkNodes.push(node);
-        return;
-      }
-
-      if (identityTarget) {
-        identityTarget.appendChild(npcCloneContent(node));
-        return;
-      }
-
-      if (npcIsFieldLabel(node)) identityTarget = null;
-
-      const target = currentSubcard || card;
-      target.appendChild(npcCloneContent(node));
+        buf.push(line);
+      });
     });
+    flushBuf();
 
-    // Render collected Checks together so skill names share one grid column.
-    if (checksBox) renderSkillCheckNodes(checksBox, checkNodes);
     if (!hasIdentity) identity.remove();
 
     return card;
 }
 
-/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   No normalizer: the builder reads directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("npc", { build: buildNpcCard, normalize: normalizeNpcMarkdown });
+  RendScrollCards.register("npc", { build: buildNpcCard });
 }

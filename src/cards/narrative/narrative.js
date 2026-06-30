@@ -8,43 +8,29 @@
 
    The wrapper is intentionally plain; it only gives layout/editor a card node. */
 
-function normalizeNarrativeMarkdown(text) {
-  return normalizeSectionDirectives(text, {
-    startsSection: (line) => /^###\s+narrative\s*$/i.test(line),
-    endsSection: (line) => /^#{1,3} /.test(line),
-    shouldIsolate: (line) => /^side\s*:/i.test(line.trim()) || /^text\s*:\s*$/i.test(line.trim()),
-  });
-}
-
-function buildNarrativeCard(head, nodes) {
+// Build one Narrative card from its parsed AST node. Side comes from the resolved
+// directive; the read-aloud text is the body after the "Text:" label, rendered
+// through marked — only its blockquotes are kept (as read-aloud), as before.
+function buildNarrativeCard(cardNode, head, nodes) {
   const card = document.createElement("div");
   card.className = "narrative-card";
-  let inText = false;
+  if (cardIsRight(cardNode)) card.classList.add("card-right");
 
-  nodes.forEach((n) => {
-    const text = n.textContent.trim();
-
-    const side = n.tagName === "P" && text.match(CARD_SIDE_LINE);
-    if (side) {
-      if (cardSideIsRight(side[1])) card.classList.add("card-right");
-      return;
-    }
-
-    if (n.tagName === "P" && /^text\s*:\s*$/i.test(text)) {
-      inText = true;
-      return;
-    }
-
-    if (!inText) return;
-    if (n.tagName === "BLOCKQUOTE") {
-      card.appendChild(cloneAsReadAloud(n));
-    }
-  });
+  const lines = cardBodyLines(cardNode);
+  const idx = lines.findIndex((l) => /^text\s*:\s*$/i.test(l.trim()));
+  if (idx >= 0) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = renderMarkdown(lines.slice(idx + 1).join("\n"));
+    [...tmp.children].forEach((n) => {
+      if (n.tagName === "BLOCKQUOTE") card.appendChild(cloneAsReadAloud(n));
+    });
+  }
 
   return card;
 }
 
-/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("narrative", { build: buildNarrativeCard, normalize: normalizeNarrativeMarkdown });
+  RendScrollCards.register("narrative", { build: buildNarrativeCard });
 }

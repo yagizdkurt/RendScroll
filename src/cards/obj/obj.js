@@ -21,8 +21,8 @@
      - "Checks:"  -> titled sub-section of skill cards (same look as Skill Checks)
      - "Loot:"    -> titled loot sub-panel (a list)
 
-   The skill-check renderer (renderSkillCheckNodes) is reused from
-   skillChecks.js so Checks render identically to a Skill Checks section. */
+   The skill-check renderer (renderSkillChecks) is reused from skillChecks.js so
+   Checks render identically to a Skill Checks section. */
 
 /* A node ends the current section if it's a new heading/separator OR a card that
    another renderer already produced (e.g. an NPC card placed right after this
@@ -35,10 +35,6 @@ function objIsBoundary(n) {
 /* BG/Image url resolution and the portrait frame are shared across all card
    cards (cards/shared/cardImage.js): cardBgUrl(), cardPortrait(). */
 
-function objHeadingMatch(text) {
-  return text.trim().match(/^\s*(obje|object|poi)\s*:/i);
-}
-
 function objTitleText(head) {
   const raw = head.textContent.trim();
   const m = raw.match(/^\s*(obje|object|poi)\s*:\s*(.*)$/i);
@@ -46,33 +42,6 @@ function objTitleText(head) {
 
   const title = m[2].trim();
   return title ? "Point Of Interest: " + title : "Point Of Interest";
-}
-
-/* Text phase (runs before marked): inside an Obje section, isolate each bare
-   "Checks:" / "Loot:" label on its own blank-separated line. Without this a
-   label written right after a "> ..." line would be swallowed into the
-   blockquote (lazy continuation) and the following list would glue to it. */
-function normalizeObjMarkdown(text) {
-  return normalizeSectionDirectives(text, {
-    startsSection: (line) =>
-      /^#{2,3}\s+/.test(line) && objHeadingMatch(line.replace(/^#{2,3}\s+/, "")),
-    endsSection: (line) => /^#{1,3} /.test(line),
-    shouldIsolate: (line) => (
-      /^(checks|loot)\s*:\s*$/i.test(line.trim()) ||
-      /^bg\s*:/i.test(line.trim()) ||
-      /^image\s*:/i.test(line.trim()) ||
-      /^side\s*:/i.test(line.trim())
-    ),
-  });
-}
-
-// A bare "Checks:" / "Loot:" line becomes its own paragraph -> a mode switch.
-function objMode(node) {
-  if (node.tagName !== "P") return "";
-  const t = rsLower(node.textContent.trim());
-  if (t === "checks:") return "checks";
-  if (t === "loot:") return "loot";
-  return "";
 }
 
 // A small uppercase label used above the Checks / Loot sub-sections.
@@ -83,12 +52,11 @@ function objSectionTitle(text) {
   return el;
 }
 
-// Build one Obje card from its heading + body nodes (produced by marked from the
-// card's parsed source). A title-only Obje still returns a real card so editor
-// anchors can attach tools to it.
-function buildObjCard(head, nodes) {
-    // Obje renders in the left column by default; a "Side: R" line (handled in
-    // the node loop below) tags the card .card-right so layout moves it.
+// Build one Obje card from its parsed AST node. BG/Image/Side come from the
+// resolved directives; "Checks:" blocks come from cardNode.checkGroups and "Loot:"
+// + description from cardNode.body, walked in source order (cardOrderedBody) so a
+// title-only Obje still returns a real card editor anchors can attach to.
+function buildObjCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "obj-card";
 
@@ -99,70 +67,58 @@ function buildObjCard(head, nodes) {
     // Header = title + leading "> ..." description, placed beside the portrait
     // when an Image is given; Checks/Loot sub-sections flow full-width below.
     const headEls = [title];
-    let imageRaw = "";
+    const imageRaw = cardDirective(cardNode, "image").trim();
+    const bg = cardDirective(cardNode, "bg").trim();
+    if (bg) card.style.setProperty("--obj-bg", 'url("' + cardBgUrl(bg) + '")');
+    if (cardIsRight(cardNode)) card.classList.add("card-right");
 
+    // "loot" once a "Loot:" label is seen; "desc" otherwise. Description lines go
+    // beside the portrait (header); loot lines fill the loot panel. A run of lines
+    // is rendered together so marked sees lists/blockquotes intact.
     let mode = "desc";
-    let checksBox = null; // .skillchecks container, created on first Checks node
-    let lootPanel = null; // .obj-loot container, created on first Loot node
-    const checkNodes = []; // collected and rendered together after the loop
+    let lootPanel = null;
+    let buf = [];
 
-    nodes.forEach((node) => {
-      // "BG: file.png" picks the watermark behind this card. The CSS ::before
-      // falls back to the standard chest image when --obj-bg is left unset.
-      const bg = node.tagName === "P" && node.textContent.trim().match(/^bg\s*:\s*(.+)$/i);
-      if (bg) {
-        card.style.setProperty("--obj-bg", 'url("' + cardBgUrl(bg[1]) + '")');
-        return; // the BG line itself is dropped
-      }
-
-      // "Image: file" becomes the top-right portrait.
-      const image = node.tagName === "P" && node.textContent.trim().match(CARD_IMAGE_LINE);
-      if (image) {
-        if (image[1].trim()) imageRaw = image[1].trim();
-        return; // the Image line is represented by the portrait frame
-      }
-
-      // "Side: R" moves the card to the right column; the line itself is dropped.
-      const side = node.tagName === "P" && node.textContent.trim().match(CARD_SIDE_LINE);
-      if (side) {
-        if (cardSideIsRight(side[1])) card.classList.add("card-right");
-        return;
-      }
-
-      const switchTo = objMode(node);
-      if (switchTo) {
-        mode = switchTo;
-        return; // the label paragraph itself is dropped
-      }
-
-      if (mode === "checks") {
-        if (!checksBox) {
-          const section = document.createElement("div");
-          section.className = "obj-section";
-          section.appendChild(objSectionTitle("Checks"));
-          checksBox = document.createElement("div");
-          checksBox.className = "skillchecks";
-          section.appendChild(checksBox);
-          card.appendChild(section);
-        }
-        checkNodes.push(node);
-      } else if (mode === "loot") {
+    function flushBuf() {
+      if (!buf.length) return;
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderMarkdown(buf.join("\n"));
+      const els = [...tmp.children];
+      if (mode === "loot") {
         if (!lootPanel) {
           lootPanel = document.createElement("div");
           lootPanel.className = "obj-loot";
           lootPanel.appendChild(objSectionTitle("Loot"));
           card.appendChild(lootPanel);
         }
-        lootPanel.appendChild(node.cloneNode(true));
+        els.forEach((e) => lootPanel.appendChild(e));
       } else {
-        // Description: bare "> ..." blocks become read-aloud DM blocks. These
-        // are the leading content, kept beside the portrait in the header.
-        headEls.push(cloneAsReadAloud(node));
+        els.forEach((e) => headEls.push(cloneAsReadAloud(e)));
       }
-    });
+      buf = [];
+    }
 
-    // Render collected Checks together so skill names share one grid column.
-    if (checksBox) renderSkillCheckNodes(checksBox, checkNodes);
+    cardOrderedBody(cardNode).forEach((seg) => {
+      if (seg.kind === "checks") {
+        flushBuf();
+        const section = document.createElement("div");
+        section.className = "obj-section";
+        section.appendChild(objSectionTitle("Checks"));
+        const box = document.createElement("div");
+        box.className = "skillchecks";
+        renderSkillChecks(box, seg.checks);
+        section.appendChild(box);
+        card.appendChild(section);
+        mode = "desc"; // any text the parser left after the checks block was
+                       // absorbed into it; following body text is description.
+        return;
+      }
+      seg.lines.forEach((line) => {
+        if (/^loot\s*:\s*$/i.test(line.trim())) { flushBuf(); mode = "loot"; return; }
+        buf.push(line);
+      });
+    });
+    flushBuf();
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
@@ -171,7 +127,8 @@ function buildObjCard(head, nodes) {
     return card;
 }
 
-/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   No normalizer: the builder reads directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("obj", { build: buildObjCard, normalize: normalizeObjMarkdown });
+  RendScrollCards.register("obj", { build: buildObjCard });
 }

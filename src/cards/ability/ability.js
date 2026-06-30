@@ -61,10 +61,6 @@ function abilityTitleText(head) {
   return head.textContent.trim().replace(ABILITY_HEAD, "").replace(/^\s*/, "").trim();
 }
 
-function abilityMetaLines(node) {
-  return parseMetaLines(node, ABILITY_NON_META_LABELS);
-}
-
 function abilityMetaBlock(rows) {
   return renderMetaGrid(rows, {
     className: "ability-meta",
@@ -75,54 +71,91 @@ function abilityMetaBlock(rows) {
   });
 }
 
-function abilityDescription(node) {
-  const desc = document.createElement("div");
-  desc.className = "ability-description";
-  [...node.childNodes].forEach((child) => desc.appendChild(child.cloneNode(true)));
-  return desc;
+// "> ..." description source lines -> .ability-description blocks (one per
+// rendered blockquote), preserving inline markdown via marked.
+function abilityDescriptionFromModel(lines) {
+  if (!lines || !lines.length) return [];
+  const tmp = document.createElement("div");
+  tmp.innerHTML = renderMarkdown(lines.join("\n"));
+  return [...tmp.children].map((node) => {
+    if (node.tagName !== "BLOCKQUOTE") return node;
+    const desc = document.createElement("div");
+    desc.className = "ability-description";
+    [...node.childNodes].forEach((child) => desc.appendChild(child));
+    return desc;
+  });
 }
 
-function abilityProperties(labelNode, listNode) {
-  return renderProperties(labelNode, listNode, {
+// Properties list (model strings) -> the titled .ability-properties sub-section.
+function abilityPropertiesFromModel(label, items) {
+  if (!items || !items.length) return null;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = renderMarkdown(items.map((p) => "- " + p).join("\n"));
+  const list = tmp.querySelector("ul, ol");
+  if (!list) return null;
+  return renderProperties({ textContent: (label || "Özellikler") + ":" }, list, {
     sectionClass: "ability-properties",
     titleClass: "ability-properties-title",
   });
 }
 
-function isAbilityPropertiesLabel(node) {
-  if (node.tagName !== "P") return false;
-  return ABILITY_PROPERTIES_LABELS.has(rsLower(node.textContent.trim()).replace(/:\s*$/, ""));
+// Parse the ability body lines into a model: meta rows (Tür/Maliyet/…), the
+// properties list (Özellikler:), the lore panel (Lore:), and the description
+// (> …). Image/Side/stuck are universal directives read from the AST node, so
+// they never appear here. Mirrors the old node loop, on text not DOM.
+function parseAbilityBody(cardNode) {
+  const lines = cardBodyLines(cardNode);
+  const model = { metaRows: [], properties: [], propertiesLabel: "Özellikler", description: [], lore: [], extras: [] };
+  let i = 0;
+  let mode = "body"; // flips to "lore" after a bare "Lore:" label
+  while (i < lines.length) {
+    const raw = lines[i];
+    const t = raw.trim();
+    if (!t) { i++; continue; }
+
+    if (ABILITY_LORE_LABELS.has(rsLower(t).replace(/:\s*$/, "")) && /:\s*$/.test(t)) {
+      mode = "lore";
+      i++;
+      continue;
+    }
+    if (mode === "lore") { model.lore.push(raw); i++; continue; }
+
+    if (ABILITY_PROPERTIES_LABELS.has(rsLower(t).replace(/:\s*$/, "")) && /:\s*$/.test(t)) {
+      model.propertiesLabel = t.replace(/:\s*$/, "");
+      i++;
+      while (i < lines.length) {
+        const b = lines[i].trim().match(/^[-*]\s+(.*)$/);
+        if (!b) { if (lines[i].trim() === "") { i++; continue; } break; }
+        model.properties.push(b[1].trim());
+        i++;
+      }
+      continue;
+    }
+
+    if (/^\s*>/.test(raw)) { model.description.push(raw); i++; continue; }
+
+    const mm = t.match(/^([^:]+):\s*(.+)$/);
+    if (mm && !ABILITY_NON_META_LABELS.has(rsLower(mm[1].trim()))) {
+      model.metaRows.push({ label: mm[1].trim(), value: mm[2].trim() });
+      i++;
+      continue;
+    }
+
+    model.extras.push(raw);
+    i++;
+  }
+  return model;
 }
 
-// A bare "Lore:" line switches following nodes into the lore panel.
-function isAbilityLoreLabel(node) {
-  if (node.tagName !== "P") return false;
-  return ABILITY_LORE_LABELS.has(rsLower(node.textContent.trim()).replace(/:\s*$/, ""));
-}
-
-/* Text phase (runs before marked): inside an ability section, isolate a bare
-   "Lore:" label on its own blank-separated line. Without this a label written
-   right after a "> ..." line would be swallowed into the blockquote (lazy
-   continuation). Mirrors normalizeObjMarkdown. */
-function normalizeAbilityMarkdown(text) {
-  return normalizeSectionDirectives(text, {
-    startsSection: (line) =>
-      /^#{2,3}\s+/.test(line) && ABILITY_HEAD.test(line.replace(/^#{2,3}\s+/, "")),
-    endsSection: (line) => /^#{1,3} /.test(line),
-    shouldIsolate: (line) => /^lore\s*:\s*$/i.test(line.trim()) || /^side\s*:/i.test(line.trim()),
-  });
-}
-
-// Build one Ability card from its heading + body nodes (produced by marked from
-// the card's parsed source). A title-only Ability still returns a real card so
-// editor anchors can attach tools to it.
-function buildAbilityCard(head, nodes) {
+// Build one Ability card from its parsed AST node. Meta/properties/lore/desc come
+// from parseAbilityBody; the keyword label + title from the heading; Image/Side/
+// stuck from the resolved directives. A title-only Ability still returns a real
+// card so editor anchors can attach tools to it.
+function buildAbilityCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "ability-card";
-    let stuck = false;
-    let imageRaw = ""; // "Image:" value, pulled out of the meta block when present
-    let mode = "desc"; // flips to "lore" after a bare "Lore:" label
-    let lorePanel = null;
+
+    const data = parseAbilityBody(cardNode);
 
     const label = document.createElement("div");
     label.className = "ability-label";
@@ -135,60 +168,39 @@ function buildAbilityCard(head, nodes) {
     // Header (label + title + meta) sits beside the portrait; the rest flows
     // full-width below it.
     const headEls = [label, title];
+    const imageRaw = cardDirective(cardNode, "image").trim();
+    if (cardIsRight(cardNode)) card.classList.add("card-right");
+    if (data.metaRows.length) headEls.push(abilityMetaBlock(data.metaRows));
 
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
+    abilityDescriptionFromModel(data.description).forEach((el) => card.appendChild(el));
+    const props = abilityPropertiesFromModel(data.propertiesLabel, data.properties);
+    if (props) card.appendChild(props);
+    if (data.extras.length) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderMarkdown(data.extras.join("\n"));
+      [...tmp.children].forEach((el) => card.appendChild(el));
+    }
 
-      if (isAbilityLoreLabel(node)) {
-        mode = "lore";
-        if (!lorePanel) {
-          lorePanel = document.createElement("div");
-          lorePanel.className = "ability-lore";
-          card.appendChild(lorePanel);
-        }
-        continue; // the label paragraph itself is dropped
-      }
-
-      if (mode === "lore") {
-        lorePanel.appendChild(cloneAsReadAloud(node));
-        continue;
-      }
-
-      const meta = abilityMetaLines(node);
-
-      if (meta.length) {
-        // Yapışık ve Image flag'lerini meta'dan ayıkla; geriye gerçek meta
-        // kalırsa göster. Image, kartın sağ-üst portresine dönüşür.
-        const stuckMeta = extractStuckMeta(meta, ABILITY_STUCK_LABELS, ABILITY_STUCK_TRUTHY);
-        if (stuckMeta.stuck) stuck = true;
-
-        const imageMeta = extractImageMeta(stuckMeta.rows);
-        if (imageMeta.value) imageRaw = imageMeta.value;
-
-        const sideMeta = extractSideMeta(imageMeta.rows);
-        if (sideMeta.value && cardSideIsRight(sideMeta.value)) card.classList.add("card-right");
-
-        if (sideMeta.rows.length) headEls.push(abilityMetaBlock(sideMeta.rows));
-      } else if (node.tagName === "BLOCKQUOTE") {
-        card.appendChild(abilityDescription(node));
-      } else if (isAbilityPropertiesLabel(node) && nodes[i + 1] && nodes[i + 1].tagName === "UL") {
-        card.appendChild(abilityProperties(node, nodes[i + 1]));
-        i++;
-      } else {
-        card.appendChild(node.cloneNode(true));
-      }
+    if (data.lore.length) {
+      const lorePanel = document.createElement("div");
+      lorePanel.className = "ability-lore";
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderMarkdown(data.lore.join("\n"));
+      [...tmp.children].forEach((el) => lorePanel.appendChild(cloneAsReadAloud(el)));
+      card.appendChild(lorePanel);
     }
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
     insertCardHeader(card, headEls, imageRaw);
 
-    if (stuck) card.classList.add("ability-stuck");
+    if (cardNode.stuck) card.classList.add("ability-stuck");
 
     return card;
 }
 
-/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("ability", { build: buildAbilityCard, normalize: normalizeAbilityMarkdown });
+  RendScrollCards.register("ability", { build: buildAbilityCard });
 }

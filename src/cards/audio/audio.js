@@ -12,9 +12,6 @@
    The card renders in the left column by default; a "Side: R" line moves it to
    the right column. */
 
-// A whole line that is just "File: name". The value capture may be empty.
-const AUDIO_FILE_LINE = /^file\s*:\s*(.*)$/i;
-
 /* Resolve a "File: name" value into a usable audio url. A bare name with no
    extension defaults to ".mp3", and a name without a path is looked up under
    audio/. So "tavern", "tavern.mp3" and "audio/tavern.mp3" all work, and
@@ -26,43 +23,20 @@ function audioSrcUrl(raw) {
   return /[\/\\]/.test(file) ? "/" + file.replace(/\\/g, "/").replace(/^\/+/, "") : "/audio/" + file;
 }
 
-/* Text phase (runs before marked): inside an Audio section, isolate the
-   directive lines into their own paragraphs so they are not glued into a
-   neighbouring list/blockquote and can be lifted out by the builder. */
-function normalizeAudioMarkdown(text) {
-  return normalizeSectionDirectives(text, {
-    startsSection: (line) => /^###\s+audio\s*:/i.test(line),
-    endsSection: (line) => /^#{1,3} /.test(line),
-    shouldIsolate: (line) => (
-      /^file\s*:/i.test(line.trim()) ||
-      /^side\s*:/i.test(line.trim())
-    ),
-  });
-}
-
-// Build one Audio card from its heading + body nodes. Returns the card element.
-function buildAudioCard(head, nodes) {
+// Build one Audio card from its parsed AST node. File/Side come straight from the
+// resolved directives; any remaining prose body renders through marked.
+function buildAudioCard(cardNode, head, nodes) {
   const card = document.createElement("div");
   card.className = "audio-card";
 
   // Optional caption after the colon ("### Audio: Tavern" -> "Tavern").
   const caption = head.textContent.trim().replace(/^\s*audio\s*:\s*/i, "").trim();
 
-  let fileRaw = "";
-  nodes.forEach((n) => {
-    const file = n.tagName === "P" && n.textContent.trim().match(AUDIO_FILE_LINE);
-    if (file) {
-      if (file[1].trim()) fileRaw = file[1].trim();
-      return;
-    }
-    // "Side: R" moves the card to the right column; the line itself is dropped.
-    const side = n.tagName === "P" && n.textContent.trim().match(CARD_SIDE_LINE);
-    if (side) {
-      if (cardSideIsRight(side[1])) card.classList.add("card-right");
-      return;
-    }
-    card.appendChild(n.cloneNode(true));
-  });
+  const fileRaw = cardDirective(cardNode, "file").trim();
+  if (cardIsRight(cardNode)) card.classList.add("card-right");
+
+  // Any non-directive body the author wrote renders as plain content below.
+  cardBodyElements(cardNode).forEach((n) => card.appendChild(n));
 
   // A slim header row holds the caption label and the native player side by
   // side so the card reads as a single compact strip. Any extra body nodes the
@@ -98,7 +72,8 @@ function buildAudioCard(head, nodes) {
   return card;
 }
 
-/* Self-register with the runtime card registry (cards/shared/cardRegistry.js). */
+/* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
+   No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("audio", { build: buildAudioCard, normalize: normalizeAudioMarkdown });
+  RendScrollCards.register("audio", { build: buildAudioCard });
 }

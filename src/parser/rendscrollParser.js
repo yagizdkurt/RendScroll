@@ -677,6 +677,8 @@ const RendScrollParser = (() => {
     debugDump,
     // Canonical primitives reused by editor/outline.js and editor/cardSchemas.js.
     lower,
+    keywordLower,
+    directiveNames: DIRECTIVE_NAMES,
     splitLines,
     lineText,
     cardType,

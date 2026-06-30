@@ -4,10 +4,17 @@
    preflight remains in src/lint.py. */
 
 const RendScrollDiagnostics = (() => {
-  const DIRECTIVE_NAMES = new Set(["side", "image", "bg", "closed", "yapışık", "connect", "combine"]);
-
   function parser() {
     return typeof RendScrollParser !== "undefined" ? RendScrollParser : null;
+  }
+
+  // The canonical directive set + keyword normalizer live in the parser; consume
+  // them so this never drifts (it previously omitted textsize/size/file).
+  function directiveNames() {
+    const p = parser();
+    return p && p.directiveNames
+      ? p.directiveNames
+      : new Set(["side", "image", "bg", "closed", "textsize", "size", "file", "yapışık", "connect", "combine"]);
   }
 
   function skillRules() {
@@ -37,18 +44,25 @@ const RendScrollDiagnostics = (() => {
     }
   }
 
-  function keywordLower(text) {
-    return String(text || "").replace(/İ/g, "i").replace(/I/g, "i").toLowerCase();
+  // Mirror the parser's directive-name normalization: keyword-lowercase then
+  // strip separators, so "Text Size" / "text_size" both fold to "textsize".
+  function directiveName(label) {
+    const p = parser();
+    const kw = p && p.keywordLower
+      ? p.keywordLower(label)
+      : String(label || "").replace(/İ/g, "i").replace(/I/g, "i").toLowerCase();
+    return kw.replace(/[\s_-]+/g, "");
   }
 
   function directiveLine(raw) {
     const t = String(raw || "").trim();
     if (!t) return null;
+    const names = directiveNames();
 
     const withColon = t.match(/^([^:]+):\s*(.*)$/);
     if (withColon) {
-      const name = keywordLower(withColon[1].trim());
-      if (!DIRECTIVE_NAMES.has(name)) return null;
+      const name = directiveName(withColon[1].trim());
+      if (!names.has(name)) return null;
       return {
         name,
         value: withColon[2].trim(),
@@ -58,8 +72,8 @@ const RendScrollDiagnostics = (() => {
       };
     }
 
-    const first = keywordLower(t.split(/\s+/)[0] || "");
-    if (DIRECTIVE_NAMES.has(first)) {
+    const first = directiveName(t.split(/\s+/)[0] || "");
+    if (names.has(first)) {
       return { name: first, value: "", malformed: true, reason: "directive missing colon", raw: t };
     }
     return null;
