@@ -12,14 +12,14 @@ const EditorAnchors = (() => {
   // sections and Yankı/Echo produce no card div, so they are not anchorable.
   const ANCHORABLE = new Set([
     "npc", "item", "ability", "obj", "combat", "unexpected", "narrative", "std", "skillchecks",
-    "sourceitem", "picture",
+    "sourceitem", "picture", "audio",
   ]);
 
   // DOM class for each card type (from the card builders).
   const CARD_CLASS = {
     npc: "npc-card", item: "item-card", sourceitem: "item-card", ability: "ability-card", obj: "obj-card",
     combat: "combat-card", unexpected: "unexpected-card", std: "std-card",
-    narrative: "narrative-card", skillchecks: "sc-card", picture: "picture-card",
+    narrative: "narrative-card", skillchecks: "sc-card", picture: "picture-card", audio: "audio-card",
   };
   const CARD_DIV_SELECTOR = Object.values(CARD_CLASS).map((c) => ":scope > ." + c).join(",");
   const CARD_DOM_SELECTOR = Object.values(CARD_CLASS).map((c) => "." + c).join(",");

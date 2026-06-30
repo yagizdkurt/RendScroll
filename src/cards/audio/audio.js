@@ -64,26 +64,36 @@ function buildAudioCard(head, nodes) {
     card.appendChild(n.cloneNode(true));
   });
 
+  // A slim header row holds the caption label and the native player side by
+  // side so the card reads as a single compact strip. Any extra body nodes the
+  // author wrote sit below it.
+  const row = document.createElement("div");
+  row.className = "audio-row";
+
+  // A small speaker glyph marks the strip as a sound cue even before play.
+  const icon = document.createElement("span");
+  icon.className = "audio-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "♪";
+  row.appendChild(icon);
+
+  if (caption) {
+    const cap = document.createElement("span");
+    cap.className = "audio-caption";
+    cap.textContent = caption;
+    row.appendChild(cap);
+  }
+
   // The player is the whole point of the card; render the native compact widget.
   if (fileRaw) {
     const audio = document.createElement("audio");
     audio.setAttribute("controls", "");
     audio.setAttribute("preload", "metadata");
     audio.src = audioSrcUrl(fileRaw);
-    card.insertBefore(audio, card.firstChild);
-    if (caption) {
-      const cap = document.createElement("div");
-      cap.className = "audio-caption";
-      cap.textContent = caption;
-      card.appendChild(cap);
-    }
-  } else if (caption) {
-    // No file given: keep the caption visible as a title so the card isn't empty.
-    const cap = document.createElement("div");
-    cap.className = "audio-caption";
-    cap.textContent = caption;
-    card.insertBefore(cap, card.firstChild);
+    row.appendChild(audio);
   }
+
+  card.insertBefore(row, card.firstChild);
 
   return card;
 }
