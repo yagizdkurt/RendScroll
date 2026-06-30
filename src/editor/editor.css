@@ -359,6 +359,9 @@ body.editor-on .editor-chapter-zone {
   color: #1a1208;
   font-weight: 600;
 }
+.editor-foot-left {
+  margin-right: auto;
+}
 .editor-btn.danger {
   background: #8a2d1c;
   border-color: #c05a3b;
@@ -664,11 +667,13 @@ body.editor-on .editor-chapter-zone {
 /* Item Type field: grouped picker + a Custom input revealed on demand. */
 .ee-itemtype {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   align-items: center;
 }
 .ee-itemtype-select {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .ee-itemtype-custom {
   display: none;
@@ -677,6 +682,7 @@ body.editor-on .editor-chapter-zone {
 }
 .ee-itemtype-custom.is-visible {
   display: block;
+  flex-basis: 100%;
 }
 @media (max-width: 720px) {
   .editor-enemy-row .ee-attack-head {

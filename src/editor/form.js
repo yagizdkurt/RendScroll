@@ -4,17 +4,51 @@
 
 const EditorForm = (() => {
   let backdrop = null;
+  // While a form is open, dismiss paths (✕, Cancel, backdrop, Escape) route through
+  // this pointer. Creation forms point it at a draft-saving variant; everything else
+  // uses plain close(). Reset by close().
+  let activeDismiss = null;
 
   function close() {
     if (backdrop) {
       backdrop.remove();
       backdrop = null;
       document.removeEventListener("keydown", onKey);
+      activeDismiss = null;
     }
   }
 
+  function dismiss() {
+    (activeDismiss || close)();
+  }
+
   function onKey(e) {
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") dismiss();
+  }
+
+  // --- creation-form draft persistence (localStorage, survives app restart) -----
+  const DRAFT_PREFIX = "rendscroll-draft:"; // + schema type
+
+  function draftKey(type) {
+    return DRAFT_PREFIX + type;
+  }
+  function loadDraft(type) {
+    try {
+      const raw = localStorage.getItem(draftKey(type));
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveDraft(type, out) {
+    try {
+      localStorage.setItem(draftKey(type), JSON.stringify(out));
+    } catch (e) {}
+  }
+  function clearDraft(type) {
+    try {
+      localStorage.removeItem(draftKey(type));
+    } catch (e) {}
   }
 
   function el(tag, cls, text) {
@@ -319,15 +353,16 @@ const EditorForm = (() => {
 
   // --- modal shell ---------------------------------------------------------
 
-  function open(schema, values, titleText, onSubmit) {
+  function open(schema, values, titleText, onSubmit, opts) {
     close();
+    const draftType = opts && opts.draftType;
     backdrop = el("div", "editor-modal-backdrop");
     const modal = el("div", "editor-modal");
 
     const head = el("div", "editor-modal-head");
     head.appendChild(el("span", null, titleText));
     const x = el("button", "editor-mini", "✕");
-    x.addEventListener("click", close);
+    x.addEventListener("click", dismiss);
     head.appendChild(x);
 
     const body = el("div", "editor-modal-body");
@@ -337,17 +372,36 @@ const EditorForm = (() => {
       return ctl;
     });
 
+    function snapshot() {
+      const out = {};
+      controls.forEach((c) => (out[c.field.key] = c.getValue()));
+      return out;
+    }
+    function closeSavingDraft() {
+      if (draftType) saveDraft(draftType, snapshot());
+      close();
+    }
+    activeDismiss = draftType ? closeSavingDraft : close;
+
     const foot = el("div", "editor-modal-foot");
+    if (draftType) {
+      const discard = el("button", "editor-btn danger editor-foot-left", "Discard");
+      discard.title = "Delete this draft and close";
+      discard.addEventListener("click", () => {
+        clearDraft(draftType);
+        close();
+      });
+      foot.appendChild(discard);
+    }
     const cancel = el("button", "editor-btn", "Cancel");
-    cancel.addEventListener("click", close);
+    cancel.addEventListener("click", dismiss);
     const ok = el("button", "editor-btn primary", "Insert");
     ok.textContent = titleText.startsWith("Edit") ? "Apply" : "Insert";
 
     const err = el("div", "editor-field-error");
 
     ok.addEventListener("click", () => {
-      const out = {};
-      controls.forEach((c) => (out[c.field.key] = c.getValue()));
+      const out = snapshot();
       // validation
       const missing = schema.fields.find((f) => f.required && (!out[f.key] || !String(out[f.key]).trim()));
       if (missing) {
@@ -355,6 +409,7 @@ const EditorForm = (() => {
         return;
       }
       const block = EditorSchemas.serialize(schema, out);
+      if (draftType) clearDraft(draftType);
       close();
       onSubmit(block);
     });
@@ -368,7 +423,7 @@ const EditorForm = (() => {
     modal.appendChild(foot);
     backdrop.appendChild(modal);
     backdrop.addEventListener("mousedown", (e) => {
-      if (e.target === backdrop) close();
+      if (e.target === backdrop) dismiss();
     });
     document.body.appendChild(backdrop);
     document.addEventListener("keydown", onKey);
@@ -542,7 +597,8 @@ const EditorForm = (() => {
     openCreate(type, model, onSubmit) {
       const schema = EditorSchemas.get(type);
       if (!schema) return;
-      open(schema, defaults(schema), "New " + schema.label, onSubmit);
+      const values = Object.assign(defaults(schema), loadDraft(type) || {});
+      open(schema, values, "New " + schema.label, onSubmit, { draftType: type });
     },
     openEdit(card, model, onSubmit) {
       const schema = EditorSchemas.get(card.type);
