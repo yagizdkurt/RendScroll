@@ -562,6 +562,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._create_library_file()
             return
 
+        if path == "/__move_library_file":
+            self._move_library_file()
+            return
+
         if path == "/__delete_campaign_file":
             self._delete_campaign_file()
             return
@@ -827,6 +831,71 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         print(paint(f"Created: {os.path.relpath(target, base)}", GREEN), flush=True)
+        origin = "campaign" if scope == "campaign" else "global"
+        self._send_json(200, {"ok": True, "entry": {
+            "name": name, "path": f"{rel_prefix}/{filename}", "origin": origin}})
+
+    def _move_library_file(self):
+        """Relocate a library .md between the campaign-local and global folders.
+        Source is the entry's current `path` (writable-roots + .md guarded);
+        destination is derived from `scope` exactly like _create_library_file."""
+        try:
+            data = self._read_json_body()
+            ref_type = str(data.get("type") or "item")
+            name = clean_library_name(data.get("name"))
+            src_rel = data["path"]
+            scope = str(data.get("scope") or "global")
+        except (ValueError, KeyError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        folder = LIBRARY_DIRS.get(ref_type)
+        if not folder:
+            self._send_json(400, {"ok": False, "error": f"unknown library type: {ref_type}"})
+            return
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid name"})
+            return
+
+        src = self._resolve_writable(src_rel)
+        if not src:
+            self._send_json(403, {"ok": False, "error": "path outside writable roots"})
+            return
+        if not src.lower().endswith(".md"):
+            self._send_json(403, {"ok": False, "error": "only .md files"})
+            return
+        if not os.path.isfile(src):
+            self._send_json(404, {"ok": False, "error": "file not found"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        if scope == "campaign":
+            if not ACTIVE_CAMPAIGN:
+                self._send_json(400, {"ok": False, "error": "no active campaign"})
+                return
+            target_dir = os.path.join(campaign_dir_path(base, ACTIVE_CAMPAIGN), folder)
+            rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{folder}"
+        else:
+            target_dir = os.path.join(base, folder)
+            rel_prefix = folder
+        os.makedirs(target_dir, exist_ok=True)
+        filename = f"{name}.md"
+        dest = os.path.realpath(os.path.join(target_dir, filename))
+
+        if dest == src:
+            self._send_json(400, {"ok": False, "error": "already in target library"})
+            return
+        if os.path.exists(dest):
+            self._send_json(409, {"ok": False, "error": "item already exists in target"})
+            return
+
+        try:
+            shutil.move(src, dest)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Moved: {os.path.relpath(src, base)} -> {os.path.relpath(dest, base)}", GREEN), flush=True)
         origin = "campaign" if scope == "campaign" else "global"
         self._send_json(200, {"ok": True, "entry": {
             "name": name, "path": f"{rel_prefix}/{filename}", "origin": origin}})
