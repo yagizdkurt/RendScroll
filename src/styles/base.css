@@ -289,15 +289,31 @@ body:not(.sidebar-collapsed) #library-nav.is-collapsed,
 body:not(.sidebar-collapsed) #enemies-nav.is-collapsed{display:none;}
 #nav-campaign-title{margin-top:.2rem;}
 
-/* Active campaign name, shown above the Scenes list. Reads from the campaign
-   manifest (CampaignManager.activeLabel). Hidden when the sidebar collapses. */
+/* Active campaign name, shown above the Scenes list as a distinct page header.
+   Reads from the campaign manifest (CampaignManager.activeLabel). A "Campaign"
+   kicker + bottom rule set it apart from the section titles below. Hidden when
+   the sidebar collapses or no campaign is active (:empty hides the ::before too). */
 .nav-campaign-name{
-  margin:.6rem .2rem .1rem;
-  font-family:'Alegreya Sans SC','EB Garamond',sans-serif;
+  margin:.6rem .2rem .7rem;
+  padding-bottom:.55rem;
+  border-bottom:1px solid var(--gold-deep);
+  font-family:'Cinzel',serif;
   font-weight:700;
-  font-size:1.02rem;
-  line-height:1.15;
+  font-size:1.2rem;
+  line-height:1.2;
   color:var(--gold);
+}
+.nav-campaign-name::before{
+  content:"Campaign";
+  display:block;
+  margin-bottom:.18rem;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:700;
+  font-size:.62rem;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--gold);
+  opacity:.7;
 }
 .nav-campaign-name:empty{display:none;}
 body.sidebar-collapsed .nav-campaign-name{display:none;}
@@ -346,7 +362,9 @@ body.sidebar-collapsed .nav-campaign-name{display:none;}
 /* The "+ New …" affordances read as clear actions: a dashed gold outline sets
    them apart from list entries while keeping the chrome's restrained palette. */
 .nav-create{
-  margin-top:.35rem;
+  margin-top:.2rem;
+  padding:.25rem .6rem !important;
+  font-size:.82rem !important;
   font-style:italic;
   font-weight:600;
   color:var(--gold) !important;
@@ -389,6 +407,18 @@ body.sidebar-collapsed .nav-campaign-name{display:none;}
 }
 .nav-context-menu-item.danger{
   color:#f0b49c;
+}
+.nav-context-menu-item.is-disabled{
+  color:#7a6c52;
+  cursor:default;
+}
+.nav-context-menu-item.is-disabled:hover{
+  background:transparent;
+}
+.nav-context-menu-sep{
+  height:1px;
+  margin:.25rem .35rem;
+  background:#4a3a22;
 }
 
 .nav-error{

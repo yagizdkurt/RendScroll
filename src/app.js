@@ -345,7 +345,47 @@ function libraryEntryButton(kind, cfg, entry) {
   btn.title = entry.name + (entry.origin === "campaign" ? " (campaign)" : "");
   btn.classList.toggle("active", currentView === cfg.view && entry.name === currentLibraryName);
   btn.addEventListener("click", () => openLibrary(kind, entry.name));
+  btn.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openLibraryEntryMenu(kind, entry, e.clientX, e.clientY);
+  });
   return btn;
+}
+
+// Right-click menu for an Items/Enemies entry: Delete (confirmed, reuses
+// deleteLibrary) plus a Move action whose direction follows the entry's origin.
+// "Move to campaign" is disabled when no campaign is active.
+function openLibraryEntryMenu(kind, entry, x, y) {
+  const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
+  const items = [
+    { label: "Delete", danger: true, onClick: () => deleteLibrary(kind, entry.name) },
+  ];
+  if (entry.origin === "campaign") {
+    items.push({ label: "Move to global library", onClick: () => moveLibrary(kind, entry.name, "global") });
+  } else {
+    items.push({
+      label: "Move to campaign",
+      disabled: !hasCampaign,
+      onClick: () => moveLibrary(kind, entry.name, "campaign"),
+    });
+  }
+  openNavMenu(items, x, y);
+}
+
+// Move a library entry between the campaign-local and global folders, then
+// refresh the sidebars (and the reader view if this entry is on screen).
+async function moveLibrary(kind, name, toScope) {
+  const cfg = libraryConfig(kind);
+  if (typeof RefLibrary === "undefined") return;
+  try {
+    await RefLibrary.moveFile(kind, name, toScope);
+    refreshLibrarySidebars();
+    if (currentView === cfg.view && currentLibraryName === name) openLibrary(kind, name);
+    document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: kind, name, moved: toScope } }));
+  } catch (err) {
+    alert(err.message || ("The " + cfg.noun + " could not be moved."));
+  }
 }
 
 // Group library entries by origin (campaign-local vs global). Each group gets a
@@ -648,23 +688,42 @@ async function deleteCampaignEntry(entry) {
   }
 }
 
-function openNavContextMenu(entry, x, y) {
+// Generic sidebar context menu. `items` is a list of
+// { label, danger?, disabled?, onClick } and/or { separator:true }. Reuses the
+// single floating .nav-context-menu element + its outside-click/Escape/scroll
+// teardown.
+function openNavMenu(items, x, y) {
   removeNavContextMenu();
 
   const menu = document.createElement("div");
   menu.className = "nav-context-menu";
   menu.setAttribute("role", "menu");
 
-  const del = document.createElement("button");
-  del.type = "button";
-  del.className = "nav-context-menu-item danger";
-  del.setAttribute("role", "menuitem");
-  del.textContent = "Delete";
-  del.addEventListener("click", () => {
-    removeNavContextMenu();
-    deleteCampaignEntry(entry);
+  items.forEach((spec) => {
+    if (!spec) return;
+    if (spec.separator) {
+      const sep = document.createElement("div");
+      sep.className = "nav-context-menu-sep";
+      menu.appendChild(sep);
+      return;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "nav-context-menu-item" +
+      (spec.danger ? " danger" : "") + (spec.disabled ? " is-disabled" : "");
+    btn.setAttribute("role", "menuitem");
+    btn.textContent = spec.label;
+    if (spec.disabled) {
+      btn.disabled = true;
+    } else {
+      btn.addEventListener("click", () => {
+        removeNavContextMenu();
+        spec.onClick();
+      });
+    }
+    menu.appendChild(btn);
   });
-  menu.appendChild(del);
+
   document.body.appendChild(menu);
 
   const rect = menu.getBoundingClientRect();
@@ -693,7 +752,11 @@ function mountCampaignEntries(entries) {
     btn.addEventListener("click", () => load(path));
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      openNavContextMenu(entry, e.clientX, e.clientY);
+      e.stopPropagation();
+      openNavMenu(
+        [{ label: "Delete", danger: true, onClick: () => deleteCampaignEntry(entry) }],
+        e.clientX, e.clientY
+      );
     });
     nav.appendChild(btn);
   });
@@ -1080,6 +1143,31 @@ async function activateCampaign(name) {
   }
 }
 
+// Right-clicking empty sidebar space opens a create menu. Button/input targets
+// are skipped so the per-entry menus (scenes, library items) keep their own
+// handlers. Scene + campaign-bound options need an active campaign.
+function installSidebarContextMenu() {
+  const sidebar = document.getElementById("sidebar");
+  if (!sidebar) return;
+  sidebar.addEventListener("contextmenu", (e) => {
+    if (e.target.closest("button, input, select, textarea, .options")) return;
+    e.preventDefault();
+    const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
+    const newLib = (kind, scope) => () => {
+      const cfg = libraryConfig(kind);
+      if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name), scope);
+    };
+    openNavMenu([
+      { label: "New scene", disabled: !hasCampaign, onClick: openNewPageDialog },
+      { separator: true },
+      { label: "New item", onClick: newLib("item", "global") },
+      { label: "New campaign-bound item", disabled: !hasCampaign, onClick: newLib("item", "campaign") },
+      { label: "New enemy", onClick: newLib("enemy", "global") },
+      { label: "New campaign-bound enemy", disabled: !hasCampaign, onClick: newLib("enemy", "campaign") },
+    ], e.clientX, e.clientY);
+  });
+}
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
@@ -1097,6 +1185,7 @@ async function init() {
   installRefLinkHandler();
   installLibraryChangeHandler();
   setupCollapsibleSections();
+  installSidebarContextMenu();
 
   // The campaign manager owns selection (localStorage + server) and the start
   // screen; it calls activateCampaign() to load the chosen campaign's reader.

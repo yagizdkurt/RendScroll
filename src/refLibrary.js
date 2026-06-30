@@ -200,6 +200,37 @@ const RefLibrary = (() => {
     if (map) map.delete(norm(name));
   }
 
+  // Move a library file between the campaign-local and global folders. The
+  // server relocates the .md atomically; we then re-key the cache entry under
+  // its new path/origin (keeping the cached source). `toScope` is
+  // "campaign" or "global".
+  async function moveFile(type, name, toScope) {
+    const def = REF_TYPES[type];
+    if (!def) throw new Error("unknown library type: " + type);
+    const existing = lookup(type, name);
+    const path = existing ? existing.path : def.folder + "/" + name + ".md";
+    const res = await fetch("/__move_library_file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, name, path, scope: toScope || "global" }),
+    });
+    let payload = null;
+    try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+    if (!res.ok || !payload || !payload.ok || !payload.entry) {
+      const detail = payload && payload.error ? payload.error : "HTTP " + res.status;
+      throw new Error("Item move failed: " + detail);
+    }
+    const map = cache[type];
+    if (map) map.delete(norm(name));
+    put(type, {
+      name: payload.entry.name,
+      path: payload.entry.path,
+      origin: payload.entry.origin,
+      source: existing ? existing.source : "",
+    });
+    return payload.entry;
+  }
+
   // Campaign-over-global overrides for the debug panel:
   // [{ type, name, using, hidden: [paths] }].
   function overrides() {
@@ -269,6 +300,7 @@ const RefLibrary = (() => {
     createFile,
     refresh,
     deleteFile,
+    moveFile,
     duplicates: () => duplicates.slice(),
     overrides,
     detectCycles,
