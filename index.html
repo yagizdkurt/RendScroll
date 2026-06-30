@@ -95,6 +95,10 @@
        when inserting a SourceItem-backed scene Item. Needs form.js + refLibrary.js. -->
   <script src="src/editor/libraryPicker.js"></script>
   <script src="src/editor/editor.js"></script>
+  <!-- Campaign package exporter: bundles scenes + referenced items/enemies +
+       assets into a zip. Needs refLibrary.js + the card asset rules; used by the
+       printer dropdown's "Export Package" action, so load it before printer.js. -->
+  <script src="src/exporter/exporter.js"></script>
   <!-- Printer mode (export-only; reads the rendered #page, changes nothing) -->
   <script src="src/printer/printer.js"></script>
   <!-- Debug panel (dev-only; read-only parser diagnostics, excluded from print) -->

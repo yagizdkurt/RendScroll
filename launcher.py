@@ -26,6 +26,8 @@ PORT_START = 8000
 PORT_END = 8010
 CAMPAIGN_DIR = "Campaign"
 OPTIONS_CURRENT_FILE = "options.current.json"
+# Destination root for "Export Campaign Package" zips. Gitignored (the `*` rule).
+EXPORTS_DIR = "Exports"
 # Reusable reference libraries: a ref type -> the folder its files live in. Items
 # and enemies today; npc/monster/location can be added here without touching the
 # endpoints.
@@ -359,6 +361,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._save_options()
             return
 
+        if path == "/__export_package":
+            self._export_package()
+            return
+
         self._send_json(404, {"ok": False, "error": "unknown endpoint"})
 
     def _create_campaign_file(self):
@@ -438,6 +444,27 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         base = os.path.realpath(os.getcwd())
         target = os.path.realpath(os.path.join(base, rel_path))
         roots = [CAMPAIGN_DIR] + list(LIBRARY_DIRS.values())
+        for root in roots:
+            root_real = os.path.realpath(os.path.join(base, root))
+            try:
+                if os.path.commonpath([root_real, target]) == root_real:
+                    return target
+            except ValueError:
+                continue  # different drive on Windows
+        return None
+
+    def _resolve_readable(self, rel_path):
+        """Resolve `rel_path` to an absolute path only if it stays inside one of
+        the readable export roots (Campaign/, the library folders, images/,
+        audio/) or is exactly options.current.json. Returns the path or None.
+        Used by the package exporter, which only copies content/assets out."""
+        base = os.path.realpath(os.getcwd())
+        if not isinstance(rel_path, str) or not rel_path.strip():
+            return None
+        target = os.path.realpath(os.path.join(base, rel_path))
+        if target == os.path.realpath(os.path.join(base, OPTIONS_CURRENT_FILE)):
+            return target
+        roots = [CAMPAIGN_DIR] + list(LIBRARY_DIRS.values()) + ["images", "audio"]
         for root in roots:
             root_real = os.path.realpath(os.path.join(base, root))
             try:
@@ -544,6 +571,59 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         print(paint(f"Saved: {OPTIONS_CURRENT_FILE}", GREEN), flush=True)
         self._send_json(200, {"ok": True})
+
+    def _export_package(self):
+        # "Export Campaign Package": the client resolves every scene + referenced
+        # library item/enemy + image/audio asset (reusing RefLibrary and the
+        # card-image rules) and POSTs the flat path list. We copy each accepted
+        # path into Exports/<name>/ preserving its subfolder, then zip it. Reads
+        # are confined to _resolve_readable's roots; writes only ever land under
+        # Exports/. The .md-only save/delete guards above are untouched.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            files = data.get("files")
+        except (ValueError, AttributeError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        if not isinstance(files, list):
+            self._send_json(400, {"ok": False, "error": "files must be a list"})
+            return
+
+        name = clean_library_name(data.get("name")) or time.strftime("Campaign-%Y%m%d-%H%M%S")
+        base = os.path.realpath(os.getcwd())
+        dest_root = os.path.join(base, EXPORTS_DIR, name)
+
+        # Start clean so a re-export with the same name doesn't mix stale files.
+        if os.path.isdir(dest_root):
+            shutil.rmtree(dest_root, ignore_errors=True)
+
+        copied = 0
+        try:
+            for rel in files:
+                source = self._resolve_readable(rel)
+                if not source or not os.path.isfile(source):
+                    continue  # skip anything outside the roots or missing
+                sub = os.path.relpath(source, base)
+                target = os.path.join(dest_root, sub)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copy2(source, target)
+                copied += 1
+
+            if copied == 0:
+                self._send_json(400, {"ok": False, "error": "nothing to export"})
+                return
+
+            zip_base = os.path.join(base, EXPORTS_DIR, name)
+            archive = shutil.make_archive(zip_base, "zip", root_dir=os.path.join(base, EXPORTS_DIR), base_dir=name)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        zip_rel = os.path.relpath(archive, base).replace("\\", "/")
+        print(paint(f"Exported: {zip_rel} ({copied} files)", GREEN), flush=True)
+        self._send_json(200, {"ok": True, "name": name, "zip": zip_rel, "copied": copied})
 
     def log_request(self, code="-", size="-"):
         if self.path == "/favicon.ico":

@@ -89,6 +89,20 @@
   border-radius:4px;
 }
 .printer-export-btn:hover{ filter:brightness(1.1); }
+.printer-export-btn:disabled{ opacity:.6; cursor:default; filter:none; }
+
+/* Inline status line for the package export (summary / warning / error). */
+.printer-export-status{
+  margin-top:.5rem;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.78rem;
+  line-height:1.35;
+  word-break:break-word;
+  color:#e8dcc2;
+}
+.printer-export-status.ok{ color:#bfe3b0; }
+.printer-export-status.warn{ color:var(--gold, #c9ad6a); }
+.printer-export-status.err{ color:#f0a08a; }
 
 /* Zoom row inside the Export subsection. Orientation uses the shared .opt-*
    option styling; this just lays out the zoom label + range slider. */

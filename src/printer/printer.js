@@ -187,6 +187,51 @@
     });
     group.appendChild(btn);
 
+    // --- Export Campaign Package button ---
+    // Bundles the whole campaign (scenes + referenced items/enemies + assets)
+    // into a zip via CampaignExporter. Independent of the print path above.
+    const pkgBtn = document.createElement("button");
+    pkgBtn.type = "button";
+    pkgBtn.className = "printer-export-btn";
+    pkgBtn.textContent = "📦 Export Package";
+    pkgBtn.title = "Bundle scenes + referenced items, enemies, and assets into a shareable zip";
+    group.appendChild(pkgBtn);
+
+    // Inline status line for the package export (success summary or error).
+    const status = document.createElement("div");
+    status.className = "printer-export-status";
+    status.hidden = true;
+    group.appendChild(status);
+
+    function setStatus(text, kind) {
+      status.hidden = !text;
+      status.textContent = text || "";
+      status.className = "printer-export-status" + (kind ? " " + kind : "");
+    }
+
+    pkgBtn.addEventListener("click", function () {
+      if (typeof CampaignExporter === "undefined") {
+        setStatus("Exporter unavailable.", "err");
+        return;
+      }
+      pkgBtn.disabled = true;
+      setStatus("Packaging campaign…", "");
+      CampaignExporter.exportPackage()
+        .then(function (r) {
+          let msg = "Saved " + r.zip + " (" + r.copied + " files).";
+          if (r.missing && r.missing.length) {
+            msg += " Missing: " + r.missing.join(", ");
+          }
+          setStatus(msg, r.missing && r.missing.length ? "warn" : "ok");
+        })
+        .catch(function (e) {
+          setStatus(String(e && e.message ? e.message : e), "err");
+        })
+        .then(function () {
+          pkgBtn.disabled = false;
+        });
+    });
+
     wrap.appendChild(group);
     host.insertBefore(wrap, host.firstChild);
 
