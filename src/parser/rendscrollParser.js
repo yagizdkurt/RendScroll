@@ -61,7 +61,7 @@ const RendScrollParser = (() => {
   // as the card builders do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
   const DIRECTIVE_NAMES = new Set([
-    "side", "image", "bg", "closed", "textsize", "size", "yapışık", "connect", "combine",
+    "side", "image", "bg", "closed", "textsize", "size", "file", "yapışık", "connect", "combine",
   ]);
   const STUCK_NAMES = new Set(["yapışık", "connect", "combine"]);
   const TRUTHY = new Set(["t", "true", "yes", "1", "evet"]);
@@ -102,6 +102,7 @@ const RendScrollParser = (() => {
     { type: "narrative",   levels: [3], headingRe: /^\s*narrative\s*$/i, title: () => "Narrative" },
     { type: "std",         levels: [3], headingRe: /^std\s*:/i,              fallback: "STD" },
     { type: "picture",     levels: [3], headingRe: /^\s*picture\s*:/i,       fallback: "Picture" },
+    { type: "audio",       levels: [3], headingRe: /^\s*audio\s*:/i,         fallback: "Audio" },
     { type: "npc",         levels: [3], includes: "npc", strip: /^\s*npc\s*:\s*/i, fallback: "NPC" },
     { type: "echo",        levels: [3], headingRe: /^\s*(yankı|yanki|echo)\b/i, title: (c) => c },
   ];

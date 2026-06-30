@@ -48,6 +48,7 @@ const SCRIPTS = [
   "src/cards/narrative/narrative.js",
   "src/cards/std/std.js",
   "src/cards/picture/picture.js",
+  "src/cards/audio/audio.js",
   "src/cards/shared/cardCollapse.js",
 ];
 

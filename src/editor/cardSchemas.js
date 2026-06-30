@@ -447,6 +447,13 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
+  define("audio", "Audio", keywordHeading("Audio"), [
+    { key: "title", label: "Caption (optional)", kind: "text" },
+    { key: "file", label: "Audio file", kind: "text", mdLabel: "File", required: true },
+    fColumn,
+    fClosed,
+  ]);
+
   define("skillchecks", "Skill Checks", {
     heading() { return "Skill Checks"; },
     parseHeading(content, values) { values.column = "left"; },
@@ -500,7 +507,7 @@ const EditorSchemas = (() => {
   ]);
 
   // Order shown in the insert menu.
-  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture"];
+  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture", "audio"];
 
   return {
     get(type) { return REGISTRY[type] || null; },

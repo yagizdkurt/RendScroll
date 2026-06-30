@@ -26,6 +26,8 @@
 !Campaign/showcase.md
 !images/
 !images/.gitkeep
+!audio/
+!audio/.gitkeep
 # reusable reference libraries (Items, Enemies, …) — folder structure is committed;
 # the library .md files themselves are local user content (ignored).
 !Items/

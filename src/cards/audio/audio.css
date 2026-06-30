@@ -1,0 +1,22 @@
+/* ---------- Audio Cards ---------- */
+/* Small sound-effect / music player: native <audio controls>, kept compact. */
+.page .audio-card{
+  margin:.6rem 0 .9rem;
+}
+.page .audio-card > :first-child{margin-top:0;}
+.page .audio-card > :last-child{margin-bottom:0;}
+
+.page .audio-card audio{
+  width:100%;
+  max-width:340px;
+  height:32px;
+  display:block;
+}
+
+.page .audio-caption{
+  font-family:'Alegreya Sans SC',sans-serif;
+  letter-spacing:.04em;
+  color:var(--maroon);
+  font-size:.92rem;
+  margin:.35rem 0 0;
+}
