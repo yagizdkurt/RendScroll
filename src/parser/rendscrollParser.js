@@ -61,7 +61,7 @@ const RendScrollParser = (() => {
   // as the card builders do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
   const DIRECTIVE_NAMES = new Set([
-    "side", "image", "bg", "closed", "textsize", "yapışık", "connect", "combine",
+    "side", "image", "bg", "closed", "textsize", "size", "file", "yapışık", "connect", "combine",
   ]);
   const STUCK_NAMES = new Set(["yapışık", "connect", "combine"]);
   const TRUTHY = new Set(["t", "true", "yes", "1", "evet"]);
@@ -71,66 +71,111 @@ const RendScrollParser = (() => {
 
   // --- classification (canonical; outline.js delegates here) ----------------
 
+  // Canonical card-type manifest: ONE ordered table that drives both classification
+  // (cardType) and the displayed title (cardTitle). It replaces the two hand-kept
+  // if/switch ladders that used to live here.
+  //
+  // Order is LOAD-BEARING — it is the match order of the old if-ladder
+  // (sourceitem/sourceenemy before item/combat; the loose `includes` matches for
+  // skill-check / npc sit late so a colon-form type is never shadowed). Add a card
+  // type by adding a row here AND registering its builder via
+  // RendScrollCards.register(...) in cards/<type>/<type>.js.
+  //   levels    — heading levels this type is a card at (obj is H2+H3; rest H3-only)
+  //   headingRe — case-insensitive test on the RAW heading. lower() must NOT be
+  //               applied first: it maps "I"->"ı" (dotless), turning "Item" into
+  //               "ıtem". OR
+  //   includes  — substring test on the lower()'d heading (npc / skill check, which
+  //               the card builders also lower)
+  //   strip     — regex removed from the heading to get the title; defaults to
+  //               headingRe + trailing spaces for colon-form types
+  //   fallback  — title shown when stripping leaves nothing
+  //   title     — overrides strip/fallback entirely with title(content)
+  const CARD_TYPES = [
+    { type: "skillchecks", levels: [3], includes: "skill check", title: (c) => c },
+    { type: "sourceitem",  levels: [3], headingRe: /^\s*source\s*item\s*:/i,  fallback: "SourceItem" },
+    { type: "sourceenemy", levels: [3], headingRe: /^\s*source\s*enemy\s*:/i, fallback: "SourceEnemy" },
+    { type: "item",        levels: [3], headingRe: /^\s*item\s*:/i,           fallback: "Item" },
+    { type: "ability",     levels: [3], headingRe: /^\s*(skill|spell|passive|effect)\s*:/i, fallback: "Ability" },
+    { type: "obj",         levels: [2, 3], headingRe: /^\s*(obje|object|poi)\s*:/i, fallback: "POI" },
+    { type: "combat",      levels: [3], headingRe: /^\s*(sava[şs]|combat)\s*:/i, fallback: "Combat" },
+    { type: "unexpected",  levels: [3], headingRe: /^\s*(beklenmedik|unexpected)\s*:/i, fallback: "Unexpected" },
+    { type: "narrative",   levels: [3], headingRe: /^\s*narrative\s*$/i, title: () => "Narrative" },
+    { type: "std",         levels: [3], headingRe: /^std\s*:/i,              fallback: "STD" },
+    { type: "picture",     levels: [3], headingRe: /^\s*picture\s*:/i,       fallback: "Picture" },
+    { type: "audio",       levels: [3], headingRe: /^\s*audio\s*:/i,         fallback: "Audio" },
+    { type: "npc",         levels: [3], includes: "npc", strip: /^\s*npc\s*:\s*/i, fallback: "NPC" },
+    { type: "echo",        levels: [3], headingRe: /^\s*(yankı|yanki|echo)\b/i, title: (c) => c },
+  ];
+  const CARD_TYPE_BY_NAME = CARD_TYPES.reduce((m, r) => { m[r.type] = r; return m; }, {});
+
+  // Default title-strip for colon-form rows: the classification regex plus any
+  // trailing whitespace (so "Item:  Sword" -> "Sword"). includes-form rows have no
+  // headingRe and must supply an explicit `strip` (npc) or `title` (skillchecks).
+  function titleStripFor(row) {
+    if (row.strip) return row.strip;
+    if (row.headingRe) return new RegExp(row.headingRe.source + "\\s*", row.headingRe.flags);
+    return null;
+  }
+
+  function matchesRow(row, raw, tl) {
+    return row.includes ? tl.includes(row.includes) : row.headingRe.test(raw);
+  }
+
   // Heading content (after "## ") -> card type, or "" when the heading is not a
-  // card (an event divider / page title / plain section).
-  // `level` matters: only Obje/Object/POI render as cards at H2 (obj.js queries
-  // h2+h3); every other card type is H3-only.
-  // The colon-form types are matched with case-insensitive regex on the RAW
-  // heading (exactly like the card builders, e.g. item.js's /^\s*item:/i). Turkish
-  // lower() must NOT be applied first — it maps "I"->"ı" (dotless), which turns
-  // "Item" into "ıtem" and breaks the match. Only the includes-based checks
-  // (npc / skill checks, which the card builders also lower) use lower().
+  // card (an event divider / page title / plain section). `level` matters: only
+  // Obje/Object/POI are cards at H2 (obj.js queries h2+h3); the rest are H3-only.
   function cardType(level, content) {
+    if (level !== 2 && level !== 3) return "";
     const raw = String(content).trim();
-    if (level === 2) {
-      return /^\s*(obje|object|poi)\s*:/i.test(raw) ? "obj" : "";
-    }
-    if (level !== 3) return "";
     const tl = lower(raw);
-    if (tl.includes("skill check")) return "skillchecks";
-    if (/^\s*source\s*item\s*:/i.test(raw) || /^\s*sourceitem\s*:/i.test(raw)) return "sourceitem";
-    if (/^\s*source\s*enemy\s*:/i.test(raw) || /^\s*sourceenemy\s*:/i.test(raw)) return "sourceenemy";
-    if (/^\s*item\s*:/i.test(raw)) return "item";
-    if (/^\s*(skill|spell|passive|effect)\s*:/i.test(raw)) return "ability";
-    if (/^\s*(obje|object|poi)\s*:/i.test(raw)) return "obj";
-    if (/^\s*(sava[şs]|combat)\s*:/i.test(raw)) return "combat";
-    if (/^\s*(beklenmedik|unexpected)\s*:/i.test(raw)) return "unexpected";
-    if (/^\s*narrative\s*$/i.test(raw)) return "narrative";
-    if (/^std\s*:/i.test(raw)) return "std";
-    if (tl.includes("npc")) return "npc";
-    if (/^\s*(yankı|yanki|echo)\b/i.test(raw)) return "echo";
+    for (const row of CARD_TYPES) {
+      if (row.levels.indexOf(level) < 0) continue;
+      if (matchesRow(row, raw, tl)) return row.type;
+    }
     return ""; // plain ### section (renders as a normal heading)
   }
 
   // Card title text (what the renderer shows), used for menus/labels.
   function cardTitle(type, content) {
     const c = String(content).trim();
-    switch (type) {
-      case "npc": return c.replace(/^\s*npc\s*:\s*/i, "").trim() || "NPC";
-      case "sourceitem": return c.replace(/^\s*source\s*item\s*:\s*/i, "").replace(/^\s*sourceitem\s*:\s*/i, "").trim() || "SourceItem";
-      case "sourceenemy": return c.replace(/^\s*source\s*enemy\s*:\s*/i, "").replace(/^\s*sourceenemy\s*:\s*/i, "").trim() || "SourceEnemy";
-      case "item": return c.replace(/^\s*item\s*:\s*/i, "").trim() || "Item";
-      case "ability": return c.replace(/^\s*(skill|spell|passive|effect)\s*:\s*/i, "").trim() || "Ability";
-      case "obj": return c.replace(/^\s*(obje|object|poi)\s*:\s*/i, "").trim() || "POI";
-      case "combat": return c.replace(/^\s*(sava[şs]|combat)\s*:\s*/i, "").trim() || "Combat";
-      case "unexpected": return c.replace(/^\s*(beklenmedik|unexpected)\s*:\s*/i, "").trim() || "Unexpected";
-      case "narrative": return "Narrative";
-      case "std": return c.replace(/^\s*std\s*:\s*/i, "").trim() || "STD";
-      case "skillchecks": return c.trim();
-      default: return c.trim();
-    }
+    const row = CARD_TYPE_BY_NAME[type];
+    if (!row) return c;
+    if (typeof row.title === "function") return row.title(c);
+    const strip = titleStripFor(row);
+    const s = (strip ? c.replace(strip, "") : c).trim();
+    return s || row.fallback || c;
   }
 
-  // Mirror of layout.js:canDockUnder for model cards (docking rules).
+  // The ordered list of classifiable card type names (e.g. for a registry guard).
+  function cardTypeList() {
+    return CARD_TYPES.map((r) => r.type);
+  }
+
+  // Canonical sticky-docking rule, as data. A "Yapışık" (stuck) card may dock
+  // seamlessly under the last-placed host card. This is the ONE source of truth;
+  // layout.js (DOM/classList) and editor/anchors.js (model) both derive from it via
+  // dockAllows() instead of re-encoding the rule.
+  //   hosts      — host types this stuck card may dock under regardless of host.stuck
+  //   stuckHosts — host types allowed only when the host is itself stuck
+  const DOCK_RULES = {
+    item:    { hosts: ["obj"],         stuckHosts: ["item"] },
+    ability: { hosts: ["item", "obj"], stuckHosts: ["ability"] },
+  };
+
+  // Type/flag-level predicate shared by the model and DOM call sites. Only a stuck
+  // card docks; an unstuck card or unknown type never does.
+  function dockAllows(cardType, cardStuck, hostType, hostStuck) {
+    if (!cardStuck || !hostType) return false;
+    const rule = DOCK_RULES[cardType];
+    if (!rule) return false;
+    if (rule.hosts.indexOf(hostType) >= 0) return true;
+    return !!hostStuck && rule.stuckHosts.indexOf(hostType) >= 0;
+  }
+
+  // Model-card docking check (used by the parser's own AST + editor/anchors.js).
   function canDock(card, host) {
     if (!host) return false;
-    if (card.type === "item" && card.stuck) {
-      return host.type === "obj" || (host.type === "item" && host.stuck);
-    }
-    if (card.type === "ability" && card.stuck) {
-      return host.type === "item" || host.type === "obj" || (host.type === "ability" && host.stuck);
-    }
-    return false;
+    return dockAllows(card.type, card.stuck, host.type, host.stuck);
   }
 
   // --- check / outcome parsing (canonical; cardSchemas.js delegates here) ---
@@ -333,6 +378,12 @@ const RendScrollParser = (() => {
         if (name === "textsize") {
           const size = Number(value);
           if (!/^\d+(?:\.\d+)?$/.test(value) || size < 8 || size > 32) return null;
+        }
+        // "Size:" on a Picture card is a column-width percentage (5–100). A
+        // non-numeric value (e.g. prose "Size: Large") falls through to body.
+        if (name === "size") {
+          const pct = Number(value);
+          if (!/^\d+(?:\.\d+)?$/.test(value) || pct < 5 || pct > 100) return null;
         }
         if (value === "") return { kind: "malformed", reason: "directive missing value" };
         return { kind: "directive", name, rawLabel: m[1].trim(), value };
@@ -630,7 +681,9 @@ const RendScrollParser = (() => {
     lineText,
     cardType,
     cardTitle,
+    cardTypeList,
     canDock,
+    dockAllows,
     parseChecks,
     serializeChecks,
     parseOutcome,

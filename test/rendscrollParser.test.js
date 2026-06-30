@@ -252,6 +252,25 @@ test("Narrative: card type, Side, Text Size, and Text body are recognized", () =
   assert.match(bodyText(narrative), /^Text:\n> Read this aloud\.$/);
 });
 
+test("Picture: card type, caption title, and Image/Size/Side directives are recognized", () => {
+  const doc = parseRendScroll([
+    "# Scene",
+    "## Event",
+    "### Picture: Castle Map",
+    "Image: kale",
+    "Size: 50",
+    "Side: R",
+    "",
+  ].join("\n"));
+  const cards = allCards(doc);
+  assert.equal(cards.length, 1);
+  const picture = cards[0];
+  assert.equal(picture.type, "picture");
+  assert.equal(picture.title, "Castle Map");
+  assert.equal(picture.column, "right");
+  assert.deepEqual(directiveNames(picture).sort(), ["image", "side", "size"]);
+});
+
 // --- Collapsable (heading-level) -------------------------------------------
 
 test("Collapsable directive is recorded on the section, not the body", () => {

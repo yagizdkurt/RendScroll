@@ -34,6 +34,13 @@
    `module.exports` for Node tests. */
 
 const CombatEnemyModel = (() => {
+  // Dice + damage-type parsing/serializing lives in one shared module so the
+  // combat reader, item cards, and the editor never drift. Browser: global
+  // `DamageModel`. Node: require it.
+  const DM = (typeof DamageModel !== "undefined")
+    ? DamageModel
+    : require("../shared/damageModel.js");
+
   // Pipe-separated header stat tokens. Order here is also the canonical serialize
   // order. Init is handled specially (formatted as a signed modifier).
   const STAT_TOKENS = [
@@ -76,42 +83,12 @@ const CombatEnemyModel = (() => {
     return segs.join(" | ");
   }
 
-  function parseDamageTerm(term) {
-    const m = String(term || "").trim().match(/^(\d*)d(4|6|8|10|12|20)\s*([+-]\s*\d+)?\s*(.*)$/i);
-    if (!m) return null;
-    const count = parseInt(m[1] || "1", 10) || 1;
-    const sides = parseInt(m[2], 10);
-    const extra = (m[3] || "").replace(/\s+/g, "");
-    const type = (m[4] || "").trim();
-    return { count, sides, extra, type };
-  }
-
-  function parseDamageTerms(damage) {
-    const raw = String(damage || "").trim();
-    if (!raw) return null;
-    const parts = raw.split(/\s+\+\s+(?=\d*d(?:4|6|8|10|12|20)\b)/i);
-    if (!parts.length) return null;
-    const terms = parts.map(parseDamageTerm);
-    return terms.every(Boolean) ? terms : null;
-  }
-
-  function parseDamageDice(damage) {
-    const terms = parseDamageTerms(damage);
-    return terms && terms.length === 1 ? terms[0] : null;
-  }
-
-  function serializeDamageTerm(term) {
-    const count = Math.max(1, parseInt(term && term.count, 10) || 1);
-    const sides = parseInt(term && term.sides, 10);
-    if (![4, 6, 8, 10, 12, 20].includes(sides)) return "";
-    const extra = String((term && term.extra) || "").replace(/\s+/g, "");
-    const type = String((term && term.type) || "").trim();
-    return count + "d" + sides + extra + (type ? " " + type : "");
-  }
-
-  function serializeDamageTerms(terms) {
-    return (terms || []).map(serializeDamageTerm).filter(Boolean).join(" + ");
-  }
+  // Dice/damage parsing + serializing now live in DamageModel (shared). Keep the
+  // historical CombatEnemyModel.* names by re-exporting the shared functions.
+  const parseDamageDice = DM.parseDamageDice;
+  const parseDamageTerms = DM.parseDamageTerms;
+  const serializeDamageTerm = DM.serializeDamageTerm;
+  const serializeDamageTerms = DM.serializeDamageTerms;
 
   // "Kate | Village Woman • Humanoid | AC 10 | … | x3" -> enemy record (without
   // the indented sub-section bullets). A segment that isn't a known stat or the

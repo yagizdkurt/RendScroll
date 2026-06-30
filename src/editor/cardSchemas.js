@@ -68,7 +68,10 @@ const EditorSchemas = (() => {
       // as plain body lines.
       if (f.key === "title" || f.key === "column" || f.key === "keyword") continue;
       const v = values[f.key];
-      if (f.kind === "text" || f.kind === "select") {
+      // itemType + damage carry rich editor UI but store as plain "Label: value"
+      // lines (the parser/renderer own the icon-ization), so they serialize like
+      // a scalar text field.
+      if (f.kind === "text" || f.kind === "select" || f.kind === "itemType" || f.kind === "damage") {
         if (v != null && String(v).trim() !== "") out += f.mdLabel + ": " + String(v).trim() + eol;
       } else if (f.kind === "flag") {
         if (v) out += f.mdLabel + ": T" + eol;
@@ -155,7 +158,7 @@ const EditorSchemas = (() => {
         const m = lower(t).match(/^([^:]+):\s*(.*)$/);
         if (!m || !labs.includes(m[1].trim())) continue;
 
-        if (f.kind === "text" || f.kind === "select") {
+        if (f.kind === "text" || f.kind === "select" || f.kind === "itemType" || f.kind === "damage") {
           // recover original-case value from the raw line
           const rv = t.match(/^[^:]+:\s*(.*)$/);
           values[f.key] = rv ? rv[1].trim() : "";
@@ -359,7 +362,8 @@ const EditorSchemas = (() => {
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
     { key: "sourceItem", label: "SourceItem", kind: "text", mdLabel: "SourceItem" },
-    { key: "tur", label: "Type", kind: "text", mdLabel: "Type", mdAliases: ["Tür"] },
+    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type", mdAliases: ["Tür"] },
+    { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage", mdAliases: ["Hasar"] },
     rarityField(),
     fImage,
     fColumn,
@@ -435,6 +439,21 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
+  define("picture", "Picture", keywordHeading("Picture"), [
+    { key: "title", label: "Caption (optional)", kind: "text" },
+    { key: "image", label: "Image", kind: "text", mdLabel: "Image", required: true },
+    { key: "size", label: "Size (% of column)", kind: "text", mdLabel: "Size", inputMode: "numeric" },
+    fColumn,
+    fClosed,
+  ]);
+
+  define("audio", "Audio", keywordHeading("Audio"), [
+    { key: "title", label: "Caption (optional)", kind: "text" },
+    { key: "file", label: "Audio file", kind: "text", mdLabel: "File", required: true },
+    fColumn,
+    fClosed,
+  ]);
+
   define("skillchecks", "Skill Checks", {
     heading() { return "Skill Checks"; },
     parseHeading(content, values) { values.column = "left"; },
@@ -455,7 +474,8 @@ const EditorSchemas = (() => {
     },
   }, [
     fTitle,
-    { key: "tur", label: "Type", kind: "text", mdLabel: "Type", mdAliases: ["Tür"] },
+    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type", mdAliases: ["Tür"] },
+    { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage", mdAliases: ["Hasar"] },
     rarityField(),
     fImage,
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
@@ -487,7 +507,7 @@ const EditorSchemas = (() => {
   ]);
 
   // Order shown in the insert menu.
-  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std"];
+  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture", "audio"];
 
   return {
     get(type) { return REGISTRY[type] || null; },

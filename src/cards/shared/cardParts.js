@@ -23,7 +23,12 @@ function renderMetaGrid(rows, options) {
 
     const val = document.createElement("div");
     val.className = options.valueClass;
-    if (options.isRarityLabel && options.isRarityLabel(label)) {
+    // A card may render specific labels with a custom value node (e.g. an item's
+    // type pill or icon-ized damage); returning a falsy node falls through.
+    const custom = options.customValue && options.customValue(label, value);
+    if (custom) {
+      val.appendChild(custom);
+    } else if (options.isRarityLabel && options.isRarityLabel(label)) {
       val.appendChild(createRarityBadge(value, options.rarity));
     } else {
       val.textContent = value;

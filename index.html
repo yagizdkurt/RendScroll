@@ -11,12 +11,14 @@
 <link rel="stylesheet" href="src/editor/editor.css">
 <link rel="stylesheet" href="src/printer/printer.css">
 <link rel="stylesheet" href="src/debug/debugPanel.css">
+<link rel="stylesheet" href="src/campaign/campaignManager.css">
 </head>
 <body>
   <aside id="sidebar">
     <img class="sidebar-brand" src="src/STDImages/RendScroll2.png" alt="RendScroll">
     <button id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true">☰</button>
-    <div class="nav-section-title" id="nav-campaign-title">Campaign</div>
+    <div class="nav-campaign-name" id="nav-campaign-name"></div>
+    <div class="nav-section-title" id="nav-campaign-title">Scenes</div>
     <nav id="nav"></nav>
     <div class="nav-section-title" id="nav-library-title">Items</div>
     <nav id="library-nav" aria-label="Items"></nav>
@@ -27,6 +29,7 @@
   <div id="main-area">
     <header id="topbar">
       <div id="topbar-primary">
+        <button id="manage-campaigns-button" class="topbar-action topbar-manage-campaigns" type="button">⚑ Manage Campaigns</button>
         <button id="new-page-button" class="topbar-action topbar-new-page" type="button">+ New Page</button>
       </div>
       <div id="topbar-tools"></div>
@@ -52,8 +55,16 @@
   <script src="src/markdown.js"></script>
   <script src="src/cards/shared/cardImage.js"></script>
   <script src="src/cards/shared/StdIcons.js"></script>
+  <!-- Shared dice/damage model + renderer (combat attacks and item damage) and
+       the DnD 5e item-type vocabulary. Load before the card builders that use them. -->
+  <script src="src/cards/shared/damageModel.js"></script>
+  <script src="src/cards/shared/damageRender.js"></script>
+  <script src="src/cards/shared/itemTypes.js"></script>
   <script src="src/cards/shared/cardMeta.js"></script>
   <script src="src/cards/shared/cardParts.js"></script>
+  <!-- Runtime card registry: each card builder below self-registers here; app.js
+       looks builders/normalizers up by type. Must load before the builders. -->
+  <script src="src/cards/shared/cardRegistry.js"></script>
   <script src="src/cards/skillChecks/skillChecks.js"></script>
   <script src="src/cards/npc/npc.js"></script>
   <script src="src/cards/item/item.js"></script>
@@ -64,8 +75,20 @@
   <script src="src/cards/unexpected/unexpected.js"></script>
   <script src="src/cards/narrative/narrative.js"></script>
   <script src="src/cards/std/std.js"></script>
+  <script src="src/cards/picture/picture.js"></script>
+  <script src="src/cards/audio/audio.js"></script>
   <script src="src/cards/shared/cardCollapse.js"></script>
   <script src="src/cards/shared/layout.js"></script>
+  <!-- Multi-campaign manager: lists/creates/switches/imports/exports campaigns and
+       owns the start screen. Needs refLibrary.js; used by app.js boot, so load it
+       before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
+  <script src="src/campaign/campaignManager.js"></script>
+  <!-- Reader subsystems split out of app.js. All declaration-only globals; must
+       load BEFORE app.js, whose init() (run at load) calls into them. -->
+  <script src="src/appModals.js"></script>
+  <script src="src/appSidebar.js"></script>
+  <script src="src/appLibrary.js"></script>
+  <script src="src/refNavigation.js"></script>
   <script src="src/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
   <script src="src/editor/outline.js"></script>
@@ -74,12 +97,21 @@
   <script src="src/editor/anchors.js"></script>
   <script src="src/editor/dragDrop.js"></script>
   <script src="src/editor/contextMenu.js"></script>
+  <!-- Shared damage-parts editor: reused by the combat attack editor (form.js)
+       and the item Damage field. Must load before form.js. -->
+  <script src="src/editor/damageEditor.js"></script>
   <script src="src/editor/form.js"></script>
   <script src="src/cards/skillChecks/skillChecks.editor.js"></script>
+  <!-- Item editor fields (Type picker + Damage). Registers with form.js. -->
+  <script src="src/cards/item/item.editor.js"></script>
   <!-- Item Library picker: choose an existing library item (or create a new one)
        when inserting a SourceItem-backed scene Item. Needs form.js + refLibrary.js. -->
   <script src="src/editor/libraryPicker.js"></script>
   <script src="src/editor/editor.js"></script>
+  <!-- Campaign package exporter: bundles scenes + referenced items/enemies +
+       assets into a zip. Needs refLibrary.js + the card asset rules; used by the
+       printer dropdown's "Export Package" action, so load it before printer.js. -->
+  <script src="src/exporter/exporter.js"></script>
   <!-- Printer mode (export-only; reads the rendered #page, changes nothing) -->
   <script src="src/printer/printer.js"></script>
   <!-- Debug panel (dev-only; read-only parser diagnostics, excluded from print) -->

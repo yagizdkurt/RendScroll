@@ -4,13 +4,15 @@
 Run by launcher.py before the local server starts. This module intentionally
 checks only filesystem and launch-time preflight conditions:
 
-  - Campaign/ exists and contains discoverable Markdown files.
-  - Campaign Markdown files can be opened.
-  - local Image:/BG: references point to existing files.
+  - Campaigns/*/Scenes/ Markdown files can be opened.
+  - local Image:/BG: references point to existing files (campaign Images/ first,
+    then the global images/ root).
   - empty Image:/BG: values are reported because they cannot be checked.
 
-Parser and semantic Markdown diagnostics live in src/debug/diagnostics.js, where
-they use RendScrollParser as the canonical structural source.
+Having no campaigns is a valid state (the app shows a start screen), so it is not
+an error here. Parser and semantic Markdown diagnostics live in
+src/debug/diagnostics.js, where they use RendScrollParser as the canonical
+structural source.
 """
 
 import os
@@ -19,7 +21,8 @@ import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CAMPAIGN_DIR = "Campaign"
+CAMPAIGNS_DIR = "Campaigns"
+SCENES_SUBDIR = "Scenes"
 CAMPAIGN_LABEL = "(campaign)"
 
 os.system("")  # enable ANSI color handling in cmd/conhost
@@ -36,21 +39,55 @@ def paint(text, color):
     return f"{color}{text}{RESET}"
 
 
-def card_bg_path(raw):
-    """Resolve an Image:/BG: value to a project-root-relative filesystem path.
+def card_bg_candidates(raw, campaign_dir):
+    """Resolve an Image:/BG: value to candidate root-relative paths to check, in
+    precedence order (campaign Images/ first, then the global root).
 
-    External URLs and server-rooted paths are intentionally skipped here. The
-    browser debug panel can still probe them, but launch preflight only performs
-    authoritative checks for local relative paths.
-    """
+    External URLs and server-rooted paths are intentionally skipped (empty list).
+    `campaign_dir` is the scene's campaign folder relative to ROOT, e.g.
+    "Campaigns/Legacy"."""
     f = raw.strip()
     if not re.search(r"\.[a-z0-9]+$", f, re.I):
         f += ".png"
     if re.match(r"^[a-z]+://", f, re.I) or f.startswith("/"):
-        return None
+        return []
     if re.search(r"[\\/]", f):
-        return f.replace("\\", "/")
-    return "images/" + f
+        return [f.replace("\\", "/")]
+    # Bare name -> campaign Images/<name> overrides global images/<name>.
+    return [f"{campaign_dir}/Images/{f}", "images/" + f]
+
+
+def scene_files(issues):
+    """Discover every Campaigns/*/Scenes/*.md file for launch preflight.
+
+    Returns [(label, abs_path, campaign_dir)] where label is the repo-relative
+    path. No campaigns / no scenes is a valid (empty) state, not an error."""
+    root = os.path.join(ROOT, CAMPAIGNS_DIR)
+    out = []
+    try:
+        campaigns = sorted(os.listdir(root), key=str.casefold)
+    except OSError:
+        return out  # Campaigns/ absent -> nothing to check yet
+
+    for camp in campaigns:
+        if camp.startswith("."):
+            continue
+        scenes_root = os.path.join(root, camp, SCENES_SUBDIR)
+        if not os.path.isdir(scenes_root):
+            continue
+        try:
+            names = os.listdir(scenes_root)
+        except OSError as exc:
+            issues.append(("error", CAMPAIGN_LABEL, 1,
+                           f"{CAMPAIGNS_DIR}/{camp}/{SCENES_SUBDIR} unreadable: {exc}"))
+            continue
+        files = [n for n in names
+                 if not n.startswith(".") and n.lower().endswith(".md")
+                 and os.path.isfile(os.path.join(scenes_root, n))]
+        for n in sorted(files, key=campaign_sort_key):
+            label = f"{CAMPAIGNS_DIR}/{camp}/{SCENES_SUBDIR}/{n}"
+            out.append((label, os.path.join(scenes_root, n), f"{CAMPAIGNS_DIR}/{camp}"))
+    return out
 
 
 def campaign_sort_key(filename):
@@ -64,32 +101,7 @@ def campaign_sort_key(filename):
     )
 
 
-def load_file_list(issues):
-    """Discover top-level Campaign/*.md files for launch preflight."""
-    campaign_root = os.path.join(ROOT, CAMPAIGN_DIR)
-    if not os.path.isdir(campaign_root):
-        issues.append(("error", CAMPAIGN_LABEL, 1, f"Campaign folder not found: {CAMPAIGN_DIR}"))
-        return [], CAMPAIGN_DIR
-
-    try:
-        names = os.listdir(campaign_root)
-    except OSError as exc:
-        issues.append(("error", CAMPAIGN_LABEL, 1, f"Campaign folder unreadable: {exc}"))
-        return [], CAMPAIGN_DIR
-
-    files = [
-        name for name in names
-        if not name.startswith(".")
-        and name.lower().endswith(".md")
-        and os.path.isfile(os.path.join(campaign_root, name))
-    ]
-    files = sorted(files, key=campaign_sort_key)
-    if not files:
-        issues.append(("error", CAMPAIGN_LABEL, 1, f"no {CAMPAIGN_DIR}/*.md files found"))
-    return files, CAMPAIGN_DIR
-
-
-def collect_asset_refs(name, text, issues, image_refs):
+def collect_asset_refs(name, text, campaign_dir, issues, image_refs):
     for i, raw in enumerate(text.split("\n")):
         line = i + 1
 
@@ -102,31 +114,33 @@ def collect_asset_refs(name, text, issues, image_refs):
             continue
 
         value = img.group(2).strip()
-        path = card_bg_path(value)
-        if path is not None:
-            image_refs.setdefault(path, []).append((name, line, value))
+        candidates = card_bg_candidates(value, campaign_dir)
+        if candidates:
+            key = tuple(candidates)
+            image_refs.setdefault(key, []).append((name, line, value))
 
 
 def check_images(image_refs, issues):
-    for path, refs in image_refs.items():
-        if os.path.exists(os.path.join(ROOT, path)):
+    for candidates, refs in image_refs.items():
+        if any(os.path.exists(os.path.join(ROOT, p)) for p in candidates):
             continue
+        shown = candidates[-1]  # the global path is the canonical "missing" target
         for fname, line, value in refs:
-            issues.append(("error", fname, line, f"image not found: {value} ({path})"))
+            issues.append(("error", fname, line, f"image not found: {value} ({shown})"))
 
 
 def collect_diagnostics():
     issues = []
-    files, campaign_dir = load_file_list(issues)
+    scenes = scene_files(issues)
+    files = [label for label, _, _ in scenes]
 
     image_refs = {}
-    for f in files:
-        fpath = os.path.join(ROOT, campaign_dir, f)
+    for label, fpath, campaign_dir in scenes:
         try:
             with open(fpath, encoding="utf-8") as fh:
-                collect_asset_refs(f, fh.read(), issues, image_refs)
+                collect_asset_refs(label, fh.read(), campaign_dir, issues, image_refs)
         except OSError as exc:
-            issues.append(("error", f, 1, f"failed to load: {exc}"))
+            issues.append(("error", label, 1, f"failed to load: {exc}"))
 
     check_images(image_refs, issues)
 
@@ -134,7 +148,7 @@ def collect_diagnostics():
     warns = sum(1 for x in issues if x[0] == "warn")
     return {
         "files": files,
-        "campaign_dir": campaign_dir,
+        "campaign_dir": CAMPAIGNS_DIR,
         "issues": issues,
         "errors": errors,
         "warnings": warns,

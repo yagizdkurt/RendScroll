@@ -8,6 +8,9 @@
 !RendScroll.exe
 !launcher.py
 !index.html
+# package.json declares the jsdom dev-dependency used by the DOM-render tests
+# (node --test). node_modules / package-lock.json stay ignored.
+!package.json
 
 # and Source folders...
 !src/
@@ -18,11 +21,19 @@
 !Documentation/**
 
 # and campaign folders...
+# Campaigns/ holds multi-campaign content (each a self-contained folder). The
+# structure is committed via .gitkeep; the campaign .md/asset files are local
+# user content (ignored by the `*` rule above).
+!Campaigns/
+!Campaigns/.gitkeep
+# legacy single-campaign root (migrated into Campaigns/Legacy/ on first launch)
 !Campaign/
 !Campaign/.gitkeep
 !Campaign/showcase.md
 !images/
 !images/.gitkeep
+!audio/
+!audio/.gitkeep
 # reusable reference libraries (Items, Enemies, …) — folder structure is committed;
 # the library .md files themselves are local user content (ignored).
 !Items/

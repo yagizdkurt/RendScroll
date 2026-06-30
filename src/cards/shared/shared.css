@@ -107,6 +107,23 @@
    heading is collapsed. */
 .page .is-hidden-by-heading{display:none;}
 
+/* ---------- Shared damage-type colors ---------- */
+/* The .damage-type-<key> class colors a whole damage term (icons + numbers);
+   used by combat attacks and item damage (renderDamage in damageRender.js). */
+.page .damage-type-acid,
+.page .damage-type-necrotic,
+.page .damage-type-poison{color:#4f8b2f;}
+.page .damage-type-bludgeoning,
+.page .damage-type-piercing,
+.page .damage-type-slashing{color:#6f6258;}
+.page .damage-type-fire,
+.page .damage-type-force{color:#c74422;}
+.page .damage-type-lightning,
+.page .damage-type-thunder{color:#5d5aa8;}
+.page .damage-type-cold{color:#2f9fc7;}
+.page .damage-type-psychic{color:#b14ca0;}
+.page .damage-type-radiant{color:#c99922;}
+
 /* ---------- Inline / card text sizing ---------- */
 .page .rs-inline-size{line-height:1.1;}
 

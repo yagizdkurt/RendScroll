@@ -8,6 +8,7 @@ the console alive for logs until the user stops it.
 import ctypes
 import http.server
 import importlib.util
+import io
 import json
 import os
 import re
@@ -19,13 +20,29 @@ import tempfile
 import threading
 import time
 import webbrowser
+import zipfile
 
 
 HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
-CAMPAIGN_DIR = "Campaign"
+CAMPAIGN_DIR = "Campaign"  # legacy single-campaign root; migrated into Campaigns/Legacy/
+# Multi-campaign root. Each child is a self-contained campaign folder with a
+# campaign.json manifest, a required Scenes/ subfolder, and optional campaign-local
+# resource folders (Items/, Enemies/, Images/, Audio/) that override the global roots.
+CAMPAIGNS_DIR = "Campaigns"
+SCENES_SUBDIR = "Scenes"
+LEGACY_CAMPAIGN_NAME = "Legacy"
+# Campaign-local resource folder (capitalized) -> global root folder it overrides.
+# Libraries are capitalized in both; assets are capitalized per-campaign but lower
+# at the root (matching the existing cardBgUrl/audioSrcUrl helpers).
+CAMPAIGN_ASSET_DIRS = {"Images": "images", "Audio": "audio"}
+# The campaign selected by the client (POST /__select_campaign). Resolved per request
+# for scene/library discovery and for campaign-first asset serving. None = no campaign.
+ACTIVE_CAMPAIGN = None
 OPTIONS_CURRENT_FILE = "options.current.json"
+# Destination root for "Export Campaign Package" zips. Gitignored (the `*` rule).
+EXPORTS_DIR = "Exports"
 # Reusable reference libraries: a ref type -> the folder its files live in. Items
 # and enemies today; npc/monster/location can be added here without touching the
 # endpoints.
@@ -156,6 +173,130 @@ def print_diagnostics(result):
     print_indented(f"Result: {errors} errors, {warnings} warnings", result_color)
 
 
+def clean_campaign_name(value):
+    """Sanitize a client-supplied campaign id into a folder-safe name.
+
+    Rejects path separators, parent refs, and empties so it can never escape the
+    Campaigns/ root. Mirrors clean_library_name."""
+    if not isinstance(value, str):
+        return None
+    name = re.sub(r"\s+", " ", value).strip()
+    if not name or name in (".", ".."):
+        return None
+    if "/" in name or "\\" in name or "\x00" in name:
+        return None
+    return name[:120]
+
+
+def campaign_dir_path(base_dir, name):
+    return os.path.join(base_dir, CAMPAIGNS_DIR, name)
+
+
+def campaign_scenes_root(base_dir, name):
+    return os.path.join(base_dir, CAMPAIGNS_DIR, name, SCENES_SUBDIR)
+
+
+def active_campaign_root(base_dir):
+    """Absolute Scenes/ folder of the active campaign, or None when none is
+    selected or its folder is missing."""
+    name = ACTIVE_CAMPAIGN
+    if not name:
+        return None
+    root = campaign_scenes_root(base_dir, name)
+    return root if os.path.isdir(root) else None
+
+
+def read_campaign_manifest(base_dir, name):
+    path = os.path.join(campaign_dir_path(base_dir, name), "campaign.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            return data
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def write_campaign_manifest(base_dir, name, label=None):
+    manifest = {
+        "name": name,
+        "label": label or name,
+        "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "schema": 1,
+    }
+    path = os.path.join(campaign_dir_path(base_dir, name), "campaign.json")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(manifest, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    return manifest
+
+
+def discover_campaigns(base_dir):
+    """List every campaign folder (must contain a Scenes/ subfolder) as
+    [{name, label}], sorted by label."""
+    root = os.path.join(base_dir, CAMPAIGNS_DIR)
+    out = []
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return out
+    for name in names:
+        if name.startswith("."):
+            continue
+        cdir = os.path.join(root, name)
+        if not os.path.isdir(cdir) or not os.path.isdir(os.path.join(cdir, SCENES_SUBDIR)):
+            continue
+        manifest = read_campaign_manifest(base_dir, name)
+        label = manifest.get("label") or manifest.get("name") or name
+        out.append({"name": name, "label": label})
+    out.sort(key=lambda c: str(c["label"]).casefold())
+    return out
+
+
+def export_dest_subpath(rel):
+    """Map a repo-relative source path to its place inside an exported campaign
+    folder (the campaign-folder layout). Campaign-prefixed paths drop the
+    Campaigns/<name>/ prefix; global library/asset folders are normalized into the
+    campaign casing (images -> Images, audio -> Audio)."""
+    parts = rel.replace("\\", "/").strip("/").split("/")
+    if not parts:
+        return rel
+    low = [p.lower() for p in parts]
+    if low[0] == CAMPAIGNS_DIR.lower() and len(parts) >= 3:
+        return "/".join(parts[2:])  # Campaigns/<name>/Scenes/x -> Scenes/x
+    mapping = {"items": "Items", "enemies": "Enemies", "images": "Images", "audio": "Audio"}
+    if low[0] in mapping and len(parts) >= 2:
+        return mapping[low[0]] + "/" + "/".join(parts[1:])
+    return "/".join(parts)
+
+
+def migrate_legacy_campaign(base_dir):
+    """One-time, idempotent: move root Campaign/*.md into Campaigns/Legacy/Scenes/
+    and write its manifest. Leaves global Items/Enemies/images/audio untouched."""
+    legacy_src = os.path.join(base_dir, CAMPAIGN_DIR)
+    if not os.path.isdir(legacy_src):
+        return
+    try:
+        md = [n for n in os.listdir(legacy_src)
+              if n.lower().endswith(".md") and os.path.isfile(os.path.join(legacy_src, n))]
+    except OSError:
+        return
+    if not md:
+        return
+    dest = campaign_dir_path(base_dir, LEGACY_CAMPAIGN_NAME)
+    if os.path.exists(dest):
+        return  # already migrated
+    scenes = campaign_scenes_root(base_dir, LEGACY_CAMPAIGN_NAME)
+    os.makedirs(scenes, exist_ok=True)
+    for n in md:
+        shutil.move(os.path.join(legacy_src, n), os.path.join(scenes, n))
+    write_campaign_manifest(base_dir, LEGACY_CAMPAIGN_NAME, LEGACY_CAMPAIGN_NAME)
+    print(paint(f"Migrated {len(md)} scene(s) into "
+                f"{CAMPAIGNS_DIR}/{LEGACY_CAMPAIGN_NAME}/{SCENES_SUBDIR}/", GREEN), flush=True)
+
+
 def markdown_title(path):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -168,7 +309,7 @@ def markdown_title(path):
     return None
 
 
-def campaign_entry_from_filename(filename, full_path):
+def campaign_entry_from_filename(filename, full_path, rel_prefix):
     stem, _ = os.path.splitext(filename)
     match = re.match(r"^(\d+)(?:[_\-\s]+(.+))?$", stem)
     number = int(match.group(1)) if match else None
@@ -181,27 +322,32 @@ def campaign_entry_from_filename(filename, full_path):
     label = re.sub(r"\s+", " ", label) or stem
     return {
         "file": filename,
-        "path": f"{CAMPAIGN_DIR}/{filename}",
+        "path": f"{rel_prefix}/{filename}",
         "number": number,
         "label": label,
     }
 
 
 def discover_campaign_files(base_dir):
-    campaign_root = os.path.join(base_dir, CAMPAIGN_DIR)
+    """List the active campaign's Scenes/ .md files. Empty when no campaign is
+    selected — the front end then shows the start screen."""
+    scenes_root = active_campaign_root(base_dir)
+    if not scenes_root:
+        return []
+    rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{SCENES_SUBDIR}"
     entries = []
     try:
-        names = os.listdir(campaign_root)
+        names = os.listdir(scenes_root)
     except OSError:
         return entries
 
     for name in names:
         if name.startswith(".") or not name.lower().endswith(".md"):
             continue
-        full_path = os.path.join(campaign_root, name)
+        full_path = os.path.join(scenes_root, name)
         if not os.path.isfile(full_path):
             continue
-        entries.append(campaign_entry_from_filename(name, full_path))
+        entries.append(campaign_entry_from_filename(name, full_path, rel_prefix))
 
     entries.sort(key=lambda entry: (
         entry["number"] is None,
@@ -211,41 +357,66 @@ def discover_campaign_files(base_dir):
     return entries
 
 
-def library_entry_from_filename(folder, filename):
+def library_entry_from_filename(folder, filename, origin="global"):
     stem, _ = os.path.splitext(filename)
-    return {"name": stem, "path": f"{folder}/{filename}"}
+    return {"name": stem, "path": f"{folder}/{filename}", "origin": origin}
+
+
+def _library_sources(base_dir, folder):
+    """Resolution order for a library folder: active campaign first (wins on a
+    filename collision), then the global root. -> [(origin, abs_root, rel_prefix)]."""
+    sources = []
+    name = ACTIVE_CAMPAIGN
+    if name and os.path.isdir(campaign_dir_path(base_dir, name)):
+        sources.append((
+            "campaign",
+            os.path.join(campaign_dir_path(base_dir, name), folder),
+            f"{CAMPAIGNS_DIR}/{name}/{folder}",
+        ))
+    sources.append(("global", os.path.join(base_dir, folder), folder))
+    return sources
 
 
 def discover_library_files(base_dir, ref_type, with_content=False):
-    """List (and optionally read) the .md files of a library folder.
+    """List (and optionally read) the .md files of a library folder, merging the
+    active campaign's folder over the global root.
 
-    Returns [{name, path[, content]}] sorted by name. Unknown ref types and a
-    missing folder both return an empty list — the library is simply empty."""
+    Returns [{name, path, origin[, content, shadows]}] sorted by name. A campaign
+    file with the same filename as a global one wins; the hidden global path is
+    recorded in `shadows` so the debug panel can warn about the override. Unknown
+    ref types and missing folders simply contribute nothing."""
     folder = LIBRARY_DIRS.get(ref_type)
     if not folder:
         return []
-    root = os.path.join(base_dir, folder)
-    entries = []
-    try:
-        names = os.listdir(root)
-    except OSError:
-        return entries
 
-    for name in names:
-        if name.startswith(".") or not name.lower().endswith(".md"):
+    seen = {}  # casefolded filename -> entry (first source wins)
+    for origin, root, rel_prefix in _library_sources(base_dir, folder):
+        try:
+            names = os.listdir(root)
+        except OSError:
             continue
-        full_path = os.path.join(root, name)
-        if not os.path.isfile(full_path):
-            continue
-        entry = library_entry_from_filename(folder, name)
-        if with_content:
-            try:
-                with open(full_path, encoding="utf-8") as fh:
-                    entry["content"] = fh.read()
-            except OSError:
-                entry["content"] = ""
-        entries.append(entry)
+        for name in names:
+            if name.startswith(".") or not name.lower().endswith(".md"):
+                continue
+            full_path = os.path.join(root, name)
+            if not os.path.isfile(full_path):
+                continue
+            key = name.casefold()
+            path = f"{rel_prefix}/{name}"
+            if key in seen:
+                # A later (global) source shadowed by an earlier (campaign) winner.
+                seen[key].setdefault("shadows", []).append(path)
+                continue
+            entry = {"name": os.path.splitext(name)[0], "path": path, "origin": origin}
+            if with_content:
+                try:
+                    with open(full_path, encoding="utf-8") as fh:
+                        entry["content"] = fh.read()
+                except OSError:
+                    entry["content"] = ""
+            seen[key] = entry
 
+    entries = list(seen.values())
     entries.sort(key=lambda e: e["name"].casefold())
     return entries
 
@@ -272,13 +443,12 @@ def clean_campaign_title(value):
     return title[:120] if title else "Untitled"
 
 
-def next_campaign_filename(base_dir):
-    campaign_root = os.path.join(base_dir, CAMPAIGN_DIR)
-    os.makedirs(campaign_root, exist_ok=True)
+def next_campaign_filename(scenes_root):
+    os.makedirs(scenes_root, exist_ok=True)
 
     next_number = 1
     try:
-        names = os.listdir(campaign_root)
+        names = os.listdir(scenes_root)
     except OSError:
         names = []
 
@@ -289,7 +459,7 @@ def next_campaign_filename(base_dir):
 
     while True:
         filename = f"{next_number}.md"
-        if not os.path.exists(os.path.join(campaign_root, filename)):
+        if not os.path.exists(os.path.join(scenes_root, filename)):
             return filename
         next_number += 1
 
@@ -307,8 +477,37 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def translate_path(self, path):
+        """Serve bare asset URLs (/images/<x>, /audio/<x>) from the active
+        campaign's Images/Audio folder first, falling back to the global root.
+        Everything else uses the default static mapping."""
+        default = super().translate_path(path)
+        name = ACTIVE_CAMPAIGN
+        if not name:
+            return default
+        from urllib.parse import unquote, urlparse
+        url_path = unquote(urlparse(path).path).replace("\\", "/").lstrip("/")
+        for camp_folder, root_folder in CAMPAIGN_ASSET_DIRS.items():
+            prefix = root_folder + "/"
+            if url_path.lower().startswith(prefix):
+                rest = url_path[len(prefix):]
+                base = os.path.realpath(os.getcwd())
+                camp_root = os.path.realpath(
+                    os.path.join(campaign_dir_path(base, name), camp_folder))
+                cand = os.path.realpath(os.path.join(camp_root, rest))
+                try:
+                    if os.path.commonpath([camp_root, cand]) == camp_root and os.path.isfile(cand):
+                        return cand
+                except ValueError:
+                    pass
+        return default
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if path == "/__campaigns":
+            self._send_json(200, discover_campaigns(os.getcwd()))
+            return
+
         if path == "/__campaign_files":
             self._send_json(200, discover_campaign_files(os.getcwd()))
             return
@@ -339,12 +538,32 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             EXIT_REQUESTED.set()
             return
 
+        if path == "/__select_campaign":
+            self._select_campaign()
+            return
+
+        if path == "/__create_campaign":
+            self._create_campaign()
+            return
+
+        if path == "/__import_campaign":
+            self._import_campaign()
+            return
+
+        if path == "/__delete_campaign":
+            self._delete_campaign()
+            return
+
         if path == "/__create_campaign_file":
             self._create_campaign_file()
             return
 
         if path == "/__create_library_file":
             self._create_library_file()
+            return
+
+        if path == "/__move_library_file":
+            self._move_library_file()
             return
 
         if path == "/__delete_campaign_file":
@@ -359,20 +578,191 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._save_options()
             return
 
+        if path == "/__export_package":
+            self._export_package()
+            return
+
         self._send_json(404, {"ok": False, "error": "unknown endpoint"})
+
+    def _read_json_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def _select_campaign(self):
+        """Set the active campaign (the client persists the choice in localStorage
+        and re-asserts it on load). A null/empty name deselects (start screen)."""
+        global ACTIVE_CAMPAIGN
+        try:
+            data = self._read_json_body()
+            name = clean_campaign_name(data.get("name"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        if name is None:
+            ACTIVE_CAMPAIGN = None
+            self._send_json(200, {"ok": True, "name": None})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        if not os.path.isdir(campaign_scenes_root(base, name)):
+            self._send_json(404, {"ok": False, "error": "campaign not found"})
+            return
+        ACTIVE_CAMPAIGN = name
+        self._send_json(200, {"ok": True, "name": name})
+
+    def _create_campaign(self):
+        """Create an empty campaign: Campaigns/<name>/Scenes/ + campaign.json."""
+        try:
+            data = self._read_json_body()
+            name = clean_campaign_name(data.get("name"))
+            label = clean_campaign_title(data.get("label") or data.get("name"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid name"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        cdir = campaign_dir_path(base, name)
+        if os.path.isdir(cdir):
+            self._send_json(409, {"ok": False, "error": "campaign already exists"})
+            return
+        try:
+            os.makedirs(campaign_scenes_root(base, name), exist_ok=False)
+            write_campaign_manifest(base, name, label)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Created campaign: {CAMPAIGNS_DIR}/{name}", GREEN), flush=True)
+        self._send_json(200, {"ok": True, "campaign": {"name": name, "label": label}})
+
+    def _import_campaign(self):
+        """Unpack an exported campaign .zip (single top-level campaign folder) into
+        Campaigns/<name>/. Guards against zip-slip and requires a Scenes/ folder."""
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            zf = zipfile.ZipFile(io.BytesIO(raw))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+        except zipfile.BadZipFile:
+            self._send_json(400, {"ok": False, "error": "not a valid zip"})
+            return
+
+        tops = set()
+        for n in zf.namelist():
+            norm = n.replace("\\", "/").lstrip("/")
+            if norm:
+                tops.add(norm.split("/")[0])
+        if len(tops) != 1:
+            self._send_json(400, {"ok": False, "error": "zip must contain one campaign folder"})
+            return
+        raw_top = next(iter(tops))
+        name = clean_campaign_name(raw_top)
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid campaign name in zip"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        # Avoid clobbering an existing campaign — suffix the name.
+        if os.path.exists(campaign_dir_path(base, name)):
+            i = 2
+            while os.path.exists(campaign_dir_path(base, f"{name} ({i})")):
+                i += 1
+            name = f"{name} ({i})"
+        dest_real = os.path.realpath(campaign_dir_path(base, name))
+        os.makedirs(os.path.join(base, CAMPAIGNS_DIR), exist_ok=True)
+
+        try:
+            for member in zf.infolist():
+                nm = member.filename.replace("\\", "/")
+                if nm.endswith("/"):
+                    continue
+                rel = nm.split("/", 1)[1] if "/" in nm else ""  # strip top folder
+                if not rel:
+                    continue
+                out_path = os.path.realpath(os.path.join(dest_real, rel))
+                try:
+                    if os.path.commonpath([dest_real, out_path]) != dest_real:
+                        continue  # zip-slip — skip
+                except ValueError:
+                    continue
+                os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                with zf.open(member) as src, open(out_path, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        except OSError as exc:
+            shutil.rmtree(dest_real, ignore_errors=True)
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        if not os.path.isdir(os.path.join(dest_real, SCENES_SUBDIR)):
+            shutil.rmtree(dest_real, ignore_errors=True)
+            self._send_json(400, {"ok": False, "error": "zip is missing a Scenes/ folder"})
+            return
+        manifest = read_campaign_manifest(base, name)
+        label = manifest.get("label") or manifest.get("name") or name
+        if not os.path.isfile(os.path.join(dest_real, "campaign.json")):
+            write_campaign_manifest(base, name, label)
+
+        print(paint(f"Imported campaign: {CAMPAIGNS_DIR}/{name}", GREEN), flush=True)
+        self._send_json(200, {"ok": True, "campaign": {"name": name, "label": label}})
+
+    def _delete_campaign(self):
+        """Remove a whole campaign folder. Guarded to stay inside Campaigns/."""
+        global ACTIVE_CAMPAIGN
+        try:
+            data = self._read_json_body()
+            name = clean_campaign_name(data.get("name"))
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid name"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        target = os.path.realpath(campaign_dir_path(base, name))
+        parent = os.path.realpath(os.path.join(base, CAMPAIGNS_DIR))
+        try:
+            if target == parent or os.path.commonpath([parent, target]) != parent:
+                self._send_json(403, {"ok": False, "error": "outside Campaigns/"})
+                return
+        except ValueError:
+            self._send_json(403, {"ok": False, "error": "outside Campaigns/"})
+            return
+        if not os.path.isdir(target):
+            self._send_json(404, {"ok": False, "error": "campaign not found"})
+            return
+        try:
+            shutil.rmtree(target)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+        if ACTIVE_CAMPAIGN == name:
+            ACTIVE_CAMPAIGN = None
+        print(paint(f"Deleted campaign: {CAMPAIGNS_DIR}/{name}", YELLOW), flush=True)
+        self._send_json(200, {"ok": True})
 
     def _create_campaign_file(self):
         try:
-            length = int(self.headers.get("Content-Length", 0))
-            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            data = self._read_json_body()
             title = clean_campaign_title(data.get("title"))
         except (ValueError, AttributeError, TypeError) as exc:
             self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
             return
 
         base = os.path.realpath(os.getcwd())
-        filename = next_campaign_filename(base)
-        target = os.path.realpath(os.path.join(base, CAMPAIGN_DIR, filename))
+        scenes_root = active_campaign_root(base)
+        if not scenes_root:
+            self._send_json(400, {"ok": False, "error": "no active campaign"})
+            return
+        filename = next_campaign_filename(scenes_root)
+        target = os.path.realpath(os.path.join(scenes_root, filename))
+        rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{SCENES_SUBDIR}"
         content = f"# {title}\n\n"
 
         try:
@@ -390,16 +780,16 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             200,
             {
                 "ok": True,
-                "entry": campaign_entry_from_filename(filename, target),
+                "entry": campaign_entry_from_filename(filename, target, rel_prefix),
             },
         )
 
     def _create_library_file(self):
         try:
-            length = int(self.headers.get("Content-Length", 0))
-            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            data = self._read_json_body()
             ref_type = str(data.get("type") or "item")
             name = clean_library_name(data.get("name"))
+            scope = str(data.get("scope") or "global")
             content = data["content"]
         except (ValueError, KeyError, TypeError) as exc:
             self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
@@ -414,9 +804,21 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         base = os.path.realpath(os.getcwd())
-        os.makedirs(os.path.join(base, folder), exist_ok=True)
+        # scope "campaign" writes into the active campaign's folder; "global" (the
+        # default) into the shared root. The returned path is what the editor saves
+        # back to, so origin precedence stays consistent.
+        if scope == "campaign":
+            if not ACTIVE_CAMPAIGN:
+                self._send_json(400, {"ok": False, "error": "no active campaign"})
+                return
+            target_dir = os.path.join(campaign_dir_path(base, ACTIVE_CAMPAIGN), folder)
+            rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{folder}"
+        else:
+            target_dir = os.path.join(base, folder)
+            rel_prefix = folder
+        os.makedirs(target_dir, exist_ok=True)
         filename = f"{name}.md"
-        target = os.path.realpath(os.path.join(base, folder, filename))
+        target = os.path.realpath(os.path.join(target_dir, filename))
 
         try:
             with open(target, "x", encoding="utf-8", newline="\n") as fh:
@@ -429,15 +831,104 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         print(paint(f"Created: {os.path.relpath(target, base)}", GREEN), flush=True)
-        self._send_json(200, {"ok": True, "entry": library_entry_from_filename(folder, filename)})
+        origin = "campaign" if scope == "campaign" else "global"
+        self._send_json(200, {"ok": True, "entry": {
+            "name": name, "path": f"{rel_prefix}/{filename}", "origin": origin}})
+
+    def _move_library_file(self):
+        """Relocate a library .md between the campaign-local and global folders.
+        Source is the entry's current `path` (writable-roots + .md guarded);
+        destination is derived from `scope` exactly like _create_library_file."""
+        try:
+            data = self._read_json_body()
+            ref_type = str(data.get("type") or "item")
+            name = clean_library_name(data.get("name"))
+            src_rel = data["path"]
+            scope = str(data.get("scope") or "global")
+        except (ValueError, KeyError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        folder = LIBRARY_DIRS.get(ref_type)
+        if not folder:
+            self._send_json(400, {"ok": False, "error": f"unknown library type: {ref_type}"})
+            return
+        if not name:
+            self._send_json(400, {"ok": False, "error": "invalid name"})
+            return
+
+        src = self._resolve_writable(src_rel)
+        if not src:
+            self._send_json(403, {"ok": False, "error": "path outside writable roots"})
+            return
+        if not src.lower().endswith(".md"):
+            self._send_json(403, {"ok": False, "error": "only .md files"})
+            return
+        if not os.path.isfile(src):
+            self._send_json(404, {"ok": False, "error": "file not found"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        if scope == "campaign":
+            if not ACTIVE_CAMPAIGN:
+                self._send_json(400, {"ok": False, "error": "no active campaign"})
+                return
+            target_dir = os.path.join(campaign_dir_path(base, ACTIVE_CAMPAIGN), folder)
+            rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{folder}"
+        else:
+            target_dir = os.path.join(base, folder)
+            rel_prefix = folder
+        os.makedirs(target_dir, exist_ok=True)
+        filename = f"{name}.md"
+        dest = os.path.realpath(os.path.join(target_dir, filename))
+
+        if dest == src:
+            self._send_json(400, {"ok": False, "error": "already in target library"})
+            return
+        if os.path.exists(dest):
+            self._send_json(409, {"ok": False, "error": "item already exists in target"})
+            return
+
+        try:
+            shutil.move(src, dest)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Moved: {os.path.relpath(src, base)} -> {os.path.relpath(dest, base)}", GREEN), flush=True)
+        origin = "campaign" if scope == "campaign" else "global"
+        self._send_json(200, {"ok": True, "entry": {
+            "name": name, "path": f"{rel_prefix}/{filename}", "origin": origin}})
 
     def _resolve_writable(self, rel_path):
         """Resolve `rel_path` to an absolute path only if it stays inside one of
-        the writable roots (Campaign/ + every library folder). Returns the path
-        or None when it escapes them. Shared by save and delete."""
+        the writable roots (Campaigns/, legacy Campaign/, + every global library
+        folder). Returns the path or None when it escapes them. Shared by save and
+        delete. Campaign-local library/scene files live under Campaigns/."""
         base = os.path.realpath(os.getcwd())
         target = os.path.realpath(os.path.join(base, rel_path))
-        roots = [CAMPAIGN_DIR] + list(LIBRARY_DIRS.values())
+        roots = [CAMPAIGNS_DIR, CAMPAIGN_DIR] + list(LIBRARY_DIRS.values())
+        for root in roots:
+            root_real = os.path.realpath(os.path.join(base, root))
+            try:
+                if os.path.commonpath([root_real, target]) == root_real:
+                    return target
+            except ValueError:
+                continue  # different drive on Windows
+        return None
+
+    def _resolve_readable(self, rel_path):
+        """Resolve `rel_path` to an absolute path only if it stays inside one of
+        the readable export roots (Campaigns/, legacy Campaign/, the library
+        folders, images/, audio/) or is exactly options.current.json. Returns the
+        path or None. Used by the package exporter, which only copies content out."""
+        base = os.path.realpath(os.getcwd())
+        if not isinstance(rel_path, str) or not rel_path.strip():
+            return None
+        target = os.path.realpath(os.path.join(base, rel_path))
+        if target == os.path.realpath(os.path.join(base, OPTIONS_CURRENT_FILE)):
+            return target
+        roots = [CAMPAIGNS_DIR, CAMPAIGN_DIR] + list(LIBRARY_DIRS.values()) + ["images", "audio"]
         for root in roots:
             root_real = os.path.realpath(os.path.join(base, root))
             try:
@@ -493,9 +984,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside a writable root (Campaign/ or a library folder). Rejects
-        # "..", absolute paths, and anything escaping the project. CWD is
-        # base_dir (see main()).
+        # live inside a writable root (Campaigns/, legacy Campaign/, or a global
+        # library folder). Rejects "..", absolute paths, and anything escaping the
+        # project. CWD is base_dir (see main()).
         base = os.path.realpath(os.getcwd())
         target = self._resolve_writable(rel_path)
         if not target:
@@ -544,6 +1035,88 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         print(paint(f"Saved: {OPTIONS_CURRENT_FILE}", GREEN), flush=True)
         self._send_json(200, {"ok": True})
+
+    def _export_source(self, rel):
+        """Resolve an export source path to an existing file, falling back to the
+        active campaign's Images/Audio for bare global asset paths (a campaign-local
+        image referenced as `kale` resolves to /images/kale.png via translate_path
+        but its file lives under Campaigns/<active>/Images/)."""
+        direct = self._resolve_readable(rel)
+        if direct and os.path.isfile(direct):
+            return direct
+        parts = rel.replace("\\", "/").strip("/").split("/")
+        if ACTIVE_CAMPAIGN and len(parts) >= 2 and parts[0].lower() in ("images", "audio"):
+            camp_folder = {"images": "Images", "audio": "Audio"}[parts[0].lower()]
+            cand = self._resolve_readable(
+                f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{camp_folder}/" + "/".join(parts[1:]))
+            if cand and os.path.isfile(cand):
+                return cand
+        return None
+
+    def _export_package(self):
+        # "Export Campaign Package": the client resolves every scene + referenced
+        # library item/enemy + image/audio asset (reusing RefLibrary and the
+        # card-image rules) and POSTs the flat path list. We copy each accepted
+        # path into Exports/<name>/ under the campaign-folder layout (Scenes/,
+        # Items/, Enemies/, Images/, Audio/), add a campaign.json manifest, then zip
+        # it so the archive's single top-level folder is the campaign — ready to
+        # drop into another user's Campaigns/ (or re-import). Reads are confined to
+        # _resolve_readable's roots; writes only ever land under Exports/.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
+            files = data.get("files")
+        except (ValueError, AttributeError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        if not isinstance(files, list):
+            self._send_json(400, {"ok": False, "error": "files must be a list"})
+            return
+
+        name = clean_library_name(data.get("name")) or time.strftime("Campaign-%Y%m%d-%H%M%S")
+        label = clean_campaign_title(data.get("label") or name)
+        base = os.path.realpath(os.getcwd())
+        dest_root = os.path.join(base, EXPORTS_DIR, name)
+
+        # Start clean so a re-export with the same name doesn't mix stale files.
+        if os.path.isdir(dest_root):
+            shutil.rmtree(dest_root, ignore_errors=True)
+
+        copied = 0
+        try:
+            for rel in files:
+                source = self._export_source(rel)
+                if not source:
+                    continue  # skip anything outside the roots or missing
+                sub = export_dest_subpath(os.path.relpath(source, base))
+                target = os.path.join(dest_root, sub)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copy2(source, target)
+                copied += 1
+
+            if copied == 0:
+                self._send_json(400, {"ok": False, "error": "nothing to export"})
+                return
+
+            # Manifest so the exported folder is a valid, self-describing campaign.
+            os.makedirs(dest_root, exist_ok=True)
+            with open(os.path.join(dest_root, "campaign.json"), "w",
+                      encoding="utf-8", newline="\n") as fh:
+                json.dump({"name": name, "label": label,
+                           "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                           "schema": 1}, fh, ensure_ascii=False, indent=2)
+                fh.write("\n")
+
+            zip_base = os.path.join(base, EXPORTS_DIR, name)
+            archive = shutil.make_archive(zip_base, "zip", root_dir=os.path.join(base, EXPORTS_DIR), base_dir=name)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        zip_rel = os.path.relpath(archive, base).replace("\\", "/")
+        print(paint(f"Exported: {zip_rel} ({copied} files)", GREEN), flush=True)
+        self._send_json(200, {"ok": True, "name": name, "zip": zip_rel, "copied": copied})
 
     def log_request(self, code="-", size="-"):
         if self.path == "/favicon.ico":
@@ -716,6 +1289,8 @@ def main():
     configure_console()
     os.chdir(get_base_dir())
     print_banner()
+
+    migrate_legacy_campaign(os.getcwd())
 
     lint_code = run_lint()
     if lint_code != 0:
