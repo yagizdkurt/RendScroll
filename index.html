@@ -83,6 +83,12 @@
        owns the start screen. Needs refLibrary.js; used by app.js boot, so load it
        before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
   <script src="src/campaign/campaignManager.js"></script>
+  <!-- Reader subsystems split out of app.js. All declaration-only globals; must
+       load BEFORE app.js, whose init() (run at load) calls into them. -->
+  <script src="src/appModals.js"></script>
+  <script src="src/appSidebar.js"></script>
+  <script src="src/appLibrary.js"></script>
+  <script src="src/refNavigation.js"></script>
   <script src="src/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
   <script src="src/editor/outline.js"></script>
