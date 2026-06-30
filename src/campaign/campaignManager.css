@@ -1,0 +1,174 @@
+/* Manage Campaigns overlay + start screen. Uses the shared chrome tokens
+   (base.css :root) so it matches the sidebar/topbar and follows the theme. */
+
+.campaign-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(12, 9, 6, 0.72);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.campaign-overlay.is-open { display: flex; }
+
+.campaign-panel {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--chrome-panel);
+  color: var(--chrome-text);
+  border: 1px solid var(--chrome-border);
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  padding: 22px 24px 26px;
+}
+
+.campaign-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--gold-deep);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.campaign-header h2 {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  color: var(--gold);
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+}
+.campaign-close {
+  background: transparent;
+  border: 1px solid var(--gold-deep);
+  color: var(--gold);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  line-height: 1;
+}
+.campaign-close:hover { background: var(--chrome-hover); }
+
+.campaign-empty {
+  color: var(--chrome-text);
+  opacity: 0.85;
+  text-align: center;
+  margin: 18px 0 22px;
+}
+
+.campaign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.campaign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--gold-deep);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.campaign-row.is-active {
+  border-color: var(--gold);
+  background: var(--chrome-hover);
+}
+.campaign-row-label {
+  font-family: 'Cinzel', serif;
+  color: var(--chrome-text-strong);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.campaign-row-active-tag {
+  font-family: 'EB Garamond', serif;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: var(--gold);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.campaign-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.campaign-create,
+.campaign-import {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.campaign-create-input {
+  flex: 1;
+  padding: 8px 10px;
+  background: var(--parchment-lt);
+  color: var(--ink);
+  border: 1px solid var(--gold-deep);
+  border-radius: 6px;
+  font-family: 'EB Garamond', serif;
+}
+.campaign-import-input { display: none; }
+
+.campaign-btn {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid var(--gold-deep);
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.campaign-btn:hover { background: var(--chrome-hover); }
+.campaign-btn-primary {
+  color: var(--ink);
+  background: var(--gold);
+  border-color: var(--gold);
+}
+.campaign-btn-primary:hover { background: var(--gold-deep); border-color: var(--gold-deep); }
+.campaign-btn-danger { color: #d98b7a; border-color: #7a3326; }
+.campaign-btn-danger:hover { background: rgba(122, 51, 38, 0.22); }
+
+.campaign-status {
+  margin-top: 14px;
+  min-height: 1.1em;
+  font-size: 0.85rem;
+  color: var(--chrome-text);
+  opacity: 0.9;
+}
+.campaign-status.is-error { color: #e0907f; opacity: 1; }
+
+/* Topbar trigger button (matches existing .topbar-action styling closely). */
+.topbar-manage-campaigns { margin-right: 8px; }
+
+/* Library sidebar: origin grouping + campaign badge. */
+.nav-group-label {
+  font-family: 'EB Garamond', serif;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  opacity: 0.75;
+  margin: 8px 0 2px;
+  padding-left: 4px;
+}
+.nav-origin-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.62rem;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--gold);
+  border-radius: 3px;
+  padding: 1px 4px;
+  vertical-align: middle;
+}

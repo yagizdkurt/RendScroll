@@ -312,48 +312,75 @@ const LIBRARY_VIEWS = {
   item: {
     view: "library", kicker: "Items", noun: "item", nameAttr: "itemName",
     nav: () => libraryNav,
-    create: (cb) => Editor.createLibraryItem && Editor.createLibraryItem(cb),
+    create: (cb, scope) => Editor.createLibraryItem && Editor.createLibraryItem(cb, scope),
   },
   enemy: {
     view: "enemy", kicker: "Enemies", noun: "enemy", nameAttr: "enemyName",
     nav: () => enemiesNav,
-    create: (cb) => Editor.createEnemyToLibrary && Editor.createEnemyToLibrary(cb),
+    create: (cb, scope) => Editor.createEnemyToLibrary && Editor.createEnemyToLibrary(cb, scope),
   },
 };
 
 function libraryConfig(kind) { return LIBRARY_VIEWS[kind]; }
 
-// The kind's files (via RefLibrary, loaded at boot), as [{ name, path }].
+// The kind's files (via RefLibrary, loaded at boot), as [{ name, path, origin }].
 function libraryEntries(kind) {
   if (typeof RefLibrary === "undefined") return [];
-  return RefLibrary.entries(kind).map((e) => ({ name: e.name, path: e.path }));
+  return RefLibrary.entries(kind).map((e) => ({ name: e.name, path: e.path, origin: e.origin || "global" }));
 }
 
+// One library entry button (with a campaign badge when it is campaign-local).
+function libraryEntryButton(kind, cfg, entry) {
+  const btn = document.createElement("button");
+  btn.textContent = entry.name;
+  if (entry.origin === "campaign") {
+    const badge = document.createElement("span");
+    badge.className = "nav-origin-badge";
+    badge.textContent = "C";
+    badge.title = "Campaign-local";
+    btn.appendChild(badge);
+  }
+  btn.dataset[cfg.nameAttr] = entry.name;
+  btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
+  btn.title = entry.name + (entry.origin === "campaign" ? " (campaign)" : "");
+  btn.classList.toggle("active", currentView === cfg.view && entry.name === currentLibraryName);
+  btn.addEventListener("click", () => openLibrary(kind, entry.name));
+  return btn;
+}
+
+// Group library entries by origin (campaign-local vs global). Each group gets a
+// subheader and its own "+ New …" that creates into that origin's folder.
 function mountLibraryNav(kind) {
   const cfg = libraryConfig(kind);
   const navEl = cfg.nav();
   if (!navEl) return;
   navEl.innerHTML = "";
-  libraryEntries(kind).forEach((entry) => {
-    const btn = document.createElement("button");
-    btn.textContent = entry.name;
-    btn.dataset[cfg.nameAttr] = entry.name;
-    btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
-    btn.title = entry.name;
-    btn.classList.toggle("active", currentView === cfg.view && entry.name === currentLibraryName);
-    btn.addEventListener("click", () => openLibrary(kind, entry.name));
-    navEl.appendChild(btn);
-  });
-  // A standalone "+ New …" affordance (entries are also created via the editor
-  // insert / picker flow, which additionally wires them into a scene/combat card).
-  const create = document.createElement("button");
-  create.className = "nav-create";
-  create.textContent = "+ New " + cfg.noun;
-  create.dataset.navIndex = "+";
-  create.addEventListener("click", () => {
-    if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name));
-  });
-  navEl.appendChild(create);
+
+  const entries = libraryEntries(kind);
+  const campaign = entries.filter((e) => e.origin === "campaign");
+  const global = entries.filter((e) => e.origin !== "campaign");
+  const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
+
+  const group = (label, list, scope) => {
+    // Show the Campaign group only when a campaign is active; always show Global.
+    if (scope === "campaign" && !hasCampaign) return;
+    const header = document.createElement("div");
+    header.className = "nav-group-label";
+    header.textContent = label;
+    navEl.appendChild(header);
+    list.forEach((entry) => navEl.appendChild(libraryEntryButton(kind, cfg, entry)));
+    const create = document.createElement("button");
+    create.className = "nav-create";
+    create.textContent = "+ New " + cfg.noun;
+    create.dataset.navIndex = "+";
+    create.addEventListener("click", () => {
+      if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name), scope);
+    });
+    navEl.appendChild(create);
+  };
+
+  group("Campaign " + cfg.kicker, campaign, "campaign");
+  group("Global " + cfg.kicker, global, "global");
 }
 
 // Re-read every library list into the sidebar (after create/edit/delete).
@@ -992,12 +1019,66 @@ function installLibraryChangeHandler() {
   });
 }
 
+function mountManageCampaignsButton() {
+  const btn = document.getElementById("manage-campaigns-button");
+  if (btn && typeof CampaignManager !== "undefined") {
+    btn.addEventListener("click", () => CampaignManager.open());
+  }
+}
+
+// The empty start screen shown when no campaign is active (the Manage Campaigns
+// overlay is open over this). We never auto-load root files as a fake campaign.
+function showStartScreen() {
+  currentPath = null;
+  currentView = "scene";
+  campaignEntries = [];
+  nav.innerHTML = "";
+  page.innerHTML =
+    '<div class="scene-empty-hint">No campaign selected. Use ' +
+    '<strong>Manage Campaigns</strong> to create, open, or import one.</div>';
+}
+
+// Switch the reader to a campaign (or clear it for the start screen). Called by
+// CampaignManager on boot and on every switch — the server already knows the
+// active campaign at this point, so RefLibrary loads the campaign-scoped library.
+async function activateCampaign(name) {
+  if (typeof RefLibrary !== "undefined") {
+    try { await RefLibrary.init(); } catch (_) { /* empty library */ }
+  }
+  refreshLibrarySidebars();
+
+  if (!name) {
+    showStartScreen();
+    return;
+  }
+
+  let entries = [];
+  try {
+    entries = await loadCampaignEntries();
+  } catch {
+    showNavError("Campaign files could not be discovered. Start RendScroll with launcher.py.");
+    return;
+  }
+  campaignEntries = entries;
+  mountCampaignEntries(entries);
+
+  if (entries.length) {
+    load(entries[0].path);
+  } else {
+    currentPath = null;
+    page.innerHTML =
+      '<div class="scene-empty-hint">This campaign has no scenes yet. Use ' +
+      '<strong>+ New Page</strong> to add one.</div>';
+  }
+}
+
 async function init() {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
     setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"))
   );
   mountNewPageButton();
+  mountManageCampaignsButton();
 
   // Renderer options: load persisted choices (two-file model) + apply, then
   // mount the topbar launcher that opens the Options modal.
@@ -1005,29 +1086,18 @@ async function init() {
   const optionsEl = document.getElementById("topbar-tools") || document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
 
-  // Load the reference library (Items, …) before the first scene renders, so
-  // SourceItem-backed scene Items and `[link=Name]` previews resolve. A failure
-  // here (e.g. not launched via launcher.py) just leaves the library empty.
-  if (typeof RefLibrary !== "undefined") {
-    try { await RefLibrary.init(); } catch (_) { /* empty library */ }
-  }
   installRefLinkHandler();
-  refreshLibrarySidebars();
   installLibraryChangeHandler();
   setupCollapsibleSections();
 
-  let entries;
-  try {
-    entries = await loadCampaignEntries();
-    campaignEntries = entries;
-  } catch {
-    showNavError("Campaign files could not be discovered. Start RendScroll with launcher.py.");
-    return;
+  // The campaign manager owns selection (localStorage + server) and the start
+  // screen; it calls activateCampaign() to load the chosen campaign's reader.
+  if (typeof CampaignManager !== "undefined") {
+    CampaignManager.configure({ onSwitch: activateCampaign });
+    await CampaignManager.init();
+  } else {
+    showStartScreen();
   }
-
-  mountCampaignEntries(entries);
-
-  if (entries.length) load(entries[0].path);
 }
 
 init();

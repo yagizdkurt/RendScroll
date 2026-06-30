@@ -199,15 +199,15 @@ const CampaignExporter = (() => {
       if (await assetExists(asset)) fileSet.add(asset);
       else missing.push("asset: " + asset);
     }
-    // Include the user's rendering options so styling matches for the recipient.
-    // The server silently skips it if it has never been saved to disk.
-    fileSet.add("options.current.json");
+    // Renderer options stay global (not per-campaign), so they are not bundled —
+    // the server restructures the rest into a Campaigns/<name>/ layout + manifest.
 
     const name = (opts && opts.name) || defaultName();
+    const label = (opts && opts.label) || name;
     const res = await fetch("/__export_package", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, files: [...fileSet] }),
+      body: JSON.stringify({ name, label, files: [...fileSet] }),
     });
     let payload = null;
     try { payload = await res.json(); } catch (_) { /* non-JSON */ }

@@ -343,6 +343,19 @@ const RendScrollDiagnostics = (() => {
       issues.push(issue("error", "(library)", 1, `circular reference: ${ring.join(" -> ")}`, "circular-ref"));
     });
 
+    // Campaign-local resources that shadow a same-named global one.
+    if (typeof lib.overrides === "function") {
+      lib.overrides().forEach((o) => {
+        issues.push(issue(
+          "warn",
+          o.using,
+          1,
+          `Campaign resource overrides global resource: ${o.name}.md — Using: ${o.using}; Hidden: ${o.hidden.join(", ")}`,
+          "campaign-override"
+        ));
+      });
+    }
+
     if (!lib.REF_TYPES) return;
     Object.keys(lib.REF_TYPES).forEach((type) => {
       lib.entries(type).forEach((entry) => {

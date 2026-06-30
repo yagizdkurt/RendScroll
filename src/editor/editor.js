@@ -147,13 +147,13 @@ const Editor = (() => {
   // Create a library item with no scene instance (the Items sidebar "+ New item",
   // parallel to createEnemyToLibrary). `onCreated(name)` runs after the file is
   // written (e.g. to open the new item's library view).
-  function createLibraryItem(onCreated) {
+  function createLibraryItem(onCreated, scope) {
     if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
     EditorForm.openCreate("sourceitem", state.model, async (block) => {
       const name = itemNameFromBlock(block);
       if (!name) { toast("Item has no name", true); return; }
       try {
-        await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, block)));
+        await RefLibrary.createFile("item", name, ensureTrailingNewline(RefLibrary.sourceItemContent(name, block)), scope);
         notifyLibraryChanged("item", name, { created: true });
         toast("Created library item: " + name);
         if (typeof onCreated === "function") onCreated(name);
@@ -172,13 +172,13 @@ const Editor = (() => {
   // card's "+ from library → create new" and the Enemies sidebar "+ New enemy".
   // `onCreated(name)` (optional) runs after the file is written (e.g. to add a ref
   // row to the open combat card, or open the new enemy's library view).
-  function createEnemyToLibrary(onCreated) {
+  function createEnemyToLibrary(onCreated, scope) {
     if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
     EditorForm.openCreate("sourceenemy", state.model, async (block) => {
       const name = enemyNameFromBlock(block);
       if (!name) { toast("Enemy has no name", true); return; }
       try {
-        await RefLibrary.createFile("enemy", name, ensureTrailingNewline(RefLibrary.sourceEnemyContent(name, block)));
+        await RefLibrary.createFile("enemy", name, ensureTrailingNewline(RefLibrary.sourceEnemyContent(name, block)), scope);
         notifyLibraryChanged("enemy", name, { created: true });
         toast("Created library enemy: " + name);
         if (typeof onCreated === "function") onCreated(name);

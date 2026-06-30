@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="src/editor/editor.css">
 <link rel="stylesheet" href="src/printer/printer.css">
 <link rel="stylesheet" href="src/debug/debugPanel.css">
+<link rel="stylesheet" href="src/campaign/campaignManager.css">
 </head>
 <body>
   <aside id="sidebar">
@@ -27,6 +28,7 @@
   <div id="main-area">
     <header id="topbar">
       <div id="topbar-primary">
+        <button id="manage-campaigns-button" class="topbar-action topbar-manage-campaigns" type="button">⚑ Manage Campaigns</button>
         <button id="new-page-button" class="topbar-action topbar-new-page" type="button">+ New Page</button>
       </div>
       <div id="topbar-tools"></div>
@@ -76,6 +78,10 @@
   <script src="src/cards/audio/audio.js"></script>
   <script src="src/cards/shared/cardCollapse.js"></script>
   <script src="src/cards/shared/layout.js"></script>
+  <!-- Multi-campaign manager: lists/creates/switches/imports/exports campaigns and
+       owns the start screen. Needs refLibrary.js; used by app.js boot, so load it
+       before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
+  <script src="src/campaign/campaignManager.js"></script>
   <script src="src/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
   <script src="src/editor/outline.js"></script>
