@@ -31,6 +31,14 @@ const CampaignManager = (() => {
     return activeName;
   }
 
+  // Display label for the active campaign, read from its manifest (falls back
+  // to the folder name). Used for the sidebar campaign heading.
+  function activeLabel() {
+    if (!activeName) return "";
+    const camp = campaigns.find((c) => c.name === activeName);
+    return (camp && camp.label) || activeName;
+  }
+
   async function fetchJSON(url, opts) {
     const res = await fetch(url, Object.assign({ cache: "no-store" }, opts || {}));
     let payload = null;
@@ -311,7 +319,7 @@ const CampaignManager = (() => {
     if (overlay) overlay.classList.remove("is-open");
   }
 
-  return { configure, init, active, select, open, hide, loadCampaigns };
+  return { configure, init, active, activeLabel, select, open, hide, loadCampaigns };
 })();
 
 if (typeof window !== "undefined") window.CampaignManager = CampaignManager;

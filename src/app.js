@@ -1047,6 +1047,14 @@ async function activateCampaign(name) {
   }
   refreshLibrarySidebars();
 
+  const campaignNameEl = document.getElementById("nav-campaign-name");
+  if (campaignNameEl) {
+    const label = (typeof CampaignManager !== "undefined" && CampaignManager.activeLabel)
+      ? CampaignManager.activeLabel()
+      : (name || "");
+    campaignNameEl.textContent = label;
+  }
+
   if (!name) {
     showStartScreen();
     return;

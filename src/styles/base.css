@@ -289,6 +289,19 @@ body:not(.sidebar-collapsed) #library-nav.is-collapsed,
 body:not(.sidebar-collapsed) #enemies-nav.is-collapsed{display:none;}
 #nav-campaign-title{margin-top:.2rem;}
 
+/* Active campaign name, shown above the Scenes list. Reads from the campaign
+   manifest (CampaignManager.activeLabel). Hidden when the sidebar collapses. */
+.nav-campaign-name{
+  margin:.6rem .2rem .1rem;
+  font-family:'Alegreya Sans SC','EB Garamond',sans-serif;
+  font-weight:700;
+  font-size:1.02rem;
+  line-height:1.15;
+  color:var(--gold);
+}
+.nav-campaign-name:empty{display:none;}
+body.sidebar-collapsed .nav-campaign-name{display:none;}
+
 .nav-empty{
   padding:.3rem .7rem;
   font-family:'EB Garamond',Georgia,serif;
