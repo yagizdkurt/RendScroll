@@ -176,9 +176,9 @@ test("scene diagnostics flag broken links but ignore deprecated item blocks", as
     "",
     "[item=]",
   ].join("\n");
-  const parsed = RendScrollDiagnostics.parseScene(src, "Campaign/1.md");
+  const parsed = RendScrollDiagnostics.parseScene(src, "Campaigns/Legacy/Scenes/1.md");
   const codes = RendScrollDiagnostics
-    .computeSceneDiagnostics(parsed.doc, { file: "Campaign/1.md" })
+    .computeSceneDiagnostics(parsed.doc, { file: "Campaigns/Legacy/Scenes/1.md" })
     .map((i) => i.code);
   assert.ok(!codes.includes("missing-ref"));
   assert.ok(!codes.includes("malformed-ref"));

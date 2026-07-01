@@ -1,11 +1,10 @@
 /* Campaign package exporter.
 
-   "Export Campaign Package": gather the whole campaign — every Campaign/*.md
-   scene plus the library items/enemies and image/audio assets they reference —
-   into a flat list of repo-relative paths, and POST it to /__export_package,
-   which copies the files into Exports/<name>/ (mirroring the repo layout) and
-   zips them. The recipient unzips it into their RendScroll root and every
-   reference resolves.
+   "Export Campaign Package": gather the whole active campaign's scenes plus
+   the library items/enemies and image/audio assets they reference into a flat
+   list of repo-relative paths, and POST it to /__export_package, which copies
+   the files into Exports/<name>/ under the campaign-folder layout and zips
+   them. The recipient imports it into Campaigns/ and every reference resolves.
 
    Reference + asset resolution lives in the browser (the one place that already
    owns it): RefLibrary maps item/enemy names to their files, and the asset rules

@@ -84,7 +84,7 @@ test("collect resolves transitive refs + assets, flags missing", () => {
 
   const scenes = [
     {
-      path: "Campaign/1.md",
+      path: "Campaigns/Legacy/Scenes/1.md",
       text: [
         "# Scene One",
         "Image: scene1",
@@ -97,7 +97,7 @@ test("collect resolves transitive refs + assets, flags missing", () => {
         "File: wind",
       ].join("\n"),
     },
-    { path: "Campaign/2.md", text: "# Scene Two\nA mention of [link=MissingThing]." },
+    { path: "Campaigns/Legacy/Scenes/2.md", text: "# Scene Two\nA mention of [link=MissingThing]." },
   ];
 
   const { files, assetCandidates, missingRefs } = collect(scenes, refLib);
@@ -105,7 +105,13 @@ test("collect resolves transitive refs + assets, flags missing", () => {
   // Scenes + every resolved library file (including the one Kate transitively pulls in).
   assert.deepEqual(
     files.sort(),
-    ["Campaign/1.md", "Campaign/2.md", "Enemies/Kate.md", "Items/Calamity.md", "Items/Kazma.md"]
+    [
+      "Campaigns/Legacy/Scenes/1.md",
+      "Campaigns/Legacy/Scenes/2.md",
+      "Enemies/Kate.md",
+      "Items/Calamity.md",
+      "Items/Kazma.md",
+    ]
   );
   // Assets from scenes AND from resolved ref sources (Calamity's + Kate's images).
   assert.deepEqual(
@@ -119,8 +125,8 @@ test("collect resolves transitive refs + assets, flags missing", () => {
 test("collect de-dupes references by normalized name", () => {
   const refLib = fakeRefLib({ Kazma: "### SourceItem: Kazma\n" }, {});
   const scenes = [
-    { path: "Campaign/1.md", text: "SourceItem: Kazma\n[item=kazma]\n[item=KAZMA]" },
+    { path: "Campaigns/Legacy/Scenes/1.md", text: "SourceItem: Kazma\n[item=kazma]\n[item=KAZMA]" },
   ];
   const { files } = collect(scenes, refLib);
-  assert.deepEqual(files.sort(), ["Campaign/1.md", "Items/Kazma.md"]);
+  assert.deepEqual(files.sort(), ["Campaigns/Legacy/Scenes/1.md", "Items/Kazma.md"]);
 });

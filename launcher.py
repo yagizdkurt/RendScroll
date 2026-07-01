@@ -29,13 +29,11 @@ from src.updates.update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIF
 HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
-CAMPAIGN_DIR = "Campaign"  # legacy single-campaign root; migrated into Campaigns/Legacy/
 # Multi-campaign root. Each child is a self-contained campaign folder with a
 # campaign.json manifest, a required Scenes/ subfolder, and optional campaign-local
 # resource folders (Items/, Enemies/, Images/, Audio/) that override the global roots.
 CAMPAIGNS_DIR = "Campaigns"
 SCENES_SUBDIR = "Scenes"
-LEGACY_CAMPAIGN_NAME = "Legacy"
 # Campaign-local resource folder (capitalized) -> global root folder it overrides.
 # Libraries are capitalized in both; assets are capitalized per-campaign but lower
 # at the root (matching the existing cardBgUrl/audioSrcUrl helpers).
@@ -343,31 +341,6 @@ def export_dest_subpath(rel):
     if low[0] in mapping and len(parts) >= 2:
         return mapping[low[0]] + "/" + "/".join(parts[1:])
     return "/".join(parts)
-
-
-def migrate_legacy_campaign(base_dir):
-    """One-time, idempotent: move root Campaign/*.md into Campaigns/Legacy/Scenes/
-    and write its manifest. Leaves global Items/Enemies/images/audio untouched."""
-    legacy_src = os.path.join(base_dir, CAMPAIGN_DIR)
-    if not os.path.isdir(legacy_src):
-        return
-    try:
-        md = [n for n in os.listdir(legacy_src)
-              if n.lower().endswith(".md") and os.path.isfile(os.path.join(legacy_src, n))]
-    except OSError:
-        return
-    if not md:
-        return
-    dest = campaign_dir_path(base_dir, LEGACY_CAMPAIGN_NAME)
-    if os.path.exists(dest):
-        return  # already migrated
-    scenes = campaign_scenes_root(base_dir, LEGACY_CAMPAIGN_NAME)
-    os.makedirs(scenes, exist_ok=True)
-    for n in md:
-        shutil.move(os.path.join(legacy_src, n), os.path.join(scenes, n))
-    write_campaign_manifest(base_dir, LEGACY_CAMPAIGN_NAME, LEGACY_CAMPAIGN_NAME)
-    print(paint(f"Migrated {len(md)} scene(s) into "
-                f"{CAMPAIGNS_DIR}/{LEGACY_CAMPAIGN_NAME}/{SCENES_SUBDIR}/", GREEN), flush=True)
 
 
 def markdown_title(path):
@@ -984,12 +957,12 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def _resolve_writable(self, rel_path):
         """Resolve `rel_path` to an absolute path only if it stays inside one of
-        the writable roots (Campaigns/, legacy Campaign/, + every global library
-        folder). Returns the path or None when it escapes them. Shared by save and
-        delete. Campaign-local library/scene files live under Campaigns/."""
+        the writable roots (Campaigns/ + every global library folder). Returns
+        the path or None when it escapes them. Shared by save and delete.
+        Campaign-local library/scene files live under Campaigns/."""
         base = os.path.realpath(os.getcwd())
         target = os.path.realpath(os.path.join(base, rel_path))
-        roots = [CAMPAIGNS_DIR, CAMPAIGN_DIR] + list(LIBRARY_DIRS.values())
+        roots = [CAMPAIGNS_DIR] + list(LIBRARY_DIRS.values())
         for root in roots:
             root_real = os.path.realpath(os.path.join(base, root))
             try:
@@ -1001,16 +974,16 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def _resolve_readable(self, rel_path):
         """Resolve `rel_path` to an absolute path only if it stays inside one of
-        the readable export roots (Campaigns/, legacy Campaign/, the library
-        folders, images/, audio/) or is exactly options.current.json. Returns the
-        path or None. Used by the package exporter, which only copies content out."""
+        the readable export roots (Campaigns/, the library folders, images/,
+        audio/) or is exactly options.current.json. Returns the path or None.
+        Used by the package exporter, which only copies content out."""
         base = os.path.realpath(os.getcwd())
         if not isinstance(rel_path, str) or not rel_path.strip():
             return None
         target = os.path.realpath(os.path.join(base, rel_path))
         if target == os.path.realpath(os.path.join(base, OPTIONS_CURRENT_FILE)):
             return target
-        roots = [CAMPAIGNS_DIR, CAMPAIGN_DIR] + list(LIBRARY_DIRS.values()) + ["images", "audio"]
+        roots = [CAMPAIGNS_DIR] + list(LIBRARY_DIRS.values()) + ["images", "audio"]
         for root in roots:
             root_real = os.path.realpath(os.path.join(base, root))
             try:
@@ -1066,9 +1039,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside a writable root (Campaigns/, legacy Campaign/, or a global
-        # library folder). Rejects "..", absolute paths, and anything escaping the
-        # project. CWD is base_dir (see main()).
+        # live inside a writable root (Campaigns/ or a global library folder).
+        # Rejects "..", absolute paths, and anything escaping the project. CWD is
+        # base_dir (see main()).
         base = os.path.realpath(os.getcwd())
         target = self._resolve_writable(rel_path)
         if not target:
@@ -1371,8 +1344,6 @@ def main():
     configure_console()
     os.chdir(get_base_dir())
     print_banner()
-
-    migrate_legacy_campaign(os.getcwd())
 
     lint_code = run_lint()
     if lint_code != 0:
