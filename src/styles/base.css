@@ -15,7 +15,7 @@
   --sc-fail:#4a4540;     /* fail satırı — kömür/gri */
   --mystic:#6a3d8c;      /* özel/mistik check — mor */
   --sidebar-width-expanded:260px;
-  --sidebar-width-collapsed:56px;
+  --sidebar-width-collapsed:66px;
   --topbar-height:52px;
   --page-max-width:1700px;
   --ro-text:1;            /* body-text scale, set by RendererOptions textSize */
@@ -225,14 +225,16 @@ body.sidebar-collapsed #sidebar{
 }
 
 body.sidebar-collapsed .sidebar-brand{
-  visibility:hidden;
-  height:44px;
-  object-fit:contain;
+  display:none;
 }
 
-body.sidebar-collapsed #nav button,
-body.sidebar-collapsed #library-nav button,
-body.sidebar-collapsed #enemies-nav button{
+body.sidebar-collapsed #library-nav,
+body.sidebar-collapsed #enemies-nav,
+body.sidebar-collapsed #nav .nav-create{
+  display:none;
+}
+
+body.sidebar-collapsed #nav button{
   width:100%;
   height:2rem;
   min-height:0;
@@ -248,18 +250,14 @@ body.sidebar-collapsed #enemies-nav button{
   text-align:center;
 }
 
-body.sidebar-collapsed #nav button::before,
-body.sidebar-collapsed #library-nav button::before,
-body.sidebar-collapsed #enemies-nav button::before{
+body.sidebar-collapsed #nav button::before{
   content:attr(data-nav-index);
   color:#e8dcc2;
   font-size:1rem;
   line-height:1;
 }
 
-body.sidebar-collapsed #nav button.active::before,
-body.sidebar-collapsed #library-nav button.active::before,
-body.sidebar-collapsed #enemies-nav button.active::before{
+body.sidebar-collapsed #nav button.active::before{
   color:var(--parchment-lt);
 }
 
