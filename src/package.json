@@ -1,0 +1,11 @@
+{
+  "name": "rendscroll",
+  "private": true,
+  "description": "RendScroll - TTRPG scene reader/renderer.",
+  "scripts": {
+    "test": "node --require ./test-node-path.cjs --test ../test/*.test.js && python -m unittest discover -s ../test -t .. -p \"test_*.py\""
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

@@ -18,8 +18,8 @@ const RefLibrary = (() => {
   // type the resolved source renders as (see the RendScrollCards registry,
   // src/cards/shared/cardRegistry.js).
   const REF_TYPES = {
-    item: { folder: "Items", cardType: "sourceitem" },
-    enemy: { folder: "Enemies", cardType: "sourceenemy" },
+    item: { folder: "items", cardType: "sourceitem" },
+    enemy: { folder: "enemies", cardType: "sourceenemy" },
     // future: npc / monster / location — add a line, nothing else changes.
   };
 

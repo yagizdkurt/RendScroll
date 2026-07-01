@@ -3,7 +3,7 @@
    it just ships {path, content} and reports success/failure. */
 
 const EditorSave = (() => {
-  // POST the markdown for `path` (e.g. "Campaign/1_1.md"). Resolves to
+  // POST the markdown for `path` (e.g. "Campaigns/Legacy/Scenes/1_1.md"). Resolves to
   // { ok: true } or throws an Error carrying the server message.
   async function save(path, content) {
     let res;

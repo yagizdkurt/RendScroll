@@ -39,7 +39,7 @@
     </main>
   </div>
   <script src="src/vendor/marked.min.js"></script>
-  <script src="src/rendererOptions.js"></script>
+  <script src="src/Options/rendererOptions.js"></script>
   <script src="src/utils/text.js"></script>
   <script src="src/utils/dom.js"></script>
   <script src="src/utils/markdown.js"></script>
@@ -88,11 +88,12 @@
   <script src="src/campaign/campaignManager.js"></script>
   <!-- Reader subsystems split out of app.js. All declaration-only globals; must
        load BEFORE app.js, whose init() (run at load) calls into them. -->
-  <script src="src/appModals.js"></script>
-  <script src="src/appSidebar.js"></script>
-  <script src="src/appLibrary.js"></script>
-  <script src="src/refNavigation.js"></script>
-  <script src="src/app.js"></script>
+  <script src="src/app/appModals.js"></script>
+  <script src="src/app/appSidebar.js"></script>
+  <script src="src/app/appLibrary.js"></script>
+  <script src="src/app/refNavigation.js"></script>
+  <script src="src/updates/updateNotice.js"></script>
+  <script src="src/app/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
   <script src="src/editor/outline.js"></script>
   <script src="src/editor/save.js"></script>

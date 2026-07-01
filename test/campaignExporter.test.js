@@ -13,10 +13,10 @@ function fakeRefLib(items, enemies) {
     String(s == null ? "" : s).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
   const map = { item: new Map(), enemy: new Map() };
   Object.entries(items || {}).forEach(([name, source]) =>
-    map.item.set(norm(name), { name, path: "Items/" + name + ".md", source })
+    map.item.set(norm(name), { name, path: "items/" + name + ".md", source })
   );
   Object.entries(enemies || {}).forEach(([name, source]) =>
-    map.enemy.set(norm(name), { name, path: "Enemies/" + name + ".md", source })
+    map.enemy.set(norm(name), { name, path: "enemies/" + name + ".md", source })
   );
   return {
     norm,
@@ -84,7 +84,7 @@ test("collect resolves transitive refs + assets, flags missing", () => {
 
   const scenes = [
     {
-      path: "Campaign/1.md",
+      path: "campaigns/Legacy/scenes/1.md",
       text: [
         "# Scene One",
         "Image: scene1",
@@ -97,7 +97,7 @@ test("collect resolves transitive refs + assets, flags missing", () => {
         "File: wind",
       ].join("\n"),
     },
-    { path: "Campaign/2.md", text: "# Scene Two\nA mention of [link=MissingThing]." },
+    { path: "campaigns/Legacy/scenes/2.md", text: "# Scene Two\nA mention of [link=MissingThing]." },
   ];
 
   const { files, assetCandidates, missingRefs } = collect(scenes, refLib);
@@ -105,7 +105,13 @@ test("collect resolves transitive refs + assets, flags missing", () => {
   // Scenes + every resolved library file (including the one Kate transitively pulls in).
   assert.deepEqual(
     files.sort(),
-    ["Campaign/1.md", "Campaign/2.md", "Enemies/Kate.md", "Items/Calamity.md", "Items/Kazma.md"]
+    [
+      "campaigns/Legacy/scenes/1.md",
+      "campaigns/Legacy/scenes/2.md",
+      "enemies/Kate.md",
+      "items/Calamity.md",
+      "items/Kazma.md",
+    ]
   );
   // Assets from scenes AND from resolved ref sources (Calamity's + Kate's images).
   assert.deepEqual(
@@ -119,8 +125,8 @@ test("collect resolves transitive refs + assets, flags missing", () => {
 test("collect de-dupes references by normalized name", () => {
   const refLib = fakeRefLib({ Kazma: "### SourceItem: Kazma\n" }, {});
   const scenes = [
-    { path: "Campaign/1.md", text: "SourceItem: Kazma\n[item=kazma]\n[item=KAZMA]" },
+    { path: "campaigns/Legacy/scenes/1.md", text: "SourceItem: Kazma\n[item=kazma]\n[item=KAZMA]" },
   ];
   const { files } = collect(scenes, refLib);
-  assert.deepEqual(files.sort(), ["Campaign/1.md", "Items/Kazma.md"]);
+  assert.deepEqual(files.sort(), ["campaigns/Legacy/scenes/1.md", "items/Kazma.md"]);
 });

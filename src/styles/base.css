@@ -15,7 +15,7 @@
   --sc-fail:#4a4540;     /* fail satırı — kömür/gri */
   --mystic:#6a3d8c;      /* özel/mistik check — mor */
   --sidebar-width-expanded:260px;
-  --sidebar-width-collapsed:56px;
+  --sidebar-width-collapsed:66px;
   --topbar-height:52px;
   --page-max-width:1700px;
   --ro-text:1;            /* body-text scale, set by RendererOptions textSize */
@@ -173,6 +173,100 @@ body{
   margin-right:0;
 }
 
+.update-notice{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:10px 16px;
+  color:var(--chrome-text);
+  background:var(--chrome-panel);
+  border-bottom:1px solid var(--chrome-border);
+  box-shadow:0 4px 12px rgba(0,0,0,.28);
+  z-index:9;
+}
+
+.update-notice-content{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.update-notice-title{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  color:var(--chrome-text-strong);
+  line-height:1.1;
+}
+
+.update-notice-version,
+.update-notice-changes{
+  font-family:system-ui,'Segoe UI',Helvetica,Arial,sans-serif;
+  font-size:.86rem;
+  line-height:1.35;
+}
+
+.update-notice-changes{
+  color:var(--chrome-text);
+}
+
+.update-notice-actions{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.update-notice-view,
+.update-notice-update,
+.update-notice-dismiss{
+  min-height:32px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 12px;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.9rem;
+  font-weight:700;
+  line-height:1;
+  text-decoration:none;
+  color:var(--parchment-lt);
+  background:rgba(255,235,200,.16);
+  border:1px solid var(--gold);
+  border-radius:4px;
+  cursor:pointer;
+}
+
+.update-notice-dismiss{
+  color:var(--chrome-text);
+  background:transparent;
+  border-color:var(--chrome-border);
+}
+
+.update-notice-view:hover,
+.update-notice-update:hover,
+.update-notice-dismiss:hover{
+  background:var(--chrome-hover);
+}
+
+.update-notice-update[disabled]{
+  opacity:.55;
+  cursor:default;
+}
+
+.update-notice-progress{
+  font-family:system-ui,'Segoe UI',Helvetica,Arial,sans-serif;
+  font-size:.86rem;
+  line-height:1.35;
+  color:var(--chrome-text);
+}
+
+.update-notice-progress.is-error{
+  color:var(--danger,#c0392b);
+}
+
 .editor-modal.new-page-modal{
   width:min(440px,100%);
 }
@@ -225,14 +319,16 @@ body.sidebar-collapsed #sidebar{
 }
 
 body.sidebar-collapsed .sidebar-brand{
-  visibility:hidden;
-  height:44px;
-  object-fit:contain;
+  display:none;
 }
 
-body.sidebar-collapsed #nav button,
-body.sidebar-collapsed #library-nav button,
-body.sidebar-collapsed #enemies-nav button{
+body.sidebar-collapsed #library-nav,
+body.sidebar-collapsed #enemies-nav,
+body.sidebar-collapsed #nav .nav-create{
+  display:none;
+}
+
+body.sidebar-collapsed #nav button{
   width:100%;
   height:2rem;
   min-height:0;
@@ -248,18 +344,14 @@ body.sidebar-collapsed #enemies-nav button{
   text-align:center;
 }
 
-body.sidebar-collapsed #nav button::before,
-body.sidebar-collapsed #library-nav button::before,
-body.sidebar-collapsed #enemies-nav button::before{
+body.sidebar-collapsed #nav button::before{
   content:attr(data-nav-index);
   color:#e8dcc2;
   font-size:1rem;
   line-height:1;
 }
 
-body.sidebar-collapsed #nav button.active::before,
-body.sidebar-collapsed #library-nav button.active::before,
-body.sidebar-collapsed #enemies-nav button.active::before{
+body.sidebar-collapsed #nav button.active::before{
   color:var(--parchment-lt);
 }
 

@@ -5,42 +5,37 @@
 !.gitignore
 !LICENSE
 !README.md
-!RendScroll.exe
 !launcher.py
 !index.html
-# package.json declares the jsdom dev-dependency used by the DOM-render tests
-# (node --test). node_modules / package-lock.json stay ignored.
-!package.json
+!update_manifest.json
+# src/package.json declares the jsdom dev-dependency used by the DOM-render
+# tests (node --test). node_modules / package-lock.json stay ignored.
 
 # and Source folders...
 !src/
 !src/**
+src/node_modules/
+src/package-lock.json
 !test/
 !test/**
 !Documentation/
 !Documentation/**
 
-# and campaign folders...
-# Campaigns/ holds multi-campaign content (each a self-contained folder). The
-# structure is committed via .gitkeep; the campaign .md/asset files are local
-# user content (ignored by the `*` rule above).
-!Campaigns/
-!Campaigns/.gitkeep
-# legacy single-campaign root (migrated into Campaigns/Legacy/ on first launch)
-!Campaign/
-!Campaign/.gitkeep
-!Campaign/showcase.md
-!images/
-!images/.gitkeep
-!audio/
-!audio/.gitkeep
-# reusable reference libraries (Items, Enemies, …) — folder structure is committed;
-# the library .md files themselves are local user content (ignored).
-!Items/
-!Items/.gitkeep
-!Enemies/
-!Enemies/.gitkeep
+# and the user-space skeleton...
+!content/
+!content/campaigns/
+!content/campaigns/.gitkeep
+!content/items/
+!content/items/.gitkeep
+!content/enemies/
+!content/enemies/.gitkeep
+!content/images/
+!content/images/.gitkeep
+!content/audio/
+!content/audio/.gitkeep
+
+# the updater's working area (downloads, extract, backup, logs) is transient/local
+.rendscroll-update/
 
 # but still ignore compiled Python files
 *.pyc
-Documentation/Tutorials/**

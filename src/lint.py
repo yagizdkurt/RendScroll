@@ -4,8 +4,8 @@
 Run by launcher.py before the local server starts. This module intentionally
 checks only filesystem and launch-time preflight conditions:
 
-  - Campaigns/*/Scenes/ Markdown files can be opened.
-  - local Image:/BG: references point to existing files (campaign Images/ first,
+  - content/campaigns/*/scenes/ Markdown files can be opened.
+  - local Image:/BG: references point to existing files (campaign images/ first,
     then the global images/ root).
   - empty Image:/BG: values are reported because they cannot be checked.
 
@@ -21,8 +21,10 @@ import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CAMPAIGNS_DIR = "Campaigns"
-SCENES_SUBDIR = "Scenes"
+# Single user-space root; every user folder lives under it (see launcher.USER_DATA_DIR).
+USER_DATA_DIR = "content"
+CAMPAIGNS_DIR = "campaigns"
+SCENES_SUBDIR = "scenes"
 CAMPAIGN_LABEL = "(campaign)"
 
 os.system("")  # enable ANSI color handling in cmd/conhost
@@ -45,7 +47,7 @@ def card_bg_candidates(raw, campaign_dir):
 
     External URLs and server-rooted paths are intentionally skipped (empty list).
     `campaign_dir` is the scene's campaign folder relative to ROOT, e.g.
-    "Campaigns/Legacy"."""
+    "content/campaigns/Legacy"."""
     f = raw.strip()
     if not re.search(r"\.[a-z0-9]+$", f, re.I):
         f += ".png"
@@ -53,21 +55,21 @@ def card_bg_candidates(raw, campaign_dir):
         return []
     if re.search(r"[\\/]", f):
         return [f.replace("\\", "/")]
-    # Bare name -> campaign Images/<name> overrides global images/<name>.
-    return [f"{campaign_dir}/Images/{f}", "images/" + f]
+    # Bare name -> campaign images/<name> overrides the global images/<name>.
+    return [f"{campaign_dir}/images/{f}", f"{USER_DATA_DIR}/images/{f}"]
 
 
 def scene_files(issues):
-    """Discover every Campaigns/*/Scenes/*.md file for launch preflight.
+    """Discover every content/campaigns/*/scenes/*.md file for launch preflight.
 
     Returns [(label, abs_path, campaign_dir)] where label is the repo-relative
     path. No campaigns / no scenes is a valid (empty) state, not an error."""
-    root = os.path.join(ROOT, CAMPAIGNS_DIR)
+    root = os.path.join(ROOT, USER_DATA_DIR, CAMPAIGNS_DIR)
     out = []
     try:
         campaigns = sorted(os.listdir(root), key=str.casefold)
     except OSError:
-        return out  # Campaigns/ absent -> nothing to check yet
+        return out  # content/campaigns/ absent -> nothing to check yet
 
     for camp in campaigns:
         if camp.startswith("."):
@@ -75,18 +77,19 @@ def scene_files(issues):
         scenes_root = os.path.join(root, camp, SCENES_SUBDIR)
         if not os.path.isdir(scenes_root):
             continue
+        camp_rel = f"{USER_DATA_DIR}/{CAMPAIGNS_DIR}/{camp}"
         try:
             names = os.listdir(scenes_root)
         except OSError as exc:
             issues.append(("error", CAMPAIGN_LABEL, 1,
-                           f"{CAMPAIGNS_DIR}/{camp}/{SCENES_SUBDIR} unreadable: {exc}"))
+                           f"{camp_rel}/{SCENES_SUBDIR} unreadable: {exc}"))
             continue
         files = [n for n in names
                  if not n.startswith(".") and n.lower().endswith(".md")
                  and os.path.isfile(os.path.join(scenes_root, n))]
         for n in sorted(files, key=campaign_sort_key):
-            label = f"{CAMPAIGNS_DIR}/{camp}/{SCENES_SUBDIR}/{n}"
-            out.append((label, os.path.join(scenes_root, n), f"{CAMPAIGNS_DIR}/{camp}"))
+            label = f"{camp_rel}/{SCENES_SUBDIR}/{n}"
+            out.append((label, os.path.join(scenes_root, n), camp_rel))
     return out
 
 

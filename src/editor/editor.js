@@ -4,7 +4,7 @@
    manipulation goes through EditorOutline; all card<->source mapping through
    EditorAnchors; forms/menus through EditorForm / EditorContextMenu.
 
-   The reader pipeline (renderPage, from src/app.js) is reused verbatim:
+   The reader pipeline (renderPage, from src/app/app.js) is reused verbatim:
    after every model change we re-render from the serialized model and re-decorate.
    When editor mode is OFF nothing here runs beyond caching the scene source. */
 
@@ -343,7 +343,7 @@ const Editor = (() => {
   }
 
   function rerender() {
-    // Reuse the reader pipeline verbatim (globals from src/app.js).
+    // Reuse the reader pipeline verbatim (globals from src/app/app.js).
     renderPage(EditorOutline.serialize(state.model));
     decorate();
   }

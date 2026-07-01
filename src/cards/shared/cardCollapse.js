@@ -132,7 +132,7 @@ function enhanceCardCollapse(root) {
    own toggle button. */
 
 /* The heading-level "Collapsable: T/F" directive is now read by the parser and
-   carried on the parsed section (RendScrollParser); src/app.js stamps it onto the
+   carried on the parsed section (RendScrollParser); src/app/app.js stamps it onto the
    heading element as `dataset.collapsable` during render. HeadingCollapse below
    reads that flag exactly as before — the old DOM-scanning markHeadingCollapsable
    pass and its text-phase normalizer are no longer needed. */

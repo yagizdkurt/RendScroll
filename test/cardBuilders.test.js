@@ -17,7 +17,7 @@ const { JSDOM } = require("jsdom");
 
 const ROOT = path.join(__dirname, "..");
 
-// Reader subset of index.html's <script> order. Excludes app.js (calls init() +
+// Reader subset of index.html's <script> order. Excludes app/app.js (calls init() +
 // fetch at load), the editor/layout/printer/debug layers, refLibrary, and options —
 // none are needed to build a single card from source.
 const SCRIPTS = [
@@ -70,14 +70,14 @@ before(() => {
     win.document.body.appendChild(el);
   }
   // Final script (shared scope) exposes the symbols + a minimal render helper that
-  // mirrors app.js's renderCardFromSource: isolate -> marked -> build.
+  // mirrors app/app.js's renderCardFromSource: isolate -> marked -> build.
   const expose = win.document.createElement("script");
   expose.textContent = `
     window.__T = {
       parser: RendScrollParser,
       cards: RendScrollCards,
       renderCard: function (type, src) {
-        // Mirror app.js renderCardFromSource: the builder reads the parsed AST node;
+        // Mirror app/app.js renderCardFromSource: the builder reads the parsed AST node;
         // only the heading line goes through marked (for the title element).
         var doc = RendScrollParser.parseRendScroll(src);
         var card = null;
@@ -89,7 +89,7 @@ before(() => {
         var head = tmp.children[0] || null;
         var build = RendScrollCards.builder(type);
         var el = build ? build(card, head, []) : null;
-        // Mirror app.js stampClosed: carry the "Closed:" directive to the element.
+        // Mirror app/app.js stampClosed: carry the "Closed:" directive to the element.
         if (el && card) {
           var v = "";
           (card.directives || []).forEach(function (d) { if (d.name === "closed") v = d.value; });

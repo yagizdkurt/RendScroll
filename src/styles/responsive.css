@@ -13,12 +13,33 @@
   #topbar-tools{
     flex-wrap:wrap;
   }
+  .update-notice{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:10px;
+    padding:10px 12px;
+  }
+  .update-notice-actions{
+    width:100%;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+  }
   #sidebar,
   body.sidebar-collapsed #sidebar{
     width:100%;
     flex:0 0 auto;
     height:auto;
     padding:26px 18px;
+  }
+  body.sidebar-collapsed .sidebar-brand{
+    display:block;
+  }
+  body.sidebar-collapsed #library-nav,
+  body.sidebar-collapsed #enemies-nav{
+    display:flex;
+  }
+  body.sidebar-collapsed #nav .nav-create{
+    display:block;
   }
   body.sidebar-collapsed #nav button{
     width:auto;

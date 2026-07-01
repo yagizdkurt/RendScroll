@@ -24,8 +24,8 @@ function stubLibrary(files) {
 }
 
 const ITEMS = [
-  { name: "Calamity", path: "Items/Calamity.md", content: "### Item: Calamity\nTür: Kitap\n> Lanetli.\n" },
-  { name: "Gümüş Anahtar", path: "Items/Gümüş Anahtar.md", content: "### Item: Gümüş Anahtar\nTür: Anahtar\n" },
+  { name: "Calamity", path: "items/Calamity.md", content: "### Item: Calamity\nTür: Kitap\n> Lanetli.\n" },
+  { name: "Gümüş Anahtar", path: "items/Gümüş Anahtar.md", content: "### Item: Gümüş Anahtar\nTür: Anahtar\n" },
 ];
 
 test("parser leaves standalone [item=Name] as plain markdown", () => {
@@ -54,8 +54,8 @@ test("RefLibrary resolves a reference to its file source (case/Turkish-insensiti
 
 test("RefLibrary resolves SourceItem files and keeps legacy Item files readable", async () => {
   await stubLibrary([
-    { name: "New", path: "Items/New.md", content: "### SourceItem: New\nTür: Relic\n" },
-    { name: "Legacy", path: "Items/Legacy.md", content: "### Item: Legacy\nTür: Tool\n" },
+    { name: "New", path: "items/New.md", content: "### SourceItem: New\nTür: Relic\n" },
+    { name: "Legacy", path: "items/Legacy.md", content: "### Item: Legacy\nTür: Tool\n" },
   ]);
 
   assert.equal(RefLibrary.resolve("item", "New").cardType, "sourceitem");
@@ -65,10 +65,10 @@ test("RefLibrary resolves SourceItem files and keeps legacy Item files readable"
 
 test("RefLibrary reports duplicate names", async () => {
   await stubLibrary([
-    { name: "Dup", path: "Items/Dup.md", content: "### Item: Dup\n" },
-    { name: "Dup", path: "Items/sub/Dup.md", content: "### Item: Dup\n" },
-    { name: "A", path: "Items/A.md", content: "### Item: A\n[item=B]\n" },
-    { name: "B", path: "Items/B.md", content: "### Item: B\n[item=A]\n" },
+    { name: "Dup", path: "items/Dup.md", content: "### Item: Dup\n" },
+    { name: "Dup", path: "items/sub/Dup.md", content: "### Item: Dup\n" },
+    { name: "A", path: "items/A.md", content: "### Item: A\n[item=B]\n" },
+    { name: "B", path: "items/B.md", content: "### Item: B\n[item=A]\n" },
   ]);
   assert.equal(RefLibrary.duplicates().length, 1);
   assert.equal(RefLibrary.detectCycles().length, 0);
@@ -81,7 +81,7 @@ test("createFile then deleteFile add and remove a cache entry", async () => {
   global.fetch = async (url, opts) => {
     posted.push({ url, body: opts && opts.body ? JSON.parse(opts.body) : null });
     if (url === "/__create_library_file") {
-      return { ok: true, json: async () => ({ ok: true, entry: { name: "Yeni", path: "Items/Yeni.md" } }) };
+      return { ok: true, json: async () => ({ ok: true, entry: { name: "Yeni", path: "items/Yeni.md" } }) };
     }
     if (url === "/__delete_campaign_file") {
       return { ok: true, json: async () => ({ ok: true }) };
@@ -94,17 +94,17 @@ test("createFile then deleteFile add and remove a cache entry", async () => {
 
   await RefLibrary.deleteFile("item", "Yeni");
   assert.equal(RefLibrary.has("item", "Yeni"), false);
-  // Delete targets the library file path under Items/.
-  assert.equal(posted.some((p) => p.url === "/__delete_campaign_file" && p.body.path === "Items/Yeni.md"), true);
+  // Delete targets the library file path under items/.
+  assert.equal(posted.some((p) => p.url === "/__delete_campaign_file" && p.body.path === "items/Yeni.md"), true);
 });
 
 test("campaign-local entries carry origin and report overrides over global ones", async () => {
   // The server merges campaign-over-global: the winner is the campaign file and
   // the shadowed global path is recorded so the cache can flag the override.
   await stubLibrary([
-    { name: "Goblin", path: "Campaigns/X/Items/Goblin.md", origin: "campaign",
-      shadows: ["Items/Goblin.md"], content: "### SourceItem: Goblin (campaign)\n" },
-    { name: "Sword", path: "Items/Sword.md", origin: "global", content: "### SourceItem: Sword\n" },
+    { name: "Goblin", path: "campaigns/X/items/Goblin.md", origin: "campaign",
+      shadows: ["items/Goblin.md"], content: "### SourceItem: Goblin (campaign)\n" },
+    { name: "Sword", path: "items/Sword.md", origin: "global", content: "### SourceItem: Sword\n" },
   ]);
 
   const goblin = RefLibrary.lookup("item", "Goblin");
@@ -115,8 +115,8 @@ test("campaign-local entries carry origin and report overrides over global ones"
   const overrides = RefLibrary.overrides();
   assert.equal(overrides.length, 1);
   assert.equal(overrides[0].name, "Goblin");
-  assert.equal(overrides[0].using, "Campaigns/X/Items/Goblin.md");
-  assert.deepEqual(overrides[0].hidden, ["Items/Goblin.md"]);
+  assert.equal(overrides[0].using, "campaigns/X/items/Goblin.md");
+  assert.deepEqual(overrides[0].hidden, ["items/Goblin.md"]);
 
   // entries() exposes origin so the sidebar can group/badge campaign-local items.
   const origins = RefLibrary.entries("item").map((e) => e.origin).sort();
@@ -130,7 +130,7 @@ test("createFile forwards scope and stores the returned origin", async () => {
     if (url === "/__create_library_file") {
       sent = JSON.parse(opts.body);
       return { ok: true, json: async () => ({ ok: true,
-        entry: { name: "Camp", path: "Campaigns/X/Items/Camp.md", origin: "campaign" } }) };
+        entry: { name: "Camp", path: "campaigns/X/items/Camp.md", origin: "campaign" } }) };
     }
     return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
   };
@@ -176,9 +176,9 @@ test("scene diagnostics flag broken links but ignore deprecated item blocks", as
     "",
     "[item=]",
   ].join("\n");
-  const parsed = RendScrollDiagnostics.parseScene(src, "Campaign/1.md");
+  const parsed = RendScrollDiagnostics.parseScene(src, "campaigns/Legacy/scenes/1.md");
   const codes = RendScrollDiagnostics
-    .computeSceneDiagnostics(parsed.doc, { file: "Campaign/1.md" })
+    .computeSceneDiagnostics(parsed.doc, { file: "campaigns/Legacy/scenes/1.md" })
     .map((i) => i.code);
   assert.ok(!codes.includes("missing-ref"));
   assert.ok(!codes.includes("malformed-ref"));

@@ -1,7 +1,7 @@
 /* Multi-campaign manager.
 
-   RendScroll campaigns are self-contained folders under Campaigns/ (each with a
-   campaign.json manifest and a Scenes/ folder). This module owns:
+   RendScroll campaigns are self-contained folders under content/campaigns/ (each with a
+   campaign.json manifest and a scenes/ folder). This module owns:
      - the list of campaigns (GET /__campaigns),
      - which one is active (persisted in localStorage; mirrored to the server via
        POST /__select_campaign so scene/library discovery and campaign-first asset

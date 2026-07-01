@@ -75,7 +75,7 @@ No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 
 ## 🕯️ Step inside
 
-1. Run **`launcher.py`** (or the bundled **`RendScroll.exe`**).
+1. Run **`python launcher.py`**.
 2. It quietly checks your campaign files, then opens RendScroll in its own window.
 3. Pick a scene from the side and start reading — or hit **edit** and start building.
 
