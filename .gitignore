@@ -27,10 +27,6 @@
 # user content (ignored by the `*` rule above).
 !Campaigns/
 !Campaigns/.gitkeep
-# legacy single-campaign root (migrated into Campaigns/Legacy/ on first launch)
-!Campaign/
-!Campaign/.gitkeep
-!Campaign/showcase.md
 !images/
 !images/.gitkeep
 !audio/
