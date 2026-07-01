@@ -6,7 +6,7 @@
      - type "image":  a data-URL  -> CSS var on <body>        (custom page BG)
 
    Persistence is two files (see launcher.py):
-     - src/options.defaults.json  -> committed default values ("Back to defaults")
+     - src/Options/options.defaults.json  -> committed default values ("Back to defaults")
      - options.current.json       -> gitignored, the user's saved choices
 
    Save model is "live preview, commit on Save": the Options modal edits a
@@ -19,7 +19,7 @@
    rules for a choice) and a default in options.defaults.json. */
 const RendererOptions = (() => {
   const STORAGE_KEY = "rendererOptions"; // localStorage mirror / offline fallback
-  const DEFAULTS_URL = "src/options.defaults.json";
+  const DEFAULTS_URL = "src/Options/options.defaults.json";
   const CURRENT_URL = "options.current.json";
   const SAVE_ENDPOINT = "/__save_options";
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // ~2 MB guard for uploaded PNGs

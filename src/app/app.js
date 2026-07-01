@@ -3,10 +3,10 @@
    (init / campaign activation / scene load), plus the shared
    reader state every sibling module reads. Feature subsystems
    that used to live here now sit beside it as plain globals:
-     - appModals.js    New Page + delete-confirm dialogs
-     - appSidebar.js   sidebar, campaign CRUD, nav context menu
-     - appLibrary.js   reference-library reader view
-     - refNavigation.js inline [link=] jump + preview
+     - app/appModals.js    New Page + delete-confirm dialogs
+     - app/appSidebar.js   sidebar, campaign CRUD, nav context menu
+     - app/appLibrary.js   reference-library reader view
+     - app/refNavigation.js inline [link=] jump + preview
    Card rendering lives in cards/<type>/*.js.
    ============================================================ */
 

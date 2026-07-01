@@ -41,6 +41,7 @@ CAMPAIGN_ASSET_DIRS = {"Images": "images", "Audio": "audio"}
 # The campaign selected by the client (POST /__select_campaign). Resolved per request
 # for scene/library discovery and for campaign-first asset serving. None = no campaign.
 ACTIVE_CAMPAIGN = None
+OPTIONS_DEFAULTS_FILE = os.path.join("src", "Options", "options.defaults.json")
 OPTIONS_CURRENT_FILE = "options.current.json"
 # Destination root for "Export Campaign Package" zips. Gitignored (the `*` rule).
 EXPORTS_DIR = "Exports"
@@ -237,7 +238,7 @@ def read_json_file(path):
 def check_for_updates_enabled(base_dir):
     """Read the user's update-check preference from the existing options model."""
     enabled = True
-    for rel_path in (os.path.join("src", "options.defaults.json"), OPTIONS_CURRENT_FILE):
+    for rel_path in (OPTIONS_DEFAULTS_FILE, OPTIONS_CURRENT_FILE):
         data = read_json_file(os.path.join(base_dir, rel_path))
         value = data.get("check_for_updates")
         if isinstance(value, bool):
