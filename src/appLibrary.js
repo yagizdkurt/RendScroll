@@ -134,8 +134,10 @@ function refreshLibrarySidebars() {
 }
 
 // Switch the reader area to a single library entry's card + management toolbar.
-function openLibrary(kind, name) {
+async function openLibrary(kind, name) {
   const cfg = libraryConfig(kind);
+  const isCurrent = currentView === cfg.view && currentLibraryName === name;
+  if (!isCurrent && typeof confirmReaderNavigation === "function" && !(await confirmReaderNavigation())) return false;
   currentView = cfg.view;
   currentLibraryName = name;
   currentPath = null;
@@ -146,6 +148,8 @@ function openLibrary(kind, name) {
   );
   renderLibraryView(kind, name);
   page.parentElement.scrollTop = 0;
+  document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path: null, text: "" } }));
+  return true;
 }
 
 function libraryToolbarButton(label, title, onClick, extraClass) {
@@ -215,7 +219,7 @@ async function deleteLibrary(kind, name) {
     document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: kind, name, removed: true } }));
     // Leave the library view: go back to the first campaign scene (or empty).
     if (campaignEntries.length) {
-      await load(campaignEntries[0].path);
+      await guardedLoad(campaignEntries[0].path);
     } else {
       currentView = "scene";
       currentLibraryName = null;

@@ -187,8 +187,9 @@ function confirmDeleteCampaignEntry(entry) {
   });
 }
 
-function openNewPageDialog() {
+async function openNewPageDialog() {
   if (document.querySelector(".new-page-backdrop")) return;
+  if (typeof confirmReaderNavigation === "function" && !(await confirmReaderNavigation())) return;
 
   const { modal, body, foot, close: closeModal } = makeModal({
     backdropClass: "new-page-backdrop",

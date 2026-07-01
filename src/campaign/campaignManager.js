@@ -70,10 +70,15 @@ const CampaignManager = (() => {
 
   // Switch to a campaign: tell the server, persist the choice, reload the reader.
   async function select(name) {
+    if (typeof Editor !== "undefined" && Editor.confirmNavigation) {
+      const canLeave = await Editor.confirmNavigation();
+      if (!canLeave) return false;
+    }
     await postSelect(name);
     activeName = name;
     try { localStorage.setItem(STORAGE_KEY, name); } catch (_) { /* private mode */ }
     if (onSwitch) await onSwitch(name);
+    return true;
   }
 
   // Restore the last campaign on boot, or fall back to the start screen.
@@ -110,8 +115,7 @@ const CampaignManager = (() => {
       return;
     }
     await loadCampaigns();
-    await select(payload.campaign.name);
-    hide();
+    if (await select(payload.campaign.name)) hide();
   }
 
   async function importZip(file) {
@@ -145,7 +149,7 @@ const CampaignManager = (() => {
     setStatus("Exporting " + name + "…");
     try {
       // The exporter reads the active campaign's scenes/library, so make it active.
-      if (activeName !== name) await select(name);
+      if (activeName !== name && !(await select(name))) return;
       const camp = campaigns.find((c) => c.name === name);
       const result = await CampaignExporter.exportPackage({ name, label: camp ? camp.label : name });
       render();
@@ -158,6 +162,10 @@ const CampaignManager = (() => {
 
   async function deleteCampaign(name) {
     if (!window.confirm('Delete campaign "' + name + '"? This removes its folder and cannot be undone.')) return;
+    if (activeName === name && typeof Editor !== "undefined" && Editor.confirmNavigation) {
+      const canLeave = await Editor.confirmNavigation();
+      if (!canLeave) return;
+    }
     const { res, payload } = await fetchJSON("/__delete_campaign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -260,7 +268,7 @@ const CampaignManager = (() => {
     const actions = document.createElement("div");
     actions.className = "campaign-row-actions";
     actions.appendChild(button("Open", "primary", async () => {
-      try { await select(c.name); hide(); }
+      try { if (await select(c.name)) hide(); }
       catch (err) { setStatus("Open failed: " + (err.message || err), true); }
     }));
     actions.appendChild(button("Export", "", () => exportCampaign(c.name)));
