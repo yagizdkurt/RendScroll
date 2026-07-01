@@ -8,13 +8,15 @@
 !launcher.py
 !index.html
 !update_manifest.json
-# package.json declares the jsdom dev-dependency used by the DOM-render tests
-# (node --test). node_modules / package-lock.json stay ignored.
-!package.json
+# src/package.json declares the jsdom dev-dependency used by the DOM-render
+# tests (node --test). node_modules / package-lock.json stay ignored.
 
 # and Source folders...
 !src/
 !src/**
+!src/package.json
+src/node_modules/
+src/package-lock.json
 !test/
 !test/**
 !Documentation/
