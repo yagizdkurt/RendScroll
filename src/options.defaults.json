@@ -8,6 +8,7 @@
   "readAloudAccent": true,
   "startClosed": false,
   "uiTheme": "dark",
-  "pageBackground": "parchiment",
-  "pageBackgroundImage": ""
+  "pageBackground": "parchment",
+  "pageBackgroundImage": "",
+  "check_for_updates": true
 }
