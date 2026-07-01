@@ -13,6 +13,17 @@
   #topbar-tools{
     flex-wrap:wrap;
   }
+  .update-notice{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:10px;
+    padding:10px 12px;
+  }
+  .update-notice-actions{
+    width:100%;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+  }
   #sidebar,
   body.sidebar-collapsed #sidebar{
     width:100%;

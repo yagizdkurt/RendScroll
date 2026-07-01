@@ -22,6 +22,9 @@ import time
 import webbrowser
 import zipfile
 
+from src.updates.update_checker import APP_VERSION, check_for_updates
+from src.updates.update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIFEST_URL
+
 
 HOST = "127.0.0.1"
 PORT_START = 8000
@@ -48,6 +51,12 @@ EXPORTS_DIR = "Exports"
 # endpoints.
 LIBRARY_DIRS = {"item": "Items", "enemy": "Enemies"}
 EXIT_REQUESTED = threading.Event()
+UPDATE_STATUS_LOCK = threading.Lock()
+UPDATE_STATUS = {
+    "state": "check_failed",
+    "current_version": APP_VERSION,
+    "pending": False,
+}
 
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -216,6 +225,70 @@ def read_campaign_manifest(base_dir, name):
     except (OSError, ValueError):
         pass
     return {}
+
+
+def read_json_file(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def check_for_updates_enabled(base_dir):
+    """Read the user's update-check preference from the existing options model."""
+    enabled = True
+    for rel_path in (os.path.join("src", "options.defaults.json"), OPTIONS_CURRENT_FILE):
+        data = read_json_file(os.path.join(base_dir, rel_path))
+        value = data.get("check_for_updates")
+        if isinstance(value, bool):
+            enabled = value
+    return enabled
+
+
+def update_status_snapshot():
+    with UPDATE_STATUS_LOCK:
+        return dict(UPDATE_STATUS)
+
+
+def set_update_status(status):
+    global UPDATE_STATUS
+    payload = dict(status)
+    payload["pending"] = False
+    with UPDATE_STATUS_LOCK:
+        UPDATE_STATUS = payload
+
+
+def start_update_check(base_dir):
+    enabled = check_for_updates_enabled(base_dir)
+    if not enabled:
+        set_update_status({
+            "state": "disabled",
+            "current_version": APP_VERSION,
+        })
+        return None
+
+    with UPDATE_STATUS_LOCK:
+        UPDATE_STATUS.clear()
+        UPDATE_STATUS.update({
+            "state": "check_failed",
+            "current_version": APP_VERSION,
+            "pending": True,
+        })
+
+    def worker():
+        result = check_for_updates(
+            current_version=APP_VERSION,
+            manifest_url=UPDATE_MANIFEST_URL,
+            enabled=True,
+            timeout=UPDATE_CHECK_TIMEOUT_SECONDS,
+        )
+        set_update_status(result)
+
+    thread = threading.Thread(target=worker, name="RendScrollUpdateCheck", daemon=True)
+    thread.start()
+    return thread
 
 
 def write_campaign_manifest(base_dir, name, label=None):
@@ -504,6 +577,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if path == "/__update_status":
+            self._send_json(200, update_status_snapshot())
+            return
+
         if path == "/__campaigns":
             self._send_json(200, discover_campaigns(os.getcwd()))
             return
@@ -1311,6 +1388,7 @@ def main():
     try:
         print_section(2, "Starting local server")
         server, port = start_server()
+        start_update_check(os.getcwd())
         url = f"http://{HOST}:{port}"
         print_indented("URL: " + paint(url, CYAN))
         print()

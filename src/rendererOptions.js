@@ -110,6 +110,12 @@ const RendererOptions = (() => {
     pageBackgroundImage: {
       section: "Theme", type: "image", default: "", label: "Custom Background (PNG)",
     },
+
+    // ---- Application ----
+    check_for_updates: {
+      section: "Application", type: "toggle", default: true,
+      label: "Check for Updates",
+    },
   };
 
   // ---- State -------------------------------------------------------------
@@ -193,7 +199,7 @@ const RendererOptions = (() => {
     for (const k in SCHEMA) {
       const opt = SCHEMA[k];
       if (opt.type === "toggle") {
-        document.body.classList.toggle(opt.bodyClass, !!state[k]);
+        if (opt.bodyClass) document.body.classList.toggle(opt.bodyClass, !!state[k]);
       } else if (opt.type === "image") {
         const image = state.pageBackground === "parchiment" ? PARCHIMENT_IMAGE_URL : state[k];
         if (image) document.body.style.setProperty("--page-bg-custom", `url("${image}")`);

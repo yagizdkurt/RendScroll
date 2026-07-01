@@ -381,6 +381,10 @@ async function init() {
   } else {
     showStartScreen();
   }
+
+  if (typeof RendScrollUpdateNotice !== "undefined") {
+    RendScrollUpdateNotice.init();
+  }
 }
 
 init();
