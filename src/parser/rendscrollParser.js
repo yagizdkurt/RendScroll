@@ -21,10 +21,12 @@ const RendScrollParser = (() => {
 
   // Turkish-aware lowercase (İ/I -> dotted/dotless i), matching every renderer's
   // rsLower(). Used for the includes-based classification (npc / skill check) and
-  // for truthy-value tests — the same places the card builders use it.
-  function lower(s) {
-    return String(s).replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-  }
+  // for truthy-value tests — the same places the card builders use it. Delegates to
+  // the single owner in utils/text.js (browser global `rsLower`, loaded first; Node
+  // requires it) so the rule is not restated here.
+  const lower = (typeof rsLower !== "undefined")
+    ? rsLower
+    : require("../utils/text.js").rsLower;
 
   // ASCII-leaning lowercase for DIRECTIVE KEYWORDS. The card builders match these with
   // case-insensitive regex (e.g. /^image\s*:/i), NOT rsLower — so "Image" must map

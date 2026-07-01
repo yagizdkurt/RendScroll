@@ -44,9 +44,49 @@ function combatSectionTitle(text) {
   return el;
 }
 
+// Pure per-type body parser: AST card node -> ordered combat segments. Walks the
+// body in source order (cardOrderedBody), classifying each line as a "Checks:"
+// group, a bare "Label:" that opens a sub-section (an "Enemies:" roster collects
+// the bullet lines that follow it; any other label is a plain titled section), or a
+// content run. The builder maps segments to DOM + expands/renders enemies; keeping
+// the classification here as one named function mirrors the shared-parse discipline.
+//   { kind: "checks",  label, checks }
+//   { kind: "enemies", label, lines }   bullet lines feeding the roster
+//   { kind: "section", label }          any other "Label:" sub-section
+//   { kind: "lines",   lines }          a contiguous content run
+function parseCombatBody(cardNode) {
+  const segs = [];
+  let enemyTarget = null;
+  cardOrderedBody(cardNode).forEach((seg) => {
+    if (seg.kind === "checks") {
+      segs.push({ kind: "checks", label: seg.label || "Checks", checks: seg.checks });
+      enemyTarget = null;
+      return;
+    }
+    seg.lines.forEach((line) => {
+      const label = combatLabelText(line);
+      if (label) {
+        if (rsLower(label).trim() === "enemies") {
+          enemyTarget = { kind: "enemies", label, lines: [] };
+          segs.push(enemyTarget);
+        } else {
+          segs.push({ kind: "section", label });
+          enemyTarget = null;
+        }
+        return;
+      }
+      if (enemyTarget) { if (line.trim()) enemyTarget.lines.push(line); return; }
+      const last = segs[segs.length - 1];
+      if (last && last.kind === "lines") last.lines.push(line);
+      else segs.push({ kind: "lines", lines: [line] });
+    });
+  });
+  return segs;
+}
+
 // Build one Savaş card from its parsed AST node. Image/Side come from the resolved
-// directives; "Checks:" blocks from cardNode.checkGroups; "Enemies:" + the other
-// "Label:" sub-sections from cardNode.body, all walked in source order.
+// directives; the Checks / Enemies / sub-section / content segments come from the
+// shared parseCombatBody.
 function buildCombatCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "combat-card";
@@ -64,60 +104,13 @@ function buildCombatCard(cardNode, head, nodes) {
     let headOpen = true;        // leading content goes beside the portrait
     const enemyRecords = [];    // structured enemies powering roster + live runner
 
-    // Pending state while collecting the bullet lines of an "Enemies:" block.
-    let rosterBox = null;
-    let enemyLines = null;      // non-null while inside an Enemies: section
-    let buf = [];               // plain content lines awaiting a marked render
-
-    function flushEnemies() {
-      if (!enemyLines) return;
-      const recs = CombatEnemyModel.expandEnemies(
-        CombatEnemyModel.parseEnemyBlock(enemyLines), enemySourceResolver);
-      recs.forEach((r) => enemyRecords.push(r));
-      renderCombatRoster(rosterBox, recs);
-      enemyLines = null;
-      rosterBox = null;
-    }
-
-    function flushBuf() {
-      if (!buf.length) { return; }
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(buf.join("\n"));
-      [...tmp.children].forEach((el) => {
-        const node = cloneAsReadAloud(el);
-        if (headOpen) headEls.push(node); // leading content stays beside portrait
-        else card.appendChild(node);
-      });
-      buf = [];
-    }
-
-    function openSection(label) {
-      headOpen = false;
-      flushBuf();
-      flushEnemies();
-      if (rsLower(label).trim() === "enemies") {
-        const section = document.createElement("div");
-        section.className = "combat-section";
-        section.appendChild(combatSectionTitle(label));
-        rosterBox = document.createElement("div");
-        rosterBox.className = "combat-roster";
-        section.appendChild(rosterBox);
-        card.appendChild(section);
-        enemyLines = []; // collect the following bullet lines into the roster
-      } else {
-        card.appendChild(combatSectionTitle(label));
-      }
-    }
-
-    cardOrderedBody(cardNode).forEach((seg) => {
+    parseCombatBody(cardNode).forEach((seg) => {
       if (seg.kind === "checks") {
         // "Checks:" renders identically to the Skill Checks panel (and Obje's).
         headOpen = false;
-        flushBuf();
-        flushEnemies();
         const section = document.createElement("div");
         section.className = "combat-section";
-        section.appendChild(combatSectionTitle(seg.label || "Checks"));
+        section.appendChild(combatSectionTitle(seg.label));
         const box = document.createElement("div");
         box.className = "skillchecks";
         renderSkillChecks(box, seg.checks);
@@ -125,15 +118,34 @@ function buildCombatCard(cardNode, head, nodes) {
         card.appendChild(section);
         return;
       }
-      seg.lines.forEach((line) => {
-        const label = combatLabelText(line);
-        if (label) { openSection(label); return; }
-        if (enemyLines) { if (line.trim()) enemyLines.push(line); return; }
-        buf.push(line);
+      if (seg.kind === "enemies") {
+        headOpen = false;
+        const section = document.createElement("div");
+        section.className = "combat-section";
+        section.appendChild(combatSectionTitle(seg.label));
+        const rosterBox = document.createElement("div");
+        rosterBox.className = "combat-roster";
+        section.appendChild(rosterBox);
+        card.appendChild(section);
+        const recs = CombatEnemyModel.expandEnemies(
+          CombatEnemyModel.parseEnemyBlock(seg.lines), enemySourceResolver);
+        recs.forEach((r) => enemyRecords.push(r));
+        renderCombatRoster(rosterBox, recs);
+        return;
+      }
+      if (seg.kind === "section") {
+        headOpen = false;
+        card.appendChild(combatSectionTitle(seg.label));
+        return;
+      }
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderMarkdown(seg.lines.join("\n"));
+      [...tmp.children].forEach((el) => {
+        const node = cloneAsReadAloud(el);
+        if (headOpen) headEls.push(node); // leading content stays beside portrait
+        else card.appendChild(node);
       });
     });
-    flushBuf();
-    flushEnemies();
 
     // When the card defines enemies, attach the live combat runner (Start Combat
     // -> initiative/turn order -> per-enemy HP tracking). State is ephemeral.
@@ -498,3 +510,6 @@ if (typeof RendScrollCards !== "undefined") {
   RendScrollCards.register("combat", { build: buildCombatCard });
   RendScrollCards.register("sourceenemy", { build: buildSourceEnemyCard });
 }
+
+if (typeof window !== "undefined") window.parseCombatBody = parseCombatBody;
+if (typeof module !== "undefined" && module.exports) module.exports = { parseCombatBody };

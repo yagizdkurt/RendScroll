@@ -38,6 +38,25 @@ const EditorSchemas = (() => {
     ? RendScrollSkillChecks
     : require("../cards/shared/skillCheckRules.js");
 
+  // Shared AST accessors + the per-type render body parsers. The editor consumes
+  // the SAME parse<Type>Body functions the render builders use (see
+  // RENDERER_AST_MIGRATION.md), so a card's type-specific fields are never parsed
+  // two different ways. Browser: these are globals (cards loaded before the editor).
+  // Node: require them, and mirror the browser by exposing the cardDirectives
+  // helpers as globals so the required card files (which reference them as globals)
+  // resolve at call time.
+  const RENDER = (typeof cardBodySource !== "undefined")
+    ? { cardBodySource, cardBodyLines, cardOrderedBody, cardDirective, parseItemBody, parseAbilityBody }
+    : (() => {
+        const CD = require("../cards/shared/cardDirectives.js");
+        Object.assign(globalThis, CD);
+        if (typeof globalThis.rsLower === "undefined") globalThis.rsLower = require("../utils/text.js").rsLower;
+        return Object.assign({}, CD, {
+          parseItemBody: require("../cards/item/item.js").parseItemBody,
+          parseAbilityBody: require("../cards/ability/ability.js").parseAbilityBody,
+        });
+      })();
+
   const lower = RSP.lower;
   const TRUTHY = /^(t|true|evet|yes|1)$/i;
 
@@ -109,9 +128,120 @@ const EditorSchemas = (() => {
     return out;
   }
 
+  // --- node-based parse (shared with the render builders) ------------------
+
+  function initValues(schema) {
+    const values = {};
+    schema.fields.forEach((f) => {
+      if (f.kind === "list") values[f.key] = [];
+      else if (f.kind === "enemies") values[f.key] = [];
+      else if (f.kind === "checks" || f.kind === "linesWithChecks") values[f.key] = [];
+      else if (f.kind === "flag") values[f.key] = false;
+      else values[f.key] = "";
+    });
+    return values;
+  }
+
+  function headingContentOf(rawLines) {
+    const headIdx = rawLines.findIndex((l) => /^###\s+/.test(l));
+    return headIdx >= 0 ? rawLines[headIdx].replace(/^###\s+/, "") : "";
+  }
+
+  // The first parsed card node from an editor block (its serialized markdown), so a
+  // card's directives/body/checks are resolved by the canonical parser identically
+  // to the reader.
+  function firstCardNode(blockText) {
+    const doc = RSP.parseRendScroll(blockText);
+    let node = null;
+    (doc.sections || []).forEach((s) => (s.blocks || []).forEach((b) => {
+      if (!node && b.kind === "card") node = b;
+    }));
+    return node;
+  }
+
+  // Universal directives + column/stuck come off the AST node, exactly as the
+  // render builders read them — the editor no longer hand-scans these lines.
+  const UNIVERSAL_TRUTHY = /^(t|true)$/i;
+  function fillUniversalFromNode(schema, node, values) {
+    const D = (name) => RENDER.cardDirective(node, name);
+    schema.fields.forEach((f) => {
+      switch (f.key) {
+        case "column": values.column = node.column; break;
+        case "stuck": values.stuck = !!node.stuck; break;
+        case "closed": values.closed = UNIVERSAL_TRUTHY.test(D("closed").trim()); break;
+        case "image": values.image = D("image"); break;
+        case "bg": values.bg = D("bg"); break;
+        case "textSize": values.textSize = D("textsize"); break;
+        case "size": values.size = D("size"); break;
+        case "file": values.file = D("file"); break;
+        default: break;
+      }
+    });
+  }
+
+  // Map a render model's metaRows (label/value scalars) onto the schema's scalar
+  // fields by label (TR/EN aware, via the fields' own mdLabel/mdAliases). Returns
+  // the leftover rows (unknown labels) as "Label: value" lines so nothing is lost.
+  function mapMetaToScalars(schema, metaRows, values) {
+    const byLabel = {};
+    schema.fields.forEach((f) => {
+      if (["text", "select", "itemType", "damage"].indexOf(f.kind) < 0) return;
+      if (f.key === "image" || f.key === "textSize") return; // universal, from node
+      fieldLabels(f).forEach((lab) => { byLabel[lower(lab).trim()] = f.key; });
+    });
+    const leftover = [];
+    (metaRows || []).forEach((row) => {
+      const key = byLabel[lower(row.label).trim()];
+      if (key) values[key] = row.value;
+      else leftover.push(row.label + ": " + row.value);
+    });
+    return leftover;
+  }
+
+  // A schema that declares `fromBody` parses through the AST node + the shared
+  // per-type render parser (parse<Type>Body) instead of the generic field-table
+  // walk below — the same code the reader uses, so the two can never drift.
+  function parseViaNode(schema, blockText) {
+    const rawLines = blockText.split(/\r?\n/);
+    const values = initValues(schema);
+    schema.parseHeading(headingContentOf(rawLines), values);
+    const node = firstCardNode(blockText);
+    if (node) {
+      fillUniversalFromNode(schema, node, values);
+      schema.fromBody(node, values, {
+        render: RENDER,
+        mapMeta: (rows) => mapMetaToScalars(schema, rows, values),
+      });
+    }
+    return values;
+  }
+
+  // Item / SourceItem: canonical ItemData.parse (via parseItemBody). Meta rows fold
+  // to Type/Damage/Rarity scalars; description + extras + unknown meta -> Body.
+  function itemFromBody(node, values, api) {
+    const m = api.render.parseItemBody(node);
+    values.sourceItem = m.sourceItem || "";
+    const leftover = api.mapMeta(m.metaRows);
+    values.properties = (m.properties || []).slice();
+    values.body = [].concat(m.description || [], m.extras || [], leftover)
+      .join("\n").replace(/[ \t\r\n]+$/, "");
+  }
+
+  // Ability: parseAbilityBody. Meta rows fold to Type/Cost/Range/Cooldown/Rarity;
+  // Lore + description + extras + unknown meta -> Body (the "> …" / "Lore:" text).
+  function abilityFromBody(node, values, api) {
+    const m = api.render.parseAbilityBody(node);
+    const leftover = api.mapMeta(m.metaRows);
+    values.properties = (m.properties || []).slice();
+    const parts = [].concat(m.description || [], m.extras || []);
+    if ((m.lore || []).length) parts.push("Lore:", ...m.lore);
+    values.body = [].concat(parts, leftover).join("\n").replace(/[ \t\r\n]+$/, "");
+  }
+
   // --- generic parse (markdown block -> values) ----------------------------
 
   function parse(schema, blockText) {
+    if (typeof schema.fromBody === "function") return parseViaNode(schema, blockText);
     const rawLines = blockText.split(/\r?\n/);
     // drop a trailing empty element from a final newline
     if (rawLines.length && rawLines[rawLines.length - 1] === "") rawLines.pop();
@@ -339,8 +469,8 @@ const EditorSchemas = (() => {
   // --- schema registry -----------------------------------------------------
 
   const REGISTRY = {};
-  function define(type, label, headingPair, fields) {
-    REGISTRY[type] = Object.assign({ type, label, fields }, headingPair);
+  function define(type, label, headingPair, fields, extra) {
+    REGISTRY[type] = Object.assign({ type, label, fields }, headingPair, extra || {});
   }
 
   define("npc", "NPC", keywordHeading("NPC"), [
@@ -371,7 +501,7 @@ const EditorSchemas = (() => {
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
     fBody("> description, extra lines…"),
     fStuck, fClosed,
-  ]);
+  ], { fromBody: itemFromBody });
 
   define("ability", "Ability", {
     heading(values) {
@@ -401,7 +531,7 @@ const EditorSchemas = (() => {
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
     fBody("> description, Lore: …"),
     fStuck, fClosed,
-  ]);
+  ], { fromBody: abilityFromBody });
 
   define("obj", "Object / POI", keywordHeading("Object", ["Obje", "POI"]), [
     fTitle,

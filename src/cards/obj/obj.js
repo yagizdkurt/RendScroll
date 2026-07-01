@@ -52,10 +52,32 @@ function objSectionTitle(text) {
   return el;
 }
 
+// Pure per-type body parser: AST card node -> ordered obj segments. Walks the
+// body in source order (cardOrderedBody) classifying each run as a "Checks:" group,
+// a description run, or a loot run (after a bare "Loot:" label). The builder below
+// maps each segment to DOM; keeping the classification here as one named function
+// mirrors the shared-parse discipline (RENDERER_AST_MIGRATION.md).
+//   { kind: "checks", checks }                 a parsed check group
+//   { kind: "lines", mode: "desc"|"loot", lines }   a contiguous content run
+function parseObjBody(cardNode) {
+  const segs = [];
+  let mode = "desc";
+  cardOrderedBody(cardNode).forEach((seg) => {
+    if (seg.kind === "checks") { segs.push({ kind: "checks", checks: seg.checks }); mode = "desc"; return; }
+    seg.lines.forEach((line) => {
+      if (/^loot\s*:\s*$/i.test(line.trim())) { mode = "loot"; return; }
+      const last = segs[segs.length - 1];
+      if (last && last.kind === "lines" && last.mode === mode) last.lines.push(line);
+      else segs.push({ kind: "lines", mode, lines: [line] });
+    });
+  });
+  return segs;
+}
+
 // Build one Obje card from its parsed AST node. BG/Image/Side come from the
-// resolved directives; "Checks:" blocks come from cardNode.checkGroups and "Loot:"
-// + description from cardNode.body, walked in source order (cardOrderedBody) so a
-// title-only Obje still returns a real card editor anchors can attach to.
+// resolved directives; the Checks / description / Loot segments come from the
+// shared parseObjBody, so a title-only Obje still returns a real card editor
+// anchors can attach to.
 function buildObjCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "obj-card";
@@ -72,19 +94,26 @@ function buildObjCard(cardNode, head, nodes) {
     if (bg) card.style.setProperty("--obj-bg", 'url("' + cardBgUrl(bg) + '")');
     if (cardIsRight(cardNode)) card.classList.add("card-right");
 
-    // "loot" once a "Loot:" label is seen; "desc" otherwise. Description lines go
-    // beside the portrait (header); loot lines fill the loot panel. A run of lines
-    // is rendered together so marked sees lists/blockquotes intact.
-    let mode = "desc";
+    // Description runs go beside the portrait (header); loot runs fill the loot
+    // panel; each run is rendered together so marked sees lists/blockquotes intact.
     let lootPanel = null;
-    let buf = [];
 
-    function flushBuf() {
-      if (!buf.length) return;
+    parseObjBody(cardNode).forEach((seg) => {
+      if (seg.kind === "checks") {
+        const section = document.createElement("div");
+        section.className = "obj-section";
+        section.appendChild(objSectionTitle("Checks"));
+        const box = document.createElement("div");
+        box.className = "skillchecks";
+        renderSkillChecks(box, seg.checks);
+        section.appendChild(box);
+        card.appendChild(section);
+        return;
+      }
       const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(buf.join("\n"));
+      tmp.innerHTML = renderMarkdown(seg.lines.join("\n"));
       const els = [...tmp.children];
-      if (mode === "loot") {
+      if (seg.mode === "loot") {
         if (!lootPanel) {
           lootPanel = document.createElement("div");
           lootPanel.className = "obj-loot";
@@ -95,30 +124,7 @@ function buildObjCard(cardNode, head, nodes) {
       } else {
         els.forEach((e) => headEls.push(cloneAsReadAloud(e)));
       }
-      buf = [];
-    }
-
-    cardOrderedBody(cardNode).forEach((seg) => {
-      if (seg.kind === "checks") {
-        flushBuf();
-        const section = document.createElement("div");
-        section.className = "obj-section";
-        section.appendChild(objSectionTitle("Checks"));
-        const box = document.createElement("div");
-        box.className = "skillchecks";
-        renderSkillChecks(box, seg.checks);
-        section.appendChild(box);
-        card.appendChild(section);
-        mode = "desc"; // any text the parser left after the checks block was
-                       // absorbed into it; following body text is description.
-        return;
-      }
-      seg.lines.forEach((line) => {
-        if (/^loot\s*:\s*$/i.test(line.trim())) { flushBuf(); mode = "loot"; return; }
-        buf.push(line);
-      });
     });
-    flushBuf();
 
     // Place the header at the top: wrapped beside the portrait when an Image was
     // given, otherwise as plain stacked elements (no empty portrait reserved).
@@ -132,3 +138,6 @@ function buildObjCard(cardNode, head, nodes) {
 if (typeof RendScrollCards !== "undefined") {
   RendScrollCards.register("obj", { build: buildObjCard });
 }
+
+if (typeof window !== "undefined") window.parseObjBody = parseObjBody;
+if (typeof module !== "undefined" && module.exports) module.exports = { parseObjBody };

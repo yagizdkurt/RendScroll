@@ -108,11 +108,51 @@ function npcSectionTitle(text) {
   return el;
 }
 
+// Pure per-type body parser: AST card node -> ordered NPC segments. Walks the body
+// in source order (cardOrderedBody), classifying each line as an identity stat
+// (Race/Age/…/HP/AC), a personality label, a dialogue topic, a "Checks:" group, or
+// a content run. The builder replays the segments through its identity/dialogue DOM
+// state machine; keeping the classification here as one named function mirrors the
+// shared-parse discipline (RENDERER_AST_MIGRATION.md).
+//   { kind: "stat", label, value }   value "" means the label heads a following run
+//   { kind: "personality", label }
+//   { kind: "topic", title }
+//   { kind: "checks", checks }
+//   { kind: "lines", lines }         a contiguous content run (blank lines kept)
+function parseNpcBody(cardNode) {
+  const segs = [];
+  const pushLine = (line) => {
+    const last = segs[segs.length - 1];
+    if (last && last.kind === "lines") last.lines.push(line);
+    else segs.push({ kind: "lines", lines: [line] });
+  };
+  cardOrderedBody(cardNode).forEach((seg) => {
+    if (seg.kind === "checks") { segs.push({ kind: "checks", checks: seg.checks }); return; }
+    seg.lines.forEach((line) => {
+      const t = line.trim();
+      if (t === "") { pushLine(line); return; }
+      const stat = t.match(NPC_STAT_LINE);
+      if (stat) {
+        const rawLabel = stat[1].trim();
+        const label = /^(hp|ac)$/i.test(rawLabel)
+          ? rawLabel.toUpperCase()
+          : rawLabel.replace(/^\w/, (c) => c.toUpperCase());
+        segs.push({ kind: "stat", label, value: stat[2].trim() });
+        return;
+      }
+      if (NPC_PERSONALITY_LABELS.has(rsLower(t))) { segs.push({ kind: "personality", label: t }); return; }
+      const topic = npcTopicFromLine(t);
+      if (topic) { segs.push({ kind: "topic", title: topic }); return; }
+      pushLine(line);
+    });
+  });
+  return segs;
+}
+
 // Build one NPC card from its parsed AST node. BG/Image/Side come from the
-// resolved directives; "Checks:" blocks from cardNode.checkGroups; identity
-// (stats / personality) and dialogue topics are parsed from cardNode.body text,
-// in source order. A title-only NPC still returns a real card so editor anchors
-// can attach tools to it.
+// resolved directives; identity (stats / personality), dialogue topics and Checks
+// come from the shared parseNpcBody. A title-only NPC still returns a real card so
+// editor anchors can attach tools to it.
 function buildNpcCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "npc-card";
@@ -137,7 +177,6 @@ function buildNpcCard(cardNode, head, nodes) {
     let identityTarget = null;  // identity column receiving the following content
     let dialogueDivider = null;
     let currentSubcard = null;
-    let buf = [];               // plain content lines awaiting a marked render
 
     // "BG: file" picks the watermark behind this card; "Image:" the portrait.
     const bg = cardDirective(cardNode, "bg").trim();
@@ -153,24 +192,21 @@ function buildNpcCard(cardNode, head, nodes) {
       identity.classList.add("npc-has-portrait");
     }
 
-    // Render the buffered content run and route each produced node to the active
-    // target (an identity column, the current dialogue subcard, or the card).
-    function flushBuf() {
-      if (!buf.length) return;
+    // Render a content run and route each produced node to the active target (an
+    // identity column, the current dialogue subcard, or the card).
+    function renderLines(lines) {
       const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(buf.join("\n"));
+      tmp.innerHTML = renderMarkdown(lines.join("\n"));
       [...tmp.children].forEach((node) => {
         const target = identityTarget || currentSubcard || card;
         target.appendChild(npcCloneContent(node));
       });
-      buf = [];
     }
 
-    cardOrderedBody(cardNode).forEach((seg) => {
+    parseNpcBody(cardNode).forEach((seg) => {
       if (seg.kind === "checks") {
         // "Checks:" renders as a sub-section (same look as Obje), leaving any
         // open dialog subcard / identity column.
-        flushBuf();
         currentSubcard = null;
         identityTarget = null;
         const section = document.createElement("div");
@@ -183,57 +219,39 @@ function buildNpcCard(cardNode, head, nodes) {
         renderSkillChecks(box, seg.checks);
         return;
       }
-      seg.lines.forEach((line) => {
-        const t = line.trim();
-        if (t === "") { buf.push(line); return; }
-
-        const stat = t.match(NPC_STAT_LINE);
-        if (stat) {
-          flushBuf();
-          hasIdentity = true;
-          currentSubcard = null;
-          const rawLabel = stat[1].trim();
-          const label = /^(hp|ac)$/i.test(rawLabel)
-            ? rawLabel.toUpperCase()
-            : rawLabel.replace(/^\w/, (c) => c.toUpperCase());
-          if (stat[2].trim()) {
-            statsCol.appendChild(npcStatRow(label, stat[2].trim()));
-            identityTarget = null;
-          } else {
-            statsCol.appendChild(npcTextFieldLabel(label + ":"));
-            identityTarget = statsCol;
-          }
-          return;
-        }
-
-        if (NPC_PERSONALITY_LABELS.has(rsLower(t))) {
-          flushBuf();
-          hasIdentity = true;
-          currentSubcard = null;
-          personalityCol.appendChild(npcTextFieldLabel(t));
-          identityTarget = personalityCol;
-          return;
-        }
-
-        const topic = npcTopicFromLine(t);
-        if (topic) {
-          flushBuf();
+      if (seg.kind === "stat") {
+        hasIdentity = true;
+        currentSubcard = null;
+        if (seg.value) {
+          statsCol.appendChild(npcStatRow(seg.label, seg.value));
           identityTarget = null;
-          if (!dialogueDivider) {
-            dialogueDivider = npcDialogueDivider("Dialogues");
-            card.appendChild(dialogueDivider);
-          }
-          currentSubcard = document.createElement("div");
-          currentSubcard.className = "npc-subcard";
-          currentSubcard.appendChild(npcSubheading(topic));
-          card.appendChild(currentSubcard);
-          return;
+        } else {
+          statsCol.appendChild(npcTextFieldLabel(seg.label + ":"));
+          identityTarget = statsCol;
         }
-
-        buf.push(line);
-      });
+        return;
+      }
+      if (seg.kind === "personality") {
+        hasIdentity = true;
+        currentSubcard = null;
+        personalityCol.appendChild(npcTextFieldLabel(seg.label));
+        identityTarget = personalityCol;
+        return;
+      }
+      if (seg.kind === "topic") {
+        identityTarget = null;
+        if (!dialogueDivider) {
+          dialogueDivider = npcDialogueDivider("Dialogues");
+          card.appendChild(dialogueDivider);
+        }
+        currentSubcard = document.createElement("div");
+        currentSubcard.className = "npc-subcard";
+        currentSubcard.appendChild(npcSubheading(seg.title));
+        card.appendChild(currentSubcard);
+        return;
+      }
+      renderLines(seg.lines);
     });
-    flushBuf();
 
     if (!hasIdentity) identity.remove();
 
@@ -245,3 +263,6 @@ function buildNpcCard(cardNode, head, nodes) {
 if (typeof RendScrollCards !== "undefined") {
   RendScrollCards.register("npc", { build: buildNpcCard });
 }
+
+if (typeof window !== "undefined") window.parseNpcBody = parseNpcBody;
+if (typeof module !== "undefined" && module.exports) module.exports = { parseNpcBody };

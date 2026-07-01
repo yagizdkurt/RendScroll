@@ -30,9 +30,11 @@ function itemTitleText(head) {
 }
 
 const ItemData = (() => {
-  function lower(value) {
-    return String(value == null ? "" : value).replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
-  }
+  // Turkish-aware lowercaser — the one owner is utils/text.js (browser global
+  // `rsLower`, loaded first; Node requires it), so the rule is not restated here.
+  const lower = (typeof rsLower !== "undefined")
+    ? rsLower
+    : require("../../utils/text.js").rsLower;
   function normLabel(label) {
     const l = lower(label).replace(/\s+/g, " ").trim();
     if (l === "tür" || l === "type") return "type";
@@ -267,16 +269,27 @@ function itemPropertiesFromModel(label, items) {
   });
 }
 
-// Build one Item card from its parsed AST node. The item model comes from
-// ItemData.parse (the canonical item text-parser, shared with SourceItem merge),
-// fed the reconstructed body source; Image/Side/stuck come from the resolved
-// directives. A title-only Item still returns a real card so editor anchors can
-// attach tools to it.
+// Pure per-type body parser: AST card node -> item model. Reconstructs the item
+// source from the node (heading derived from the node's type + title, body from
+// cardBodySource) and runs the canonical ItemData.parse, so the render builder
+// below AND editor/cardSchemas.js model an Item's fields through the exact same
+// code. Universal directives (Image/Side/…) also surface here (ItemData folds them
+// into image/controls) and are otherwise read off the node by each consumer.
+function parseItemBody(cardNode) {
+  const heading = cardNode && cardNode.type === "sourceitem" ? "SourceItem" : "Item";
+  const title = (cardNode && cardNode.title) || "";
+  return ItemData.parse("### " + heading + ": " + title + "\n" + cardBodySource(cardNode));
+}
+
+// Build one Item card from its parsed AST node. The item model comes from the
+// shared parseItemBody (canonical ItemData.parse); Image/Side/stuck come from the
+// resolved directives. A title-only Item still returns a real card so editor
+// anchors can attach tools to it.
 function buildItemCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "item-card";
 
-    const data = ItemData.parse("### " + head.textContent.trim() + "\n" + cardBodySource(cardNode));
+    const data = parseItemBody(cardNode);
 
     const label = document.createElement("div");
     label.className = "item-label";
@@ -315,8 +328,8 @@ function buildSourceItemCard(cardNode, head, nodes) {
   return buildItemCard(cardNode, head, nodes);
 }
 
-if (typeof window !== "undefined") window.ItemData = ItemData;
-if (typeof module !== "undefined" && module.exports) module.exports = { ItemData };
+if (typeof window !== "undefined") { window.ItemData = ItemData; window.parseItemBody = parseItemBody; }
+if (typeof module !== "undefined" && module.exports) module.exports = { ItemData, parseItemBody };
 
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    sourceitem (library base item) renders through the same builder. No normalizer:

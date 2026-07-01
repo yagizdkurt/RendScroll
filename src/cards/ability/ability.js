@@ -204,3 +204,8 @@ function buildAbilityCard(cardNode, head, nodes) {
 if (typeof RendScrollCards !== "undefined") {
   RendScrollCards.register("ability", { build: buildAbilityCard });
 }
+
+/* parseAbilityBody is the pure per-type body parser shared with the editor
+   (editor/cardSchemas.js) so an Ability's fields are modeled by one function. */
+if (typeof window !== "undefined") window.parseAbilityBody = parseAbilityBody;
+if (typeof module !== "undefined" && module.exports) module.exports = { parseAbilityBody };
