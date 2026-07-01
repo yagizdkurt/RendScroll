@@ -30,14 +30,11 @@ import zipfile
 # Top-level path segments that are user-owned or update-internal. Replacement,
 # deletion, and app-file backup MUST skip anything under these. This list is the
 # single source of truth for "safe to overwrite" — do not let the manifest change it.
+# All user-owned content now lives under the single content/ root (campaigns, library
+# items/enemies, images/audio, exports, options.current.json), so protecting that one
+# segment covers everything the app writes.
 PROTECTED_ROOTS = frozenset({
-    "Campaigns",
-    "Items",
-    "Enemies",
-    "images",
-    "audio",
-    "Exports",
-    "options.current.json",
+    "content",
     ".git",
     ".rendscroll-update",
 })

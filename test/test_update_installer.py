@@ -26,10 +26,10 @@ class PlanReplacementsTests(unittest.TestCase):
         write(os.path.join(self.tmp, "launcher.py"), "new-launcher")
         write(os.path.join(self.tmp, "src", "app", "app.js"), "new-app")
         write(os.path.join(self.tmp, "Documentation", "guide.md"), "doc")
-        write(os.path.join(self.tmp, "Campaigns", "Legacy", "Scenes", "01.md"), "scene")
-        write(os.path.join(self.tmp, "Items", "Sword.md"), "item")
-        write(os.path.join(self.tmp, "options.current.json"), "{}")
-        write(os.path.join(self.tmp, "Campaigns", ".gitkeep"), "")
+        write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "scenes", "01.md"), "scene")
+        write(os.path.join(self.tmp, "content", "items", "Sword.md"), "item")
+        write(os.path.join(self.tmp, "content", "options.current.json"), "{}")
+        write(os.path.join(self.tmp, "content", "campaigns", ".gitkeep"), "")
 
     def tearDown(self):
         import shutil
@@ -44,11 +44,10 @@ class PlanReplacementsTests(unittest.TestCase):
         self.assertIn("index.html", rels)
         self.assertIn("launcher.py", rels)
         self.assertIn("src/app/app.js", rels)
-        for protected in ("Campaigns", "Items", "options.current.json"):
-            self.assertFalse(
-                any(rel.split("/", 1)[0] == protected for rel in rels),
-                f"{protected} should never be in the replace set",
-            )
+        self.assertFalse(
+            any(rel.split("/", 1)[0] == "content" for rel in rels),
+            "content/ (all user-owned data) should never be in the replace set",
+        )
 
 class ExtractTests(unittest.TestCase):
     def test_extract_strips_single_wrapper_dir(self):
@@ -87,7 +86,7 @@ class BackupRollbackTests(unittest.TestCase):
         self.backup = os.path.join(self.root, "backup")
         # Current install: an existing app file + protected user content.
         write(os.path.join(self.install, "index.html"), "OLD-index")
-        write(os.path.join(self.install, "Campaigns", "C", "Scenes", "01.md"), "USER")
+        write(os.path.join(self.install, "content", "campaigns", "C", "scenes", "01.md"), "USER")
         # Incoming update: overwrites index.html, adds src/new.js.
         write(os.path.join(self.extract, "index.html"), "NEW-index")
         write(os.path.join(self.extract, "src", "new.js"), "NEW-src")
@@ -113,7 +112,7 @@ class BackupRollbackTests(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.install, "src", "new.js")))
         # User content never touched.
         self.assertEqual(
-            read(os.path.join(self.install, "Campaigns", "C", "Scenes", "01.md")),
+            read(os.path.join(self.install, "content", "campaigns", "C", "scenes", "01.md")),
             "USER",
         )
 

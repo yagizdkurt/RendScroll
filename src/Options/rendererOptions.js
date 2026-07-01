@@ -7,7 +7,8 @@
 
    Persistence is two files (see launcher.py):
      - src/Options/options.defaults.json  -> committed default values ("Back to defaults")
-     - options.current.json       -> gitignored, the user's saved choices
+     - options.current.json       -> gitignored, the user's saved choices (served/written
+       from content/options.current.json on disk; the URL stays root-relative)
 
    Save model is "live preview, commit on Save": the Options modal edits a
    working copy that previews instantly; only Save writes options.current.json

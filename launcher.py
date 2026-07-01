@@ -41,26 +41,36 @@ from src.updates.update_config import (
 HOST = "127.0.0.1"
 PORT_START = 8000
 PORT_END = 8010
+# Single user-space root. Every user-owned folder (campaigns, library items/enemies,
+# images/audio) and options.current.json live under this one directory, so the source
+# tree and the updater have exactly one folder to never touch. It is a filesystem
+# detail only: the client still addresses content by its bare (lowercase) root names
+# — campaigns/…, /images/…, options.current.json — and the server roots them here.
+USER_DATA_DIR = "content"
 # Multi-campaign root. Each child is a self-contained campaign folder with a
-# campaign.json manifest, a required Scenes/ subfolder, and optional campaign-local
-# resource folders (Items/, Enemies/, Images/, Audio/) that override the global roots.
-CAMPAIGNS_DIR = "Campaigns"
-SCENES_SUBDIR = "Scenes"
-# Campaign-local resource folder (capitalized) -> global root folder it overrides.
-# Libraries are capitalized in both; assets are capitalized per-campaign but lower
-# at the root (matching the existing cardBgUrl/audioSrcUrl helpers).
-CAMPAIGN_ASSET_DIRS = {"Images": "images", "Audio": "audio"}
+# campaign.json manifest, a required scenes/ subfolder, and optional campaign-local
+# resource folders (items/, enemies/, images/, audio/) that override the global roots.
+CAMPAIGNS_DIR = "campaigns"
+SCENES_SUBDIR = "scenes"
+# Campaign-local resource folder -> global root folder it overrides. All lowercase,
+# so this is an identity map today; kept as the single place asset-override folders
+# are named (matching the existing cardBgUrl/audioSrcUrl helpers).
+CAMPAIGN_ASSET_DIRS = {"images": "images", "audio": "audio"}
 # The campaign selected by the client (POST /__select_campaign). Resolved per request
 # for scene/library discovery and for campaign-first asset serving. None = no campaign.
 ACTIVE_CAMPAIGN = None
 OPTIONS_DEFAULTS_FILE = os.path.join("src", "Options", "options.defaults.json")
 OPTIONS_CURRENT_FILE = "options.current.json"
-# Destination root for "Export Campaign Package" zips. Gitignored (the `*` rule).
-EXPORTS_DIR = "Exports"
+# Destination root for "Export Campaign Package" zips (under USER_DATA_DIR).
+# Gitignored (the `*` rule).
+EXPORTS_DIR = "exports"
 # Reusable reference libraries: a ref type -> the folder its files live in. Items
 # and enemies today; npc/monster/location can be added here without touching the
 # endpoints.
-LIBRARY_DIRS = {"item": "Items", "enemy": "Enemies"}
+LIBRARY_DIRS = {"item": "items", "enemy": "enemies"}
+# Top URL segments whose files live under content/ on disk (served by translate_path).
+USER_SPACE_URL_ROOTS = frozenset(
+    {CAMPAIGNS_DIR} | set(LIBRARY_DIRS.values()) | set(CAMPAIGN_ASSET_DIRS.values()))
 EXIT_REQUESTED = threading.Event()
 # Set when we exit specifically to hand off to the updater/relaunch, so the console
 # closes cleanly instead of waiting on the goodbye keypress.
@@ -208,7 +218,7 @@ def clean_campaign_name(value):
     """Sanitize a client-supplied campaign id into a folder-safe name.
 
     Rejects path separators, parent refs, and empties so it can never escape the
-    Campaigns/ root. Mirrors clean_library_name."""
+    campaigns/ root. Mirrors clean_library_name."""
     if not isinstance(value, str):
         return None
     name = re.sub(r"\s+", " ", value).strip()
@@ -219,16 +229,22 @@ def clean_campaign_name(value):
     return name[:120]
 
 
+def user_root(base_dir):
+    """The user-space root (base_dir/Content). Every user-owned folder and
+    options.current.json live under it; nothing else does."""
+    return os.path.join(base_dir, USER_DATA_DIR)
+
+
 def campaign_dir_path(base_dir, name):
-    return os.path.join(base_dir, CAMPAIGNS_DIR, name)
+    return os.path.join(user_root(base_dir), CAMPAIGNS_DIR, name)
 
 
 def campaign_scenes_root(base_dir, name):
-    return os.path.join(base_dir, CAMPAIGNS_DIR, name, SCENES_SUBDIR)
+    return os.path.join(campaign_dir_path(base_dir, name), SCENES_SUBDIR)
 
 
 def active_campaign_root(base_dir):
-    """Absolute Scenes/ folder of the active campaign, or None when none is
+    """Absolute scenes/ folder of the active campaign, or None when none is
     selected or its folder is missing."""
     name = ACTIVE_CAMPAIGN
     if not name:
@@ -261,8 +277,10 @@ def read_json_file(path):
 def check_for_updates_enabled(base_dir):
     """Read the user's update-check preference from the existing options model."""
     enabled = True
-    for rel_path in (OPTIONS_DEFAULTS_FILE, OPTIONS_CURRENT_FILE):
-        data = read_json_file(os.path.join(base_dir, rel_path))
+    # Defaults ship under src/; the user's current choices live under content/.
+    for path in (os.path.join(base_dir, OPTIONS_DEFAULTS_FILE),
+                 os.path.join(user_root(base_dir), OPTIONS_CURRENT_FILE)):
+        data = read_json_file(path)
         value = data.get("check_for_updates")
         if isinstance(value, bool):
             enabled = value
@@ -460,9 +478,9 @@ def write_campaign_manifest(base_dir, name, label=None):
 
 
 def discover_campaigns(base_dir):
-    """List every campaign folder (must contain a Scenes/ subfolder) as
+    """List every campaign folder (must contain a scenes/ subfolder) as
     [{name, label}], sorted by label."""
-    root = os.path.join(base_dir, CAMPAIGNS_DIR)
+    root = os.path.join(user_root(base_dir), CAMPAIGNS_DIR)
     out = []
     try:
         names = os.listdir(root)
@@ -482,19 +500,15 @@ def discover_campaigns(base_dir):
 
 
 def export_dest_subpath(rel):
-    """Map a repo-relative source path to its place inside an exported campaign
-    folder (the campaign-folder layout). Campaign-prefixed paths drop the
-    Campaigns/<name>/ prefix; global library/asset folders are normalized into the
-    campaign casing (images -> Images, audio -> Audio)."""
+    """Map a user-space-relative source path (relative to content/) to its place
+    inside an exported campaign folder. Campaign-prefixed paths drop the
+    campaigns/<name>/ prefix; global library/asset folders keep their (lowercase)
+    names, matching the campaign-folder layout an import expects."""
     parts = rel.replace("\\", "/").strip("/").split("/")
     if not parts:
         return rel
-    low = [p.lower() for p in parts]
-    if low[0] == CAMPAIGNS_DIR.lower() and len(parts) >= 3:
-        return "/".join(parts[2:])  # Campaigns/<name>/Scenes/x -> Scenes/x
-    mapping = {"items": "Items", "enemies": "Enemies", "images": "Images", "audio": "Audio"}
-    if low[0] in mapping and len(parts) >= 2:
-        return mapping[low[0]] + "/" + "/".join(parts[1:])
+    if parts[0].lower() == CAMPAIGNS_DIR and len(parts) >= 3:
+        return "/".join(parts[2:])  # campaigns/<name>/scenes/x -> scenes/x
     return "/".join(parts)
 
 
@@ -530,7 +544,7 @@ def campaign_entry_from_filename(filename, full_path, rel_prefix):
 
 
 def discover_campaign_files(base_dir):
-    """List the active campaign's Scenes/ .md files. Empty when no campaign is
+    """List the active campaign's scenes/ .md files. Empty when no campaign is
     selected — the front end then shows the start screen."""
     scenes_root = active_campaign_root(base_dir)
     if not scenes_root:
@@ -574,7 +588,7 @@ def _library_sources(base_dir, folder):
             os.path.join(campaign_dir_path(base_dir, name), folder),
             f"{CAMPAIGNS_DIR}/{name}/{folder}",
         ))
-    sources.append(("global", os.path.join(base_dir, folder), folder))
+    sources.append(("global", os.path.join(user_root(base_dir), folder), folder))
     return sources
 
 
@@ -679,28 +693,42 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def translate_path(self, path):
-        """Serve bare asset URLs (/images/<x>, /audio/<x>) from the active
-        campaign's Images/Audio folder first, falling back to the global root.
-        Everything else uses the default static mapping."""
+        """Serve the user-space URL namespace (campaigns/, items/, enemies/,
+        images/, audio/, and options.current.json) from under content/ on disk —
+        keeping the client URLs stable while the files live in one user-data root.
+        Bare /images/<x> and /audio/<x> resolve to the active campaign's local
+        folder first, then the global Content root. Everything else (src/,
+        index.html, …) uses the default static mapping off the CWD."""
         default = super().translate_path(path)
-        name = ACTIVE_CAMPAIGN
-        if not name:
-            return default
         from urllib.parse import unquote, urlparse
         url_path = unquote(urlparse(path).path).replace("\\", "/").lstrip("/")
-        for camp_folder, root_folder in CAMPAIGN_ASSET_DIRS.items():
-            prefix = root_folder + "/"
-            if url_path.lower().startswith(prefix):
-                rest = url_path[len(prefix):]
-                base = os.path.realpath(os.getcwd())
-                camp_root = os.path.realpath(
-                    os.path.join(campaign_dir_path(base, name), camp_folder))
-                cand = os.path.realpath(os.path.join(camp_root, rest))
-                try:
-                    if os.path.commonpath([camp_root, cand]) == camp_root and os.path.isfile(cand):
-                        return cand
-                except ValueError:
-                    pass
+        if not url_path:
+            return default
+        top = url_path.split("/", 1)[0].lower()
+        base = os.path.realpath(os.getcwd())
+
+        # Assets: active campaign's local folder wins over the global root.
+        name = ACTIVE_CAMPAIGN
+        if name and top in CAMPAIGN_ASSET_DIRS:
+            rest = url_path[len(top) + 1:] if "/" in url_path else ""
+            camp_root = os.path.realpath(
+                os.path.join(campaign_dir_path(base, name), CAMPAIGN_ASSET_DIRS[top]))
+            cand = os.path.realpath(os.path.join(camp_root, rest))
+            try:
+                if os.path.commonpath([camp_root, cand]) == camp_root and os.path.isfile(cand):
+                    return cand
+            except ValueError:
+                pass
+
+        # Any user-space root, or the options file, lives under content/ on disk.
+        if top in USER_SPACE_URL_ROOTS or url_path == OPTIONS_CURRENT_FILE:
+            uroot = os.path.realpath(user_root(base))
+            cand = os.path.realpath(os.path.join(uroot, url_path))
+            try:
+                if os.path.commonpath([uroot, cand]) == uroot:
+                    return cand
+            except ValueError:
+                pass
         return default
 
     def do_GET(self):
@@ -829,7 +857,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, "name": name})
 
     def _create_campaign(self):
-        """Create an empty campaign: Campaigns/<name>/Scenes/ + campaign.json."""
+        """Create an empty campaign: campaigns/<name>/scenes/ + campaign.json."""
         try:
             data = self._read_json_body()
             name = clean_campaign_name(data.get("name"))
@@ -858,7 +886,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def _import_campaign(self):
         """Unpack an exported campaign .zip (single top-level campaign folder) into
-        Campaigns/<name>/. Guards against zip-slip and requires a Scenes/ folder."""
+        campaigns/<name>/. Guards against zip-slip and requires a scenes/ folder."""
         try:
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length)
@@ -892,7 +920,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 i += 1
             name = f"{name} ({i})"
         dest_real = os.path.realpath(campaign_dir_path(base, name))
-        os.makedirs(os.path.join(base, CAMPAIGNS_DIR), exist_ok=True)
+        os.makedirs(os.path.join(user_root(base), CAMPAIGNS_DIR), exist_ok=True)
 
         try:
             for member in zf.infolist():
@@ -918,7 +946,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         if not os.path.isdir(os.path.join(dest_real, SCENES_SUBDIR)):
             shutil.rmtree(dest_real, ignore_errors=True)
-            self._send_json(400, {"ok": False, "error": "zip is missing a Scenes/ folder"})
+            self._send_json(400, {"ok": False, "error": "zip is missing a scenes/ folder"})
             return
         manifest = read_campaign_manifest(base, name)
         label = manifest.get("label") or manifest.get("name") or name
@@ -929,7 +957,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, "campaign": {"name": name, "label": label}})
 
     def _delete_campaign(self):
-        """Remove a whole campaign folder. Guarded to stay inside Campaigns/."""
+        """Remove a whole campaign folder. Guarded to stay inside campaigns/."""
         global ACTIVE_CAMPAIGN
         try:
             data = self._read_json_body()
@@ -943,13 +971,13 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         base = os.path.realpath(os.getcwd())
         target = os.path.realpath(campaign_dir_path(base, name))
-        parent = os.path.realpath(os.path.join(base, CAMPAIGNS_DIR))
+        parent = os.path.realpath(os.path.join(user_root(base), CAMPAIGNS_DIR))
         try:
             if target == parent or os.path.commonpath([parent, target]) != parent:
-                self._send_json(403, {"ok": False, "error": "outside Campaigns/"})
+                self._send_json(403, {"ok": False, "error": "outside campaigns/"})
                 return
         except ValueError:
-            self._send_json(403, {"ok": False, "error": "outside Campaigns/"})
+            self._send_json(403, {"ok": False, "error": "outside campaigns/"})
             return
         if not os.path.isdir(target):
             self._send_json(404, {"ok": False, "error": "campaign not found"})
@@ -1036,7 +1064,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             target_dir = os.path.join(campaign_dir_path(base, ACTIVE_CAMPAIGN), folder)
             rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{folder}"
         else:
-            target_dir = os.path.join(base, folder)
+            target_dir = os.path.join(user_root(base), folder)
             rel_prefix = folder
         os.makedirs(target_dir, exist_ok=True)
         filename = f"{name}.md"
@@ -1098,7 +1126,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             target_dir = os.path.join(campaign_dir_path(base, ACTIVE_CAMPAIGN), folder)
             rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{folder}"
         else:
-            target_dir = os.path.join(base, folder)
+            target_dir = os.path.join(user_root(base), folder)
             rel_prefix = folder
         os.makedirs(target_dir, exist_ok=True)
         filename = f"{name}.md"
@@ -1123,11 +1151,11 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "name": name, "path": f"{rel_prefix}/{filename}", "origin": origin}})
 
     def _resolve_writable(self, rel_path):
-        """Resolve `rel_path` to an absolute path only if it stays inside one of
-        the writable roots (Campaigns/ + every global library folder). Returns
-        the path or None when it escapes them. Shared by save and delete.
-        Campaign-local library/scene files live under Campaigns/."""
-        base = os.path.realpath(os.getcwd())
+        """Resolve `rel_path` (a user-space path like campaigns/…/scenes/x.md) to
+        an absolute path under content/ only if it stays inside one of the writable
+        roots (campaigns/ + every global library folder). Returns the path or None
+        when it escapes them. Shared by save and delete."""
+        base = os.path.realpath(user_root(os.getcwd()))
         target = os.path.realpath(os.path.join(base, rel_path))
         roots = [CAMPAIGNS_DIR] + list(LIBRARY_DIRS.values())
         for root in roots:
@@ -1140,11 +1168,12 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         return None
 
     def _resolve_readable(self, rel_path):
-        """Resolve `rel_path` to an absolute path only if it stays inside one of
-        the readable export roots (Campaigns/, the library folders, images/,
-        audio/) or is exactly options.current.json. Returns the path or None.
-        Used by the package exporter, which only copies content out."""
-        base = os.path.realpath(os.getcwd())
+        """Resolve `rel_path` (a user-space path) to an absolute path under content/
+        only if it stays inside one of the readable export roots (campaigns/, the
+        library folders, images/, audio/) or is exactly options.current.json.
+        Returns the path or None. Used by the package exporter, which only copies
+        content out."""
+        base = os.path.realpath(user_root(os.getcwd()))
         if not isinstance(rel_path, str) or not rel_path.strip():
             return None
         target = os.path.realpath(os.path.join(base, rel_path))
@@ -1206,7 +1235,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Path guard: resolve under the served base dir and require the file to
-        # live inside a writable root (Campaigns/ or a global library folder).
+        # live inside a writable root (campaigns/ or a global library folder, all
+        # under content/).
         # Rejects "..", absolute paths, and anything escaping the project. CWD is
         # base_dir (see main()).
         base = os.path.realpath(os.getcwd())
@@ -1230,7 +1260,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def _save_options(self):
         # The renderer persists the user's customization choices via
-        # POST /__save_options. The target is a fixed top-level file
+        # POST /__save_options. The target is a fixed file under content/
         # (options.current.json) — no client-supplied path, so there is no
         # traversal surface. The file is gitignored (the .gitignore `*` rule),
         # so personal preferences never land in commits.
@@ -1245,8 +1275,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": "expected a JSON object"})
             return
 
-        base = os.path.realpath(os.getcwd())
-        target = os.path.join(base, OPTIONS_CURRENT_FILE)
+        target = os.path.join(user_root(os.getcwd()), OPTIONS_CURRENT_FILE)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
         try:
             with open(target, "w", encoding="utf-8", newline="\n") as fh:
                 json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -1260,17 +1290,16 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def _export_source(self, rel):
         """Resolve an export source path to an existing file, falling back to the
-        active campaign's Images/Audio for bare global asset paths (a campaign-local
+        active campaign's images/audio for bare global asset paths (a campaign-local
         image referenced as `kale` resolves to /images/kale.png via translate_path
-        but its file lives under Campaigns/<active>/Images/)."""
+        but its file lives under campaigns/<active>/images/)."""
         direct = self._resolve_readable(rel)
         if direct and os.path.isfile(direct):
             return direct
         parts = rel.replace("\\", "/").strip("/").split("/")
-        if ACTIVE_CAMPAIGN and len(parts) >= 2 and parts[0].lower() in ("images", "audio"):
-            camp_folder = {"images": "Images", "audio": "Audio"}[parts[0].lower()]
+        if ACTIVE_CAMPAIGN and len(parts) >= 2 and parts[0].lower() in CAMPAIGN_ASSET_DIRS:
             cand = self._resolve_readable(
-                f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{camp_folder}/" + "/".join(parts[1:]))
+                f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{parts[0].lower()}/" + "/".join(parts[1:]))
             if cand and os.path.isfile(cand):
                 return cand
         return None
@@ -1279,11 +1308,11 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # "Export Campaign Package": the client resolves every scene + referenced
         # library item/enemy + image/audio asset (reusing RefLibrary and the
         # card-image rules) and POSTs the flat path list. We copy each accepted
-        # path into Exports/<name>/ under the campaign-folder layout (Scenes/,
-        # Items/, Enemies/, Images/, Audio/), add a campaign.json manifest, then zip
-        # it so the archive's single top-level folder is the campaign — ready to
-        # drop into another user's Campaigns/ (or re-import). Reads are confined to
-        # _resolve_readable's roots; writes only ever land under Exports/.
+        # path into content/exports/<name>/ under the campaign-folder layout
+        # (scenes/, items/, enemies/, images/, audio/), add a campaign.json manifest,
+        # then zip it so the archive's single top-level folder is the campaign —
+        # ready to drop into another user's campaigns/ (or re-import). Reads are
+        # confined to _resolve_readable's roots; writes only land under exports/.
         try:
             length = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(length).decode("utf-8"))
@@ -1299,7 +1328,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         name = clean_library_name(data.get("name")) or time.strftime("Campaign-%Y%m%d-%H%M%S")
         label = clean_campaign_title(data.get("label") or name)
         base = os.path.realpath(os.getcwd())
-        dest_root = os.path.join(base, EXPORTS_DIR, name)
+        uroot = os.path.realpath(user_root(base))
+        dest_root = os.path.join(uroot, EXPORTS_DIR, name)
 
         # Start clean so a re-export with the same name doesn't mix stale files.
         if os.path.isdir(dest_root):
@@ -1311,7 +1341,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 source = self._export_source(rel)
                 if not source:
                     continue  # skip anything outside the roots or missing
-                sub = export_dest_subpath(os.path.relpath(source, base))
+                sub = export_dest_subpath(os.path.relpath(source, uroot))
                 target = os.path.join(dest_root, sub)
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 shutil.copy2(source, target)
@@ -1330,8 +1360,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                            "schema": 1}, fh, ensure_ascii=False, indent=2)
                 fh.write("\n")
 
-            zip_base = os.path.join(base, EXPORTS_DIR, name)
-            archive = shutil.make_archive(zip_base, "zip", root_dir=os.path.join(base, EXPORTS_DIR), base_dir=name)
+            zip_base = os.path.join(uroot, EXPORTS_DIR, name)
+            archive = shutil.make_archive(zip_base, "zip", root_dir=os.path.join(uroot, EXPORTS_DIR), base_dir=name)
         except OSError as exc:
             self._send_json(500, {"ok": False, "error": str(exc)})
             return
