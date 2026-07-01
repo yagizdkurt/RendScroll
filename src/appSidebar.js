@@ -215,7 +215,7 @@ function mountCampaignEntries(entries) {
       btn.dataset.navIndex = String(number);
     }
     btn.classList.toggle("active", path === currentPath);
-    btn.addEventListener("click", () => load(path));
+    btn.addEventListener("click", () => guardedLoad(path));
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       e.stopPropagation();

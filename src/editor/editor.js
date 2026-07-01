@@ -11,6 +11,7 @@
 const Editor = (() => {
   const state = { enabled: false, path: null, model: null, dirty: false };
   let page = null;
+  let navigationPrompt = null;
 
   // --- model edit ops (operate on the CURRENT model only; ids are not stable
   //     across re-parse, so never carry an id across a mutation) ------------
@@ -347,15 +348,108 @@ const Editor = (() => {
     decorate();
   }
 
-  async function save() {
-    if (!state.path) return;
+  async function save(opts) {
+    opts = opts || {};
+    if (!state.path || !state.model) return true;
     try {
       await EditorSave.save(state.path, EditorOutline.serialize(state.model));
       markDirty(false);
-      toast("Saved " + state.path);
+      if (!opts.silent) toast("Saved " + state.path);
+      return true;
     } catch (err) {
       toast(err.message, true);
+      return false;
     }
+  }
+
+  function fallbackNavigationPrompt() {
+    if (window.confirm("You have unsaved edits. Save changes before leaving this page?")) {
+      return Promise.resolve("save");
+    }
+    if (window.confirm("Discard unsaved changes and leave this page?")) {
+      return Promise.resolve("discard");
+    }
+    return Promise.resolve("cancel");
+  }
+
+  function openNavigationPrompt(opts) {
+    if (navigationPrompt) return navigationPrompt;
+    opts = opts || {};
+    const titleText = opts.titleText || "Unsaved Changes";
+    const messageText = opts.messageText ||
+      "You have unsaved edits on this page. Save them before switching pages?";
+
+    navigationPrompt = new Promise((resolve) => {
+      if (typeof makeModal !== "function") {
+        fallbackNavigationPrompt().then((choice) => {
+          navigationPrompt = null;
+          resolve(choice);
+        });
+        return;
+      }
+
+      let result = "cancel";
+      const settle = (value) => {
+        result = value;
+        close();
+      };
+
+      const { modal, head, body, foot, close } = makeModal({
+        backdropClass: "editor-unsaved-backdrop",
+        modalClass: "nav-delete-modal",
+        titleText,
+        onClose: () => {
+          navigationPrompt = null;
+          resolve(result);
+        },
+        onKeydown: (e) => {
+          if (e.key === "Escape") settle("cancel");
+          if (e.key === "Enter") settle("save");
+        },
+      });
+
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-labelledby", "editor-unsaved-title");
+      head.id = "editor-unsaved-title";
+
+      const text = document.createElement("p");
+      text.className = "nav-delete-message";
+      text.textContent = messageText;
+      body.appendChild(text);
+
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "editor-btn";
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => settle("cancel"));
+
+      const discard = document.createElement("button");
+      discard.type = "button";
+      discard.className = "editor-btn danger";
+      discard.textContent = "Discard";
+      discard.addEventListener("click", () => settle("discard"));
+
+      const saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "editor-btn primary";
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", () => settle("save"));
+
+      foot.appendChild(cancel);
+      foot.appendChild(discard);
+      foot.appendChild(saveBtn);
+      saveBtn.focus();
+    });
+
+    return navigationPrompt;
+  }
+
+  async function confirmNavigation(opts) {
+    if (!state.dirty) return true;
+    const action = await openNavigationPrompt(opts);
+    if (action === "save") return save({ silent: true });
+    return action === "discard";
   }
 
   // --- UI ----------------------------------------------------------------
@@ -459,6 +553,11 @@ const Editor = (() => {
     page = document.getElementById("page");
     mountControls();
     installReaderContextMenu();
+    window.addEventListener("beforeunload", (e) => {
+      if (!state.dirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    });
     document.addEventListener("scene:loaded", (e) => {
       if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
       state.path = e.detail.path;
@@ -477,6 +576,9 @@ const Editor = (() => {
     // Edit a library file via the item form (used by the library sidebar view and
     // by reference-card tools). Works regardless of scene edit mode.
     editLibraryItem,
+    confirmNavigation,
+    save,
+    hasUnsavedChanges: () => !!state.dirty,
     // Create a new library item with no scene instance (Items sidebar "+ New item").
     createLibraryItem,
     // Create a new enemy library file (combat picker + Enemies sidebar).

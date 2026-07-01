@@ -276,6 +276,20 @@ async function load(path) {
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));
 }
 
+async function confirmReaderNavigation() {
+  if (typeof Editor !== "undefined" && Editor.confirmNavigation) {
+    return Editor.confirmNavigation();
+  }
+  return true;
+}
+
+async function guardedLoad(path) {
+  if (currentView === "scene" && currentPath === path) return true;
+  if (!(await confirmReaderNavigation())) return false;
+  await load(path);
+  return true;
+}
+
 /* Dev-only: inspect the parsed RendScroll AST for the current scene without
    touching rendering. In the console: `__rsDump()` prints readable JSON, and
    `__rsParse()` returns the live document. Caches the raw source each scene load.
@@ -298,6 +312,8 @@ window.RendScrollApp = {
   currentSource: () => window.__rsLastSource || "",
   currentPath: () => currentPath,
   campaignEntries: () => campaignEntries.slice(),
+  confirmNavigation: confirmReaderNavigation,
+  guardedLoad,
 };
 
 // The empty start screen shown when no campaign is active (the Manage Campaigns

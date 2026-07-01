@@ -900,7 +900,8 @@ body[data-opt-pagebg="custom"] .page{
 
 .top-scroll-image img{
   display:block;
-  width:100%;
+  width:50%;
+  margin:0 auto;
   max-height:18rem;
   object-fit:contain;
 }
