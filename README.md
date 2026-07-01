@@ -9,7 +9,7 @@
 
 **Turn your campaign notes into a Dungeon Master's screen you actually want to run from.**
 
-**Yours, Free and Offline. It runs entirely on your machine. No accounts, no cloud.**
+**Yours, Free and Offline. It runs entirely on your machine. No accounts, no cloud, no setup ritual. Just your world, opened like a book.**
 
 <br />
 
@@ -21,11 +21,11 @@
 
 ---
 
-## 📜 What is this?
+## ⚙️ HOW TO RUN:
 
-RendScroll gathers all of your notes and hands it back to you as something that *feels* like sitting down with a leather-bound tome.
+1. Run **`python launcher.py`**. (If you are having good time with python you should be able to open it with double clicking. If not then open console and write "python launcher.py" and it will open.)
 
-No accounts. No cloud. No setup ritual. Just your world, opened like a book.
+That's it — you're at the table.
 
 ---
 
@@ -73,19 +73,7 @@ No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 
 ---
 
-## 🕯️ Step inside
-
-1. Run **`python launcher.py`**.
-2. It quietly checks your campaign files, then opens RendScroll in its own window.
-3. Pick a scene from the side and start reading — or hit **edit** and start building.
-
-That's it — you're at the table.
-
----
-
 <div align="center">
-
-*Close the book when you're done. The deeper rooms will keep.*
 
 **RendScroll** — by yagizdkurt
 
