@@ -23,16 +23,28 @@ const RendScrollSkillChecks = (() => {
 
   const SKILL_ABILITY = {
     athletics: "str",
-    acrobatics: "dex", "sleight of hand": "dex", stealth: "dex",
+    acrobatics: "dex", "sleight of hand": "dex", lockpicking: "dex", stealth: "dex",
     arcana: "int", history: "int", investigation: "int", nature: "int", religion: "int",
     "animal handling": "wis", insight: "wis", medicine: "wis", perception: "wis", survival: "wis",
     deception: "cha", intimidation: "cha", performance: "cha", persuasion: "cha",
+  };
+
+  const SKILL_ALIAS = {
+    "lock picking": "lockpicking",
+    lockping: "lockpicking",
+    "sleight of hands": "sleight of hand",
+  };
+
+  const SKILL_DISPLAY = {
+    "sleight of hand": "Sleight of Hand",
+    lockpicking: "Lockpicking",
   };
 
   const SKILL_OPTION_NAMES = [
     "Athletics",
     "Acrobatics",
     "Sleight of Hand",
+    "Lockpicking",
     "Stealth",
     "Arcana",
     "History",
@@ -54,6 +66,12 @@ const RendScrollSkillChecks = (() => {
     "INT",
     "WIS",
     "CHA",
+    "STR Save",
+    "DEX Save",
+    "CON Save",
+    "INT Save",
+    "WIS Save",
+    "CHA Save",
     "Passive Perception",
     "SWD",
     "DT",
@@ -100,6 +118,20 @@ const RendScrollSkillChecks = (() => {
       return { display: name, icon: "👁", mystic: true, noDC: false, standard: true };
     }
 
+    const save = key.match(/^(.+?)\s+(?:save|saving throw)$/);
+    if (save) {
+      const saveAbilKey = ABILITY_ALIAS[save[1].trim()];
+      if (saveAbilKey) {
+        return {
+          display: ABILITY[saveAbilKey].full + " Save",
+          icon: ABILITY[saveAbilKey].icon,
+          mystic: false,
+          noDC: false,
+          standard: true,
+        };
+      }
+    }
+
     const abilKey = ABILITY_ALIAS[key];
     if (abilKey) {
       return {
@@ -111,10 +143,11 @@ const RendScrollSkillChecks = (() => {
       };
     }
 
-    const skillAbil = SKILL_ABILITY[key];
+    const skillKey = SKILL_ALIAS[key] || key;
+    const skillAbil = SKILL_ABILITY[skillKey];
     if (skillAbil) {
       return {
-        display: name,
+        display: SKILL_DISPLAY[skillKey] || name,
         icon: ABILITY[skillAbil].icon,
         mystic: false,
         noDC: false,

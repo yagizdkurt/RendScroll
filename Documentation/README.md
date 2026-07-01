@@ -320,7 +320,16 @@ You can also use raw ability checks:
 > 14: The mechanism can be held open without tools.
 ```
 
-The renderer recognizes common D&D skill names and ability names. It can render icons for skill families and ability checks.
+Ability save checks can use either full ability names or abbreviations:
+
+```md
+- Wisdom Save:
+> 13: The character resists answering the whisper out loud.
+- STR Save:
+> 15: The character holds the gate against the impact.
+```
+
+The renderer recognizes common D&D skill names, ability names, ability saves, and lockpicking checks. It can render icons for skill families and ability checks.
 
 Information spells can be written as full names or short forms:
 

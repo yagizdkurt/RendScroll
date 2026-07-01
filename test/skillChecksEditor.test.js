@@ -26,6 +26,32 @@ test("EditorSchemas skill options are derived from shared skill rules", () => {
   assert.deepEqual(EditorSchemas.checkSkillOptions(), SkillRules.skillOptions());
 });
 
+test("Skill rules include ability saves and lockpicking aliases", () => {
+  const optionValues = SkillRules.skillOptions().map((option) => option.value);
+
+  assert.ok(optionValues.includes("WIS Save"));
+  assert.ok(optionValues.includes("STR Save"));
+  assert.ok(optionValues.includes("Lockpicking"));
+
+  assert.deepEqual(SkillRules.resolveSkill("Wisdom Save"), {
+    display: "Wisdom Save",
+    icon: "👁",
+    mystic: false,
+    noDC: false,
+    standard: true,
+  });
+  assert.deepEqual(SkillRules.resolveSkill("str save"), {
+    display: "Strength Save",
+    icon: "💪",
+    mystic: false,
+    noDC: false,
+    standard: true,
+  });
+  assert.equal(SkillRules.resolveSkill("Lockpicking").standard, true);
+  assert.equal(SkillRules.resolveSkill("Sleight of Hands").display, "Sleight of Hand");
+  assert.equal(SkillRules.resolveSkill("lockping").display, "Lockpicking");
+});
+
 test("Skill Checks schema remains registered and round-trips markdown", () => {
   const schema = EditorSchemas.get("skillchecks");
   const values = EditorSchemas.parse(schema, [

@@ -15,7 +15,7 @@ General:
 
 ### Skill Checks
 Locked Mechanism:
-- Sleight of Hand:
+- Lockpicking:
 > 12: The catch can be released without tools.
 > 16: The catch opens silently.
 - Investigation:
@@ -26,7 +26,7 @@ Locked Mechanism:
 
 ### Skill Checks
 Forbidden Memory:
-- Wisdom:
+- Wisdom Save:
 > 13: The character resists answering the whisper out loud.
 - Religion:
 > 12: The chant imitates a funeral rite, but several phrases are reversed.

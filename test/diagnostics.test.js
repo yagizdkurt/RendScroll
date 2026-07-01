@@ -23,6 +23,26 @@ test("diagnostics treats asterisk check markers as check entries", () => {
   ));
 });
 
+test("diagnostics accepts save checks and lockpicking as standard checks", () => {
+  const parsed = RendScrollDiagnostics.parseScene([
+    "# Scene",
+    "### Skill Checks",
+    "- Wisdom Save:",
+    "> 12: Resist the whisper.",
+    "- STR Save:",
+    "> 15: Hold the gate.",
+    "- Lockpicking:",
+    "> 14: Open the warded lock.",
+    "- Sleight of Hands:",
+    "> 14: Open it quietly.",
+    "",
+  ].join("\n"), "scene.md");
+
+  const issues = RendScrollDiagnostics.computeSceneDiagnostics(parsed.doc, { file: "scene.md" });
+
+  assert.deepEqual(issues.filter((issue) => issue.code === "non-standard-check"), []);
+});
+
 test("diagnostics warns about legacy standalone narrative blockquotes", () => {
   const parsed = RendScrollDiagnostics.parseScene([
     "# Scene",
