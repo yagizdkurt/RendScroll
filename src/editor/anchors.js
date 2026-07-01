@@ -12,7 +12,7 @@ const EditorAnchors = (() => {
   // sections and Yankı/Echo produce no card div, so they are not anchorable.
   const ANCHORABLE = new Set([
     "npc", "item", "ability", "obj", "combat", "unexpected", "narrative", "std", "skillchecks",
-    "sourceitem", "picture", "audio",
+    "sourceitem", "picture", "audio", "manifest",
   ]);
 
   // DOM class for each card type (from the card builders).
@@ -20,6 +20,7 @@ const EditorAnchors = (() => {
     npc: "npc-card", item: "item-card", sourceitem: "item-card", ability: "ability-card", obj: "obj-card",
     combat: "combat-card", unexpected: "unexpected-card", std: "std-card",
     narrative: "narrative-card", skillchecks: "sc-card", picture: "picture-card", audio: "audio-card",
+    manifest: "manifest-card",
   };
   const CARD_DIV_SELECTOR = Object.values(CARD_CLASS).map((c) => ":scope > ." + c).join(",");
   const CARD_DOM_SELECTOR = Object.values(CARD_CLASS).map((c) => "." + c).join(",");
@@ -348,7 +349,7 @@ const EditorAnchors = (() => {
     }
   }
 
-  return { decorate, _internals: { eventRows, routeRow } };
+  return { decorate, _internals: { eventRows, routeRow, ANCHORABLE, CARD_CLASS } };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = EditorAnchors;

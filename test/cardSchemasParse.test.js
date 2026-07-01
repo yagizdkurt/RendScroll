@@ -74,6 +74,32 @@ test("ability fields round-trip through the shared parseAbilityBody", () => {
   assert.match(back.body, /Ancient flame\./);
 });
 
+test("manifest fields round-trip through the shared parseManifestBody", () => {
+  const values = {
+    duration: "20 min",
+    summary: "A tense parley.",
+    goals: ["Broker peace", "Learn the secret"],
+    keyNpcs: ["Envoy Mara"],
+    rewards: ["100 gold"],
+  };
+  const { back } = roundTrip("manifest", values);
+  assert.equal(back.duration, "20 min");
+  assert.equal(back.summary, "A tense parley.");
+  assert.deepEqual(back.goals, ["Broker peace", "Learn the secret"]);
+  assert.deepEqual(back.keyNpcs, ["Envoy Mara"]);
+  assert.deepEqual(back.rewards, ["100 gold"]);
+});
+
+test("manifest is editable/serializable but absent from the insert menu", () => {
+  assert.ok(EditorSchemas.get("manifest"), "manifest schema should be registered");
+  const menu = EditorSchemas.list().map((s) => s.type);
+  assert.ok(!menu.includes("manifest"), "manifest must not appear in the insert menu");
+});
+
+test("manifest exports a pure parseManifestBody for reuse", () => {
+  assert.equal(typeof require("../src/cards/manifest/manifest.js").parseManifestBody, "function");
+});
+
 test("every field-bearing type exports a pure parse<Type>Body for reuse", () => {
   assert.equal(typeof require("../src/cards/item/item.js").parseItemBody, "function");
   assert.equal(typeof require("../src/cards/ability/ability.js").parseAbilityBody, "function");

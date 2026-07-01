@@ -65,11 +65,14 @@ async function loadCampaignEntries() {
   return data;
 }
 
-async function createCampaignFile(title) {
+async function createCampaignFile(title, manifest) {
+  const body = { title };
+  // Optional Scene Manifest markdown block, written under the "# Title" header.
+  if (manifest && manifest.trim()) body.manifest = manifest;
   const res = await fetch("/__create_campaign_file", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify(body),
   });
 
   let payload = null;
@@ -217,7 +220,11 @@ function mountCampaignEntries(entries) {
       e.preventDefault();
       e.stopPropagation();
       openNavMenu(
-        [{ label: "Delete", danger: true, onClick: () => deleteCampaignEntry(entry) }],
+        [
+          { label: "Edit manifest", onClick: () => openEditManifestDialog(entry) },
+          { separator: true },
+          { label: "Delete", danger: true, onClick: () => deleteCampaignEntry(entry) },
+        ],
         e.clientX, e.clientY
       );
     });

@@ -307,6 +307,18 @@ test("Turkish names: Obje / Savaş / Beklenmedik classify correctly", () => {
   assert.deepEqual(cards.map((c) => c.title), ["Mezar", "İskeletler", "Çöküş"]);
 });
 
+// --- Scene manifest --------------------------------------------------------
+
+test("bare '### Manifest' classifies as a manifest card titled 'Scene Manifest'", () => {
+  const cards = allCards(parseFixture("manifest.md"));
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].type, "manifest");
+  assert.equal(cards[0].title, "Scene Manifest");
+  // The manifest's fields live verbatim in the body for the builder/schema to read.
+  assert.match(bodyText(cards[0]), /Duration: 20 min/);
+  assert.match(bodyText(cards[0]), /Goals:/);
+});
+
 // --- Malformed directive ---------------------------------------------------
 
 test("Malformed directives are kept as unknown blocks, never dropped", () => {

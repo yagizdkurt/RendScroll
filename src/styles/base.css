@@ -181,6 +181,22 @@ body{
   display:none;
 }
 
+.new-page-manifest{
+  margin-top:.9rem;
+  padding-top:.7rem;
+  border-top:1px solid var(--rule);
+}
+.new-page-manifest-head{
+  font-weight:700;
+  letter-spacing:.02em;
+  opacity:.85;
+  margin-bottom:.4rem;
+}
+.new-page-manifest textarea{
+  resize:vertical;
+  min-height:2.4rem;
+}
+
 #sidebar-toggle{
   display:block;
   width:100%;

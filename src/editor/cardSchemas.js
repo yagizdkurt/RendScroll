@@ -46,7 +46,7 @@ const EditorSchemas = (() => {
   // helpers as globals so the required card files (which reference them as globals)
   // resolve at call time.
   const RENDER = (typeof cardBodySource !== "undefined")
-    ? { cardBodySource, cardBodyLines, cardOrderedBody, cardDirective, parseItemBody, parseAbilityBody }
+    ? { cardBodySource, cardBodyLines, cardOrderedBody, cardDirective, parseItemBody, parseAbilityBody, parseManifestBody }
     : (() => {
         const CD = require("../cards/shared/cardDirectives.js");
         Object.assign(globalThis, CD);
@@ -54,6 +54,7 @@ const EditorSchemas = (() => {
         return Object.assign({}, CD, {
           parseItemBody: require("../cards/item/item.js").parseItemBody,
           parseAbilityBody: require("../cards/ability/ability.js").parseAbilityBody,
+          parseManifestBody: require("../cards/manifest/manifest.js").parseManifestBody,
         });
       })();
 
@@ -236,6 +237,17 @@ const EditorSchemas = (() => {
     const parts = [].concat(m.description || [], m.extras || []);
     if ((m.lore || []).length) parts.push("Lore:", ...m.lore);
     values.body = [].concat(parts, leftover).join("\n").replace(/[ \t\r\n]+$/, "");
+  }
+
+  // Scene Manifest: parseManifestBody. Duration/Summary scalars + Goals/Key NPCs/
+  // Rewards bullet lists come straight off the shared render parser.
+  function manifestFromBody(node, values, api) {
+    const m = api.render.parseManifestBody(node);
+    values.duration = m.duration || "";
+    values.summary = m.summary || "";
+    values.goals = (m.goals || []).slice();
+    values.keyNpcs = (m.keyNpcs || []).slice();
+    values.rewards = (m.rewards || []).slice();
   }
 
   // --- generic parse (markdown block -> values) ----------------------------
@@ -636,7 +648,22 @@ const EditorSchemas = (() => {
     { key: "text", label: "Text", kind: "narrativeText", mdLabel: "Text", hint: "Read-aloud text...", required: true },
   ]);
 
-  // Order shown in the insert menu.
+  // Scene Manifest: a compact scene-header card set at scene-creation time. It is
+  // deliberately ABSENT from ORDER below, so it never appears in the insert ("add
+  // card") menu (EditorSchemas.list()) — but get/serialize/parse and right-click Edit
+  // on an existing manifest all work.
+  define("manifest", "Scene Manifest", {
+    heading() { return "Manifest"; },
+    parseHeading(content, values) { values.column = "left"; },
+  }, [
+    { key: "duration", label: "Duration", kind: "text", mdLabel: "Duration" },
+    { key: "summary", label: "Summary", kind: "text", mdLabel: "Summary" },
+    { key: "goals", label: "Goals", kind: "list", mdLabel: "Goals" },
+    { key: "keyNpcs", label: "Key NPCs", kind: "list", mdLabel: "Key NPCs" },
+    { key: "rewards", label: "Rewards", kind: "list", mdLabel: "Rewards" },
+  ], { fromBody: manifestFromBody });
+
+  // Order shown in the insert menu. (manifest is intentionally excluded — see above.)
   const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture", "audio"];
 
   return {

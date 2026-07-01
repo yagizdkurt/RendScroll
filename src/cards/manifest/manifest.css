@@ -1,0 +1,60 @@
+/* ---------- Scene Manifest Card ---------- */
+/* A compact "at a glance" header block: Duration / Summary rows + short bullet
+   lists of Goals / Key NPCs / Rewards. Lives in .page-header at the top of a scene. */
+.page .manifest-card{
+  margin:.2rem 0 1rem;
+  padding:.6rem .85rem .7rem;
+  background:rgba(232,226,200,.55);
+  border:1px solid var(--gold-deep);
+  border-top:4px solid var(--gold-deep);
+  border-radius:4px;
+  box-shadow:inset 0 0 16px rgba(120,90,40,.10);
+  font-size:.92rem;
+}
+
+.page .manifest-title{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--maroon);
+  font-size:.92rem;
+  margin:0 0 .45rem;
+  padding-bottom:.25rem;
+  border-bottom:1px solid var(--rule);
+}
+
+/* Compact "Label: value" scalar rows (Duration / Summary). */
+.page .manifest-rows{
+  display:flex;
+  flex-direction:column;
+  gap:.15rem;
+  margin-bottom:.35rem;
+}
+.page .manifest-rows:last-child{margin-bottom:0;}
+.page .manifest-row{
+  display:flex;
+  gap:.4rem;
+  align-items:baseline;
+  line-height:1.35;
+}
+.page .manifest-label{
+  flex:0 0 auto;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:700;
+  letter-spacing:.03em;
+  color:var(--maroon);
+}
+.page .manifest-label::after{content:":";}
+.page .manifest-value{color:inherit;}
+
+/* Labelled bullet lists (Goals / Key NPCs / Rewards). */
+.page .manifest-list{margin:.3rem 0 0;}
+.page .manifest-list:first-of-type{margin-top:.1rem;}
+.page .manifest-list .manifest-label{display:block;margin-bottom:.1rem;}
+.page .manifest-list ul{
+  margin:0;
+  padding-left:1.15rem;
+  line-height:1.35;
+}
+.page .manifest-list li{margin:.05rem 0;}

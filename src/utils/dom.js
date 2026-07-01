@@ -10,6 +10,7 @@ const RENDERED_CARD_CLASSES = [
   "unexpected-card",
   "narrative-card",
   "std-card",
+  "manifest-card",
 ];
 
 const RENDERED_CARD_SELECTOR = RENDERED_CARD_CLASSES.map((name) => "." + name).join(",");

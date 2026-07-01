@@ -102,6 +102,7 @@ const RendScrollParser = (() => {
     { type: "combat",      levels: [3], headingRe: /^\s*(sava[şs]|combat)\s*:/i, fallback: "Combat" },
     { type: "unexpected",  levels: [3], headingRe: /^\s*(beklenmedik|unexpected)\s*:/i, fallback: "Unexpected" },
     { type: "narrative",   levels: [3], headingRe: /^\s*narrative\s*$/i, title: () => "Narrative" },
+    { type: "manifest",    levels: [3], headingRe: /^\s*manifest\s*$/i, title: () => "Scene Manifest" },
     { type: "std",         levels: [3], headingRe: /^std\s*:/i,              fallback: "STD" },
     { type: "picture",     levels: [3], headingRe: /^\s*picture\s*:/i,       fallback: "Picture" },
     { type: "audio",       levels: [3], headingRe: /^\s*audio\s*:/i,         fallback: "Audio" },

@@ -751,6 +751,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         try:
             data = self._read_json_body()
             title = clean_campaign_title(data.get("title"))
+            manifest = str(data.get("manifest") or "").strip()
         except (ValueError, AttributeError, TypeError) as exc:
             self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
             return
@@ -763,7 +764,11 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         filename = next_campaign_filename(scenes_root)
         target = os.path.realpath(os.path.join(scenes_root, filename))
         rel_prefix = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{SCENES_SUBDIR}"
+        # Optional Scene Manifest block (a "### Manifest" card) sits directly under the
+        # title header, so it renders pinned at the top of the scene.
         content = f"# {title}\n\n"
+        if manifest:
+            content += manifest.rstrip("\n") + "\n"
 
         try:
             with open(target, "x", encoding="utf-8", newline="\n") as fh:
