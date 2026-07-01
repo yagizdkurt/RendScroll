@@ -122,6 +122,27 @@ class UpdateCheckerTests(unittest.TestCase):
             "https://raw.githubusercontent.com/yagizdkurt/RendScroll/main/update_manifest.json",
         )
 
+    def test_download_url_is_passed_through(self):
+        data = manifest(download_url="https://codeload.github.com/x/y/zip/refs/heads/main")
+        result = update_checker.result_from_manifest(data, current_version="1.1.1")
+        self.assertEqual(
+            result["download_url"], "https://codeload.github.com/x/y/zip/refs/heads/main"
+        )
+
+    def test_minimum_supported_version_alias_is_accepted(self):
+        data = manifest()
+        data.pop("minimum_supported")
+        data["minimum_supported_version"] = "1.0.5"
+        result = update_checker.result_from_manifest(data, current_version="1.1.1")
+        self.assertEqual(result["minimum_supported"], "1.0.5")
+
+    def test_new_optional_fields_absent_still_validates(self):
+        data = manifest()
+        data.pop("minimum_supported")
+        result = update_checker.result_from_manifest(data, current_version="1.1.1")
+        self.assertEqual(result["state"], update_checker.STATE_UPDATE_AVAILABLE)
+        self.assertNotIn("download_url", result)
+
 
 if __name__ == "__main__":
     unittest.main()

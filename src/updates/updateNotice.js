@@ -1,15 +1,27 @@
-/* In-app Stage 1 update notice.
+/* In-app update notice + Stage 2 installer trigger.
 
    Reads the launcher's structured /__update_status payload and renders a
    dismissible, non-blocking banner only when a newer repository version exists.
-   No update download or installation logic belongs here.
+   The "Update Now" button POSTs /__begin_update and then polls /__update_progress
+   to show step status; the launcher owns all download/replace/relaunch logic.
 */
 const RendScrollUpdateNotice = (() => {
   const STATUS_URL = "/__update_status";
+  const BEGIN_URL = "/__begin_update";
+  const PROGRESS_URL = "/__update_progress";
   const MAX_ATTEMPTS = 16;
   const POLL_MS = 750;
+  const PROGRESS_POLL_MS = 600;
+  const PHASE_LABELS = {
+    starting: "Starting update…",
+    downloading: "Downloading update…",
+    extracting: "Extracting update…",
+    preparing: "Preparing update…",
+    relaunching: "Applying update and relaunching. This window will close…",
+  };
   let dismissed = false;
   let banner = null;
+  let installing = false;
 
   function stringField(data, key) {
     const value = data && data[key];
@@ -71,8 +83,16 @@ const RendScrollUpdateNotice = (() => {
       content.appendChild(body);
     }
 
+    const progress = document.createElement("div");
+    progress.className = "update-notice-progress";
+    progress.hidden = true;
+    content.appendChild(progress);
+
     const actions = document.createElement("div");
     actions.className = "update-notice-actions";
+
+    const update = button("Update Now", "update-notice-update");
+    actions.appendChild(update);
 
     if (url) {
       const view = document.createElement("a");
@@ -86,10 +106,13 @@ const RendScrollUpdateNotice = (() => {
 
     const dismiss = button("Dismiss", "update-notice-dismiss");
     dismiss.addEventListener("click", () => {
+      if (installing) return;
       dismissed = true;
       removeBanner();
     });
     actions.appendChild(dismiss);
+
+    update.addEventListener("click", () => beginUpdate(update, dismiss, progress));
 
     wrap.appendChild(content);
     wrap.appendChild(actions);
@@ -101,6 +124,68 @@ const RendScrollUpdateNotice = (() => {
       document.body.appendChild(wrap);
     }
     banner = wrap;
+  }
+
+  function showProgress(progress, text, isError) {
+    progress.hidden = false;
+    progress.textContent = text;
+    progress.classList.toggle("is-error", !!isError);
+  }
+
+  function phaseText(status) {
+    const message = stringField(status, "message");
+    const phase = stringField(status, "phase");
+    return message || PHASE_LABELS[phase] || "Working…";
+  }
+
+  async function beginUpdate(update, dismiss, progress) {
+    if (installing) return;
+    installing = true;
+    update.disabled = true;
+    dismiss.disabled = true;
+    showProgress(progress, "Starting update…", false);
+
+    try {
+      const res = await fetch(BEGIN_URL, { method: "POST", cache: "no-store" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "HTTP " + res.status);
+      }
+    } catch (err) {
+      installing = false;
+      update.disabled = false;
+      dismiss.disabled = false;
+      showProgress(progress, "Could not start update: " + err.message, true);
+      return;
+    }
+
+    pollProgress(update, dismiss, progress);
+  }
+
+  async function pollProgress(update, dismiss, progress) {
+    let status = null;
+    try {
+      const res = await fetch(PROGRESS_URL, { cache: "no-store" });
+      if (res.ok) status = await res.json();
+    } catch (_) {
+      // Server is likely restarting (relaunch phase); keep the last message.
+    }
+
+    if (status && status.ok === false) {
+      installing = false;
+      update.disabled = false;
+      dismiss.disabled = false;
+      showProgress(progress, phaseText(status), true);
+      return;
+    }
+
+    if (status) showProgress(progress, phaseText(status), false);
+
+    // "relaunching" means the server is about to close; stop polling and wait for
+    // the updated app to reopen in a fresh window.
+    if (status && stringField(status, "phase") === "relaunching") return;
+
+    setTimeout(() => pollProgress(update, dismiss, progress), PROGRESS_POLL_MS);
   }
 
   function init() {

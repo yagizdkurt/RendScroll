@@ -22,8 +22,20 @@ import time
 import webbrowser
 import zipfile
 
+from src.updates import update_installer
 from src.updates.update_checker import APP_VERSION, check_for_updates
-from src.updates.update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIFEST_URL
+from src.updates.update_config import (
+    DEFAULT_DOWNLOAD_URL,
+    DOWNLOAD_TIMEOUT_SECONDS,
+    UPDATE_BACKUP_DIR,
+    UPDATE_CHECK_TIMEOUT_SECONDS,
+    UPDATE_DOWNLOAD_ZIP,
+    UPDATE_EXTRACT_DIR,
+    UPDATE_HEARTBEAT_FILE,
+    UPDATE_JOB_FILE,
+    UPDATE_LOGS_DIR,
+    UPDATE_MANIFEST_URL,
+)
 
 
 HOST = "127.0.0.1"
@@ -50,11 +62,24 @@ EXPORTS_DIR = "Exports"
 # endpoints.
 LIBRARY_DIRS = {"item": "Items", "enemy": "Enemies"}
 EXIT_REQUESTED = threading.Event()
+# Set when we exit specifically to hand off to the updater/relaunch, so the console
+# closes cleanly instead of waiting on the goodbye keypress.
+UPDATE_HANDOFF = threading.Event()
 UPDATE_STATUS_LOCK = threading.Lock()
 UPDATE_STATUS = {
     "state": "check_failed",
     "current_version": APP_VERSION,
     "pending": False,
+}
+
+# Stage 2 install progress, surfaced at GET /__update_progress. `phase` is idle until
+# the user clicks Update Now; `active` guards against overlapping installs.
+UPDATE_PROGRESS_LOCK = threading.Lock()
+UPDATE_PROGRESS = {
+    "phase": "idle",
+    "message": "",
+    "active": False,
+    "ok": True,
 }
 
 GREEN = "\033[92m"
@@ -80,8 +105,6 @@ def configure_console():
 
 
 def get_base_dir():
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
 
@@ -288,6 +311,137 @@ def start_update_check(base_dir):
     thread = threading.Thread(target=worker, name="RendScrollUpdateCheck", daemon=True)
     thread.start()
     return thread
+
+
+def update_progress_snapshot():
+    with UPDATE_PROGRESS_LOCK:
+        return dict(UPDATE_PROGRESS)
+
+
+def set_update_progress(phase, message="", ok=True, active=True):
+    with UPDATE_PROGRESS_LOCK:
+        UPDATE_PROGRESS.update({
+            "phase": phase,
+            "message": message,
+            "ok": ok,
+            "active": active,
+        })
+
+
+def write_launch_heartbeat(base_dir):
+    """Write the launch heartbeat the update-apply helper polls for. Harmless on a
+    normal launch; on an updated launch it is the signal that relaunch succeeded."""
+    try:
+        path = os.path.join(base_dir, UPDATE_HEARTBEAT_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(APP_VERSION + "\n")
+    except OSError:
+        pass
+
+
+def _manifest_download_url():
+    """Prefer the checked manifest's download_url; fall back to the default zip."""
+    status = update_status_snapshot()
+    url = status.get("download_url")
+    if isinstance(url, str) and url.strip():
+        return url.strip()
+    return DEFAULT_DOWNLOAD_URL
+
+
+def begin_update(base_dir):
+    """Guard, then run the install on a background thread. Returns an error string
+    when the request is rejected, else None (accepted)."""
+    status = update_status_snapshot()
+    if status.get("state") != "update_available":
+        return "no update is available"
+    with UPDATE_PROGRESS_LOCK:
+        if UPDATE_PROGRESS.get("active"):
+            return "an update is already in progress"
+        UPDATE_PROGRESS.update({
+            "phase": "starting", "message": "", "ok": True, "active": True,
+        })
+
+    target_version = status.get("latest_version") or ""
+    thread = threading.Thread(
+        target=run_update_install,
+        args=(base_dir, target_version),
+        name="RendScrollUpdateInstall",
+        daemon=True,
+    )
+    thread.start()
+    return None
+
+
+def run_update_install(base_dir, target_version):
+    """Download + extract + validate, then hand off to the detached apply helper.
+    Sets EXIT_REQUESTED on a successful hand-off so the current instance releases
+    its files."""
+    download_zip = os.path.join(base_dir, UPDATE_DOWNLOAD_ZIP)
+    extract_dir = os.path.join(base_dir, UPDATE_EXTRACT_DIR)
+    try:
+        set_update_progress("downloading", "Downloading update…")
+        update_installer.download_zip(
+            _manifest_download_url(), download_zip, timeout=DOWNLOAD_TIMEOUT_SECONDS
+        )
+
+        set_update_progress("extracting", "Extracting update…")
+        extract_root = update_installer.extract_zip(download_zip, extract_dir)
+        update_installer.validate_extract(extract_root)
+    except Exception as exc:  # noqa: BLE001
+        set_update_progress("failed", f"Download failed: {exc}", ok=False, active=False)
+        return
+
+    _handoff_to_helper(base_dir, extract_root, target_version)
+
+
+def _handoff_to_helper(base_dir, extract_root, target_version):
+    """Write the apply job, spawn the detached helper, then exit."""
+    try:
+        set_update_progress("preparing", "Preparing update…")
+        stamp = time.strftime("%Y-%m-%dT%H-%M-%SZ", time.gmtime())
+        backup_dir = os.path.join(base_dir, UPDATE_BACKUP_DIR, stamp)
+        logs_path = os.path.join(base_dir, UPDATE_LOGS_DIR, f"apply-{stamp}.log")
+        launcher_path = os.path.join(base_dir, "launcher.py")
+        job = {
+            "mode": "source",
+            "install_root": base_dir,
+            "extract_root": extract_root,
+            "backup_dir": backup_dir,
+            "logs_path": logs_path,
+            "download_zip": os.path.join(base_dir, UPDATE_DOWNLOAD_ZIP),
+            "heartbeat_path": os.path.join(base_dir, UPDATE_HEARTBEAT_FILE),
+            "target_version": target_version,
+            "parent_pid": os.getpid(),
+            "relaunch": [sys.executable, launcher_path],
+        }
+        job_path = os.path.join(base_dir, UPDATE_JOB_FILE)
+        os.makedirs(os.path.dirname(job_path), exist_ok=True)
+        with open(job_path, "w", encoding="utf-8") as fh:
+            json.dump(job, fh, indent=2)
+
+        apply_script = os.path.join(base_dir, "src", "updates", "update_apply.py")
+        _spawn_detached([sys.executable, apply_script, job_path], base_dir)
+    except Exception as exc:  # noqa: BLE001
+        set_update_progress("failed", f"Could not start updater: {exc}", ok=False, active=False)
+        return
+
+    set_update_progress(
+        "relaunching",
+        "Applying update and relaunching. This window will close.",
+        active=False,
+    )
+    UPDATE_HANDOFF.set()
+    EXIT_REQUESTED.set()
+
+
+def _spawn_detached(command, cwd):
+    kwargs = {"cwd": cwd, "close_fds": True}
+    if os.name == "nt":
+        kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(command, **kwargs)
 
 
 def write_campaign_manifest(base_dir, name, label=None):
@@ -555,6 +709,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(200, update_status_snapshot())
             return
 
+        if path == "/__update_progress":
+            self._send_json(200, update_progress_snapshot())
+            return
+
         if path == "/__campaigns":
             self._send_json(200, discover_campaigns(os.getcwd()))
             return
@@ -587,6 +745,14 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         if path == "/__rendscroll_exit":
             self._send_json(200, {"ok": True})
             EXIT_REQUESTED.set()
+            return
+
+        if path == "/__begin_update":
+            error = begin_update(os.getcwd())
+            if error:
+                self._send_json(409, {"ok": False, "error": error})
+            else:
+                self._send_json(202, {"ok": True})
             return
 
         if path == "/__select_campaign":
@@ -1360,6 +1526,7 @@ def main():
     try:
         print_section(2, "Starting local server")
         server, port = start_server()
+        write_launch_heartbeat(os.getcwd())
         start_update_check(os.getcwd())
         url = f"http://{HOST}:{port}"
         print_indented("URL: " + paint(url, CYAN))
@@ -1407,7 +1574,7 @@ def main():
         shutdown_server(server)
         cleanup_chrome_profile(chrome_profile_dir)
 
-    if chrome_closed:
+    if chrome_closed and not UPDATE_HANDOFF.is_set():
         pause_goodbye()
 
     return 0

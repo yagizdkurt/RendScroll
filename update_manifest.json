@@ -1,7 +1,8 @@
 {
   "latest": "1.1.1",
-  "minimum_supported": "1.0.0",
+  "minimum_supported_version": "1.0.0",
   "url": "https://github.com/yagizdkurt/RendScroll",
+  "download_url": "https://codeload.github.com/yagizdkurt/RendScroll/zip/refs/heads/main",
   "title": "RendScroll 1.1.1",
-  "changes": "Renderer improvements, bug fixes, and update checker preparation."
+  "changes": "Renderer improvements, bug fixes, and in-app updater."
 }

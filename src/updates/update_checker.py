@@ -74,12 +74,20 @@ def validate_manifest(manifest):
     parse_semver(latest)
 
     normalized = {"latest": latest}
-    for key in ("minimum_supported", "url", "title", "changes"):
+
+    # `minimum_supported_version` is the Stage 2 name; `minimum_supported` is the
+    # original Stage 1 field. Accept either and normalize to `minimum_supported`.
+    minimum = _optional_string(manifest, "minimum_supported") or _optional_string(
+        manifest, "minimum_supported_version"
+    )
+    if minimum:
+        parse_semver(minimum)
+        normalized["minimum_supported"] = minimum
+
+    for key in ("url", "download_url", "title", "changes"):
         value = _optional_string(manifest, key)
         if not value:
             continue
-        if key == "minimum_supported":
-            parse_semver(value)
         normalized[key] = value
     return normalized
 
@@ -101,6 +109,7 @@ def result_from_manifest(manifest, current_version=APP_VERSION):
     for source_key, result_key in (
         ("minimum_supported", "minimum_supported"),
         ("url", "url"),
+        ("download_url", "download_url"),
         ("title", "title"),
         ("changes", "changes"),
     ):

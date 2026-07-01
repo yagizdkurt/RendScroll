@@ -220,6 +220,7 @@ body{
 }
 
 .update-notice-view,
+.update-notice-update,
 .update-notice-dismiss{
   min-height:32px;
   display:inline-flex;
@@ -245,8 +246,25 @@ body{
 }
 
 .update-notice-view:hover,
+.update-notice-update:hover,
 .update-notice-dismiss:hover{
   background:var(--chrome-hover);
+}
+
+.update-notice-update[disabled]{
+  opacity:.55;
+  cursor:default;
+}
+
+.update-notice-progress{
+  font-family:system-ui,'Segoe UI',Helvetica,Arial,sans-serif;
+  font-size:.86rem;
+  line-height:1.35;
+  color:var(--chrome-text);
+}
+
+.update-notice-progress.is-error{
+  color:var(--danger,#c0392b);
 }
 
 .editor-modal.new-page-modal{

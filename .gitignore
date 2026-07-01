@@ -5,7 +5,6 @@
 !.gitignore
 !LICENSE
 !README.md
-!RendScroll.exe
 !launcher.py
 !index.html
 !update_manifest.json
@@ -37,6 +36,9 @@
 !Items/.gitkeep
 !Enemies/
 !Enemies/.gitkeep
+
+# the updater's working area (downloads, extract, backup, logs) is transient/local
+.rendscroll-update/
 
 # but still ignore compiled Python files
 *.pyc
