@@ -7,10 +7,9 @@
 ![GitHub forks](https://img.shields.io/github/forks/yagizdkurt/RendScroll?style=social)
 ![Status](https://img.shields.io/badge/status-active-success)
 
-
-### *Every page hides a deeper room.*
-
 **Turn your campaign notes into a Dungeon Master's screen you actually want to run from.**
+
+**Yours, Free and Offline. It runs entirely on your machine. No accounts, no cloud.**
 
 <br />
 
@@ -24,11 +23,7 @@
 
 ## 📜 What is this?
 
-You already write your sessions down. Scattered notes, half-formed scenes, a stat
-block here, a line of dialogue there. RendScroll gathers all of it and hands it back
-to you as something that *feels* like sitting down with a leather-bound tome — warm
-parchment, deep bordeaux, ink-and-gold headings, and a quiet hush that says *the
-game is about to begin.*
+RendScroll gathers all of your notes and hands it back to you as something that *feels* like sitting down with a leather-bound tome.
 
 No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 
@@ -36,77 +31,33 @@ No accounts. No cloud. No setup ritual. Just your world, opened like a book.
 
 ## 🆕 Whats new
 
-- **Combat helper.** Give an encounter its enemies and
-  a **Start Combat** button appears. Roll into **initiative and turn order**, then
-  **track every enemy's HP** as the blades fall — No attack roller or bloated features.
-
-- **An Item Library that ends copy-paste.** Write a magic item *once*, then summon
-  it anywhere with `[item=Name]` or weave it inline with `[link=Name]`. Edit the
-  source and **every scene updates with it.**
-
-- **An Enemy Library.** Build a creature once and call it
-  into any combat. Browse, add, and edit your bestiary from the sidebar — your
-  monsters travel with you from session to session.
-
+- **Combat helper.** Give an encounter its enemies and a **Start Combat** button appears. Roll into **initiative and turn order**, then **track every enemy's HP** as the blades fall — No attack roller or bloated features.
 
 ---
 
 ## ⚔️ Why it feels good at the table
 
-**complete DM workbench** — write, build, reuse, all from the same book.
+- **complete DM workbench** — write, build, reuse, all from the same book.
 
-- **The page reads itself, in play order.** Scenes flow top to bottom, event by
-  event — no flipping between sections mid-encounter to find what happens next.
+- **The page reads itself, in play order.** Scenes flow top to bottom, event by event — no flipping between sections mid-encounter to find what happens next.
 
-- **A real visual editor — no Markdown required.** Flip on edit mode and shape any
-  card through clean forms: pick the type, fill the fields, drop it exactly where it
+- **A real visual editor — no Markdown required.** Flip on edit mode and shape any card through clean forms: pick the type, fill the fields, drop it exactly where it
   belongs.
 
-- **Iconography that reads at a glance.** Standardized **damage-type icons**, dice,
-  AC/HP/initiative crests — stat blocks parse in the half-second you actually have.
+- **Iconography that reads at a glance.** Standardized **damage-type icons**, dice, AC/HP/initiative crests — stat blocks parse in the half-second you actually have.
 
-- **Never read the wrong line again.** What players hear *glows apart* from your
-  secret DM notes. Read-aloud text is clean and unmistakable; your hidden truths stay
-  yours.
+- **Tune the mood** Customizable style, cards open or closed, **dark or light chrome,** even a **custom parchment of
+  your own** — set the table's atmosphere.
 
-- **Every moment has a card that knows what it is.** NPCs, combat, skill checks,
-  items, spells, objects, narration, and the unexpected each carry their own look and
-  color — so a fight never reads like a footnote.
+- **Libraries** Do not write your items or enemies again and again or copy paste them. With libraries you can write an enemy once and use it in every campaign whenever you like.
 
-- **Skill checks that color their own stakes.** Difficulty bands shade themselves —
-  **easy green, climbing through gold and orange to a deadly bordeaux** — so the table
-  feels the risk before you say a word.
-
-- **Tune the mood, live.** Text size, line spacing, reader font, page width, narration
-  style, cards open or closed, **dark or light chrome,** even a **custom parchment of
-  your own** — set the table's atmosphere with a click, and it remembers across
-  sessions.
-
-- **Write, edit, and print without leaving.** Adjust a scene right in the page, then
-  **export a clean PDF** to lay beside your dice.
-
-- **Yours, and offline.** It runs entirely on your machine. No accounts, no cloud.
-  Your world never leaves the room.
-
----
-
-## ✨ A glance at the magic
-
-The secret is that there's no secret — it's **just Markdown.** You write a scene the
-way it reads in your head.
-
-RendScroll turns it into a glowing read-aloud box, a hidden DM note only you can
-see, color-coded skill checks, and a combat card with its stats laid out at a glance.
-That's the whole spell.
-
-**Don't want to type the syntax?** Flip on the editor and build the very same cards
-through forms — RendScroll writes the Markdown for you.
+- **Write, edit, print or export** Adjust a scene right in the page, then **export a clean PDF** to lay beside your dice or export as campaign zip so that others can play it too. It even exports items and enemiess fully automated!
 
 ---
 
 ## 🃏 The cards in your hand
 
-Every kind of moment has a card that already knows how to look the part:
+**Every moment has a card that knows what it is.**
 
 | Card | What it's for |
 | --- | --- |
@@ -118,6 +69,7 @@ Every kind of moment has a card that already knows how to look the part:
 | **Item** | Magic items, drawn from your reusable **Item Library** |
 | **Ability / Spell** | Costs, ranges, cooldowns, and effects |
 | **Unexpected** | The “what if the players…” branches you keep in your back pocket |
+| **Audio** | Ready to set the ambiant music? Or some sound effects? |
 
 ---
 
