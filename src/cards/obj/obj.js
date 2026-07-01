@@ -110,9 +110,7 @@ function buildObjCard(cardNode, head, nodes) {
         card.appendChild(section);
         return;
       }
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(seg.lines.join("\n"));
-      const els = [...tmp.children];
+      const els = renderMarkdownEls(seg.lines.join("\n"));
       if (seg.mode === "loot") {
         if (!lootPanel) {
           lootPanel = document.createElement("div");

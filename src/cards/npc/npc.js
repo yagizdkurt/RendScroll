@@ -195,9 +195,7 @@ function buildNpcCard(cardNode, head, nodes) {
     // Render a content run and route each produced node to the active target (an
     // identity column, the current dialogue subcard, or the card).
     function renderLines(lines) {
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(lines.join("\n"));
-      [...tmp.children].forEach((node) => {
+      renderMarkdownEls(lines.join("\n")).forEach((node) => {
         const target = identityTarget || currentSubcard || card;
         target.appendChild(npcCloneContent(node));
       });

@@ -244,9 +244,7 @@ function itemMetaBlock(rows) {
 // blockquote), preserving inline markdown via marked.
 function itemDescriptionFromModel(lines) {
   if (!lines || !lines.length) return [];
-  const tmp = document.createElement("div");
-  tmp.innerHTML = renderMarkdown(lines.join("\n"));
-  return [...tmp.children].map((node) => {
+  return renderMarkdownEls(lines.join("\n")).map((node) => {
     if (node.tagName !== "BLOCKQUOTE") return node;
     const desc = document.createElement("div");
     desc.className = "item-description";
@@ -310,9 +308,7 @@ function buildItemCard(cardNode, head, nodes) {
     const props = itemPropertiesFromModel(data.propertiesLabel, data.properties);
     if (props) card.appendChild(props);
     if (data.extras && data.extras.length) {
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(data.extras.join("\n"));
-      [...tmp.children].forEach((el) => card.appendChild(el));
+      renderMarkdownEls(data.extras.join("\n")).forEach((el) => card.appendChild(el));
     }
 
     // Place the header at the top: wrapped beside the portrait when an Image was

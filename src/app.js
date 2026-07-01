@@ -119,11 +119,10 @@ function applyCardTextSize(cardEl, size) {
 
 // Render a markdown string and return its top-level ELEMENT nodes (the old
 // pipeline only ever walked element siblings, so text/whitespace nodes are
-// dropped here too).
+// dropped here too). Delegates to the shared card-layer helper
+// (cards/shared/cardDirectives.js), which is loaded before app.js.
 function markedToElements(md) {
-  const tmp = document.createElement("div");
-  tmp.innerHTML = renderMarkdown(md);
-  return [...tmp.children];
+  return renderMarkdownEls(md);
 }
 
 function cardRawSource(doc, card) {

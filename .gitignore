@@ -43,3 +43,4 @@
 
 # but still ignore compiled Python files
 *.pyc
+Documentation/Tutorials/**

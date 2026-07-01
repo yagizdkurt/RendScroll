@@ -138,9 +138,7 @@ function buildCombatCard(cardNode, head, nodes) {
         card.appendChild(combatSectionTitle(seg.label));
         return;
       }
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(seg.lines.join("\n"));
-      [...tmp.children].forEach((el) => {
+      renderMarkdownEls(seg.lines.join("\n")).forEach((el) => {
         const node = cloneAsReadAloud(el);
         if (headOpen) headEls.push(node); // leading content stays beside portrait
         else card.appendChild(node);

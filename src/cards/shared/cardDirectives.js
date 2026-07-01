@@ -29,15 +29,21 @@ function cardBodyLines(cardNode) {
   return cardNode.body.map((b) => b.text);
 }
 
+// Render a markdown string and return its top-level element nodes (text/whitespace
+// nodes dropped — the builders only ever walk element children). One home for the
+// createElement -> innerHTML -> children snippet the card builders repeat.
+function renderMarkdownEls(md) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = (typeof renderMarkdown !== "undefined") ? renderMarkdown(md) : md;
+  return [...tmp.children];
+}
+
 // Render the card body's prose (directives already excluded by the parser)
 // through marked and return its top-level element nodes. For directive-only and
 // prose cards this replaces the marked-rendered `bodyEls` the builder used to
 // sniff: the directive lines are simply not in `cardNode.body`.
 function cardBodyElements(cardNode) {
-  const md = cardBodyLines(cardNode).join("\n");
-  const tmp = document.createElement("div");
-  tmp.innerHTML = (typeof renderMarkdown !== "undefined") ? renderMarkdown(md) : md;
-  return [...tmp.children];
+  return renderMarkdownEls(cardBodyLines(cardNode).join("\n"));
 }
 
 // Merge the card's body text and its parsed check groups back into SOURCE ORDER,
@@ -92,5 +98,6 @@ function cardBodySource(cardNode) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     cardDirective, cardIsRight, cardBodyLines, cardBodyElements, cardOrderedBody, cardBodySource,
+    renderMarkdownEls,
   };
 }

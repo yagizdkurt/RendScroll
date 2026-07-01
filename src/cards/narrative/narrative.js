@@ -19,9 +19,7 @@ function buildNarrativeCard(cardNode, head, nodes) {
   const lines = cardBodyLines(cardNode);
   const idx = lines.findIndex((l) => /^text\s*:\s*$/i.test(l.trim()));
   if (idx >= 0) {
-    const tmp = document.createElement("div");
-    tmp.innerHTML = renderMarkdown(lines.slice(idx + 1).join("\n"));
-    [...tmp.children].forEach((n) => {
+    renderMarkdownEls(lines.slice(idx + 1).join("\n")).forEach((n) => {
       if (n.tagName === "BLOCKQUOTE") card.appendChild(cloneAsReadAloud(n));
     });
   }

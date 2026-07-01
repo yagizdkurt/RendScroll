@@ -75,9 +75,7 @@ function abilityMetaBlock(rows) {
 // rendered blockquote), preserving inline markdown via marked.
 function abilityDescriptionFromModel(lines) {
   if (!lines || !lines.length) return [];
-  const tmp = document.createElement("div");
-  tmp.innerHTML = renderMarkdown(lines.join("\n"));
-  return [...tmp.children].map((node) => {
+  return renderMarkdownEls(lines.join("\n")).map((node) => {
     if (node.tagName !== "BLOCKQUOTE") return node;
     const desc = document.createElement("div");
     desc.className = "ability-description";
@@ -176,17 +174,13 @@ function buildAbilityCard(cardNode, head, nodes) {
     const props = abilityPropertiesFromModel(data.propertiesLabel, data.properties);
     if (props) card.appendChild(props);
     if (data.extras.length) {
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(data.extras.join("\n"));
-      [...tmp.children].forEach((el) => card.appendChild(el));
+      renderMarkdownEls(data.extras.join("\n")).forEach((el) => card.appendChild(el));
     }
 
     if (data.lore.length) {
       const lorePanel = document.createElement("div");
       lorePanel.className = "ability-lore";
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(data.lore.join("\n"));
-      [...tmp.children].forEach((el) => lorePanel.appendChild(cloneAsReadAloud(el)));
+      renderMarkdownEls(data.lore.join("\n")).forEach((el) => lorePanel.appendChild(cloneAsReadAloud(el)));
       card.appendChild(lorePanel);
     }
 

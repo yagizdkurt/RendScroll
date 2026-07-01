@@ -122,9 +122,7 @@ function renderSkillChecks(box, checks) {
       grid = null;
       // A standalone line (e.g. a "> description" read to players) — render it
       // through marked; a blockquote becomes a read-aloud box, as before.
-      const tmp = document.createElement("div");
-      tmp.innerHTML = renderMarkdown(String(entry.text || ""));
-      [...tmp.children].forEach((n) =>
+      renderMarkdownEls(String(entry.text || "")).forEach((n) =>
         box.appendChild(n.tagName === "BLOCKQUOTE" ? cloneAsReadAloud(n) : n));
     }
   });
