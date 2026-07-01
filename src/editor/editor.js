@@ -372,8 +372,12 @@ const Editor = (() => {
     return Promise.resolve("cancel");
   }
 
-  function openNavigationPrompt() {
+  function openNavigationPrompt(opts) {
     if (navigationPrompt) return navigationPrompt;
+    opts = opts || {};
+    const titleText = opts.titleText || "Unsaved Changes";
+    const messageText = opts.messageText ||
+      "You have unsaved edits on this page. Save them before switching pages?";
 
     navigationPrompt = new Promise((resolve) => {
       if (typeof makeModal !== "function") {
@@ -393,7 +397,7 @@ const Editor = (() => {
       const { modal, head, body, foot, close } = makeModal({
         backdropClass: "editor-unsaved-backdrop",
         modalClass: "nav-delete-modal",
-        titleText: "Unsaved Changes",
+        titleText,
         onClose: () => {
           navigationPrompt = null;
           resolve(result);
@@ -411,7 +415,7 @@ const Editor = (() => {
 
       const text = document.createElement("p");
       text.className = "nav-delete-message";
-      text.textContent = "You have unsaved edits on this page. Save them before switching pages?";
+      text.textContent = messageText;
       body.appendChild(text);
 
       const cancel = document.createElement("button");
@@ -441,9 +445,9 @@ const Editor = (() => {
     return navigationPrompt;
   }
 
-  async function confirmNavigation() {
+  async function confirmNavigation(opts) {
     if (!state.dirty) return true;
-    const action = await openNavigationPrompt();
+    const action = await openNavigationPrompt(opts);
     if (action === "save") return save({ silent: true });
     return action === "discard";
   }

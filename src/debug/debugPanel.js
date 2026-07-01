@@ -335,7 +335,15 @@
     if (exit) exit.focus();
   }
 
-  function requestAppExit() {
+  async function requestAppExit() {
+    if (typeof Editor !== "undefined" && Editor.confirmNavigation) {
+      closeExitDialog();
+      const canExit = await Editor.confirmNavigation({
+        messageText: "You have unsaved edits on this page. Save them before exiting RendScroll?",
+      });
+      if (!canExit) return;
+    }
+
     const confirm = exitDialog && exitDialog.querySelector(".rsd-exit-confirm");
     if (confirm) {
       confirm.disabled = true;
