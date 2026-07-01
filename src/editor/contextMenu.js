@@ -98,6 +98,13 @@ const EditorContextMenu = (() => {
       nodes.push(item("Delete", () => handlers.deleteCard(id)));
       show(x, y, nodes);
     },
+
+    openReader(x, y, handlers) {
+      const nodes = [
+        item("Go to edit mode", () => handlers.enableEditor()),
+      ];
+      show(x, y, nodes);
+    },
   };
 })();
 

@@ -433,6 +433,18 @@ const Editor = (() => {
     dirtyDot.classList.toggle("is-visible", state.dirty);
   }
 
+  function installReaderContextMenu() {
+    if (!page) return;
+    page.addEventListener("contextmenu", (e) => {
+      if (state.enabled || !state.model || !state.path) return;
+      if (typeof EditorContextMenu === "undefined") return;
+      e.preventDefault();
+      EditorContextMenu.openReader(e.clientX, e.clientY, {
+        enableEditor: () => setEnabled(true),
+      });
+    });
+  }
+
   let toastTimer = null;
   function toast(msg, isError) {
     if (!toastEl) return;
@@ -446,6 +458,7 @@ const Editor = (() => {
   function init() {
     page = document.getElementById("page");
     mountControls();
+    installReaderContextMenu();
     document.addEventListener("scene:loaded", (e) => {
       if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
       state.path = e.detail.path;
