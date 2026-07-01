@@ -39,4 +39,3 @@ src/package-lock.json
 
 # but still ignore compiled Python files
 *.pyc
-Documentation/Tutorials/**

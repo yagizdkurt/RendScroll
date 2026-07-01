@@ -14,7 +14,7 @@ import urllib.request
 from .update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIFEST_URL
 
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.2.0"
 STATE_DISABLED = "disabled"
 STATE_UP_TO_DATE = "up_to_date"
 STATE_UPDATE_AVAILABLE = "update_available"
