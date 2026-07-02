@@ -166,7 +166,7 @@ function confirmDeleteCampaignEntry(entry) {
 
     const text = document.createElement("p");
     text.className = "nav-delete-message";
-    text.textContent = "This cannot be undone.";
+    text.textContent = "This will move the file to trash.";
     body.appendChild(text);
 
     const cancel = document.createElement("button");

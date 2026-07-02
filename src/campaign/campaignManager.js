@@ -161,7 +161,7 @@ const CampaignManager = (() => {
   }
 
   async function deleteCampaign(name) {
-    if (!window.confirm('Delete campaign "' + name + '"? This removes its folder and cannot be undone.')) return;
+    if (!window.confirm('Delete campaign "' + name + '"? This moves its folder to trash.')) return;
     if (activeName === name && typeof Editor !== "undefined" && Editor.confirmNavigation) {
       const canLeave = await Editor.confirmNavigation();
       if (!canLeave) return;
@@ -182,7 +182,7 @@ const CampaignManager = (() => {
     }
     await loadCampaigns();
     render();
-    setStatus("Deleted: " + name);
+    setStatus("Moved to trash: " + name);
   }
 
   // ---- Overlay UI -------------------------------------------------------

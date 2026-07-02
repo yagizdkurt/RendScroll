@@ -9,17 +9,54 @@
    When editor mode is OFF nothing here runs beyond caching the scene source. */
 
 const Editor = (() => {
+  const UNDO_LIMIT = 50;
   const state = { enabled: false, path: null, model: null, dirty: false };
   let page = null;
   let navigationPrompt = null;
+  let undoStack = [];
 
   // --- model edit ops (operate on the CURRENT model only; ids are not stable
   //     across re-parse, so never carry an id across a mutation) ------------
 
-  function applyModel(newModel) {
+  function modelRaw(model) {
+    return model && typeof model.raw === "string" ? model.raw : EditorOutline.serialize(model);
+  }
+
+  function pushUndoSnapshot() {
+    if (!state.model) return;
+    const raw = modelRaw(state.model);
+    if (undoStack.length && undoStack[undoStack.length - 1] === raw) return;
+    undoStack.push(raw);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  }
+
+  function applyModel(newModel, opts) {
+    if (!opts || !opts.skipUndo) pushUndoSnapshot();
     state.model = newModel;
     markDirty(true);
     rerender();
+  }
+
+  function undo() {
+    if (!state.enabled || !state.model || !undoStack.length) return false;
+    const raw = undoStack.pop();
+    applyModel(EditorOutline.parse(raw), { skipUndo: true });
+    return true;
+  }
+
+  function isEditableTarget(target) {
+    for (let el = target; el && el !== document; el = el.parentNode) {
+      const tag = el.tagName ? el.tagName.toLowerCase() : "";
+      if (tag === "input" || tag === "textarea" || tag === "select") return true;
+      if (el.isContentEditable || el.getAttribute && el.getAttribute("contenteditable") === "true") return true;
+    }
+    return false;
+  }
+
+  function onUndoKeydown(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || String(e.key).toLowerCase() !== "z") return;
+    if (isEditableTarget(e.target)) return;
+    if (undo()) e.preventDefault();
   }
 
   function deleteCard(id) {
@@ -558,10 +595,12 @@ const Editor = (() => {
       e.preventDefault();
       e.returnValue = "";
     });
+    document.addEventListener("keydown", onUndoKeydown);
     document.addEventListener("scene:loaded", (e) => {
       if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
       state.path = e.detail.path;
       state.model = EditorOutline.parse(e.detail.text);
+      undoStack = [];
       markDirty(false);
       decorate();
     });
@@ -585,6 +624,8 @@ const Editor = (() => {
     createEnemyToLibrary,
     // Move one inline combat enemy into the library (combat enemy editor).
     moveEnemyToLibrary,
+    _undo: undo,
+    _undoDepth: () => undoStack.length,
     _handlers: handlers,
   };
 })();

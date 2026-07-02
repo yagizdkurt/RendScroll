@@ -229,10 +229,70 @@ def clean_campaign_name(value):
     return name[:120]
 
 
+def safe_trash_label(value):
+    label = re.sub(r"[^A-Za-z0-9._ -]+", "-", str(value or "").strip())
+    label = re.sub(r"\s+", "-", label).strip(".- ")
+    return label[:80] or "item"
+
+
+def atomic_write_text(path, content):
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(str(content))
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_write_json(path, data):
+    text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    atomic_write_text(path, text)
+
+
 def user_root(base_dir):
     """The user-space root (base_dir/Content). Every user-owned folder and
     options.current.json live under it; nothing else does."""
     return os.path.join(base_dir, USER_DATA_DIR)
+
+
+def trash_user_path(base_dir, target, label=None):
+    """Move a user-owned file/folder into content/.trash and return its content-relative path."""
+    root = os.path.realpath(user_root(base_dir))
+    target_real = os.path.realpath(target)
+    try:
+        if os.path.commonpath([root, target_real]) != root:
+            raise ValueError("target outside content/")
+    except ValueError:
+        raise ValueError("target outside content/")
+
+    trash_root = os.path.join(root, ".trash")
+    timestamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    stem = f"{timestamp}-{safe_trash_label(label or os.path.basename(target_real))}"
+    dest_dir = os.path.join(trash_root, stem)
+    i = 2
+    while os.path.exists(dest_dir):
+        dest_dir = os.path.join(trash_root, f"{stem}-{i}")
+        i += 1
+
+    os.makedirs(dest_dir, exist_ok=False)
+    dest = os.path.join(dest_dir, os.path.basename(target_real))
+    try:
+        shutil.move(target_real, dest)
+    except OSError:
+        try:
+            os.rmdir(dest_dir)
+        except OSError:
+            pass
+        raise
+    return os.path.relpath(dest, root).replace("\\", "/")
 
 
 def campaign_dir_path(base_dir, name):
@@ -470,10 +530,7 @@ def write_campaign_manifest(base_dir, name, label=None):
         "schema": 1,
     }
     path = os.path.join(campaign_dir_path(base_dir, name), "campaign.json")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(manifest, fh, ensure_ascii=False, indent=2)
-        fh.write("\n")
+    atomic_write_json(path, manifest)
     return manifest
 
 
@@ -957,7 +1014,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True, "campaign": {"name": name, "label": label}})
 
     def _delete_campaign(self):
-        """Remove a whole campaign folder. Guarded to stay inside campaigns/."""
+        """Move a whole campaign folder to content/.trash. Guarded to stay inside campaigns/."""
         global ACTIVE_CAMPAIGN
         try:
             data = self._read_json_body()
@@ -983,14 +1040,17 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(404, {"ok": False, "error": "campaign not found"})
             return
         try:
-            shutil.rmtree(target)
+            trashed = trash_user_path(base, target, name)
         except OSError as exc:
             self._send_json(500, {"ok": False, "error": str(exc)})
             return
+        except ValueError as exc:
+            self._send_json(403, {"ok": False, "error": str(exc)})
+            return
         if ACTIVE_CAMPAIGN == name:
             ACTIVE_CAMPAIGN = None
-        print(paint(f"Deleted campaign: {CAMPAIGNS_DIR}/{name}", YELLOW), flush=True)
-        self._send_json(200, {"ok": True})
+        print(paint(f"Moved campaign to trash: {CAMPAIGNS_DIR}/{name} -> {trashed}", YELLOW), flush=True)
+        self._send_json(200, {"ok": True, "trashed": trashed})
 
     def _create_campaign_file(self):
         try:
@@ -1016,8 +1076,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             content += manifest.rstrip("\n") + "\n"
 
         try:
-            with open(target, "x", encoding="utf-8", newline="\n") as fh:
-                fh.write(content)
+            if os.path.exists(target):
+                raise FileExistsError("file already exists")
+            atomic_write_text(target, content)
         except FileExistsError:
             self._send_json(409, {"ok": False, "error": "file already exists"})
             return
@@ -1071,8 +1132,9 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         target = os.path.realpath(os.path.join(target_dir, filename))
 
         try:
-            with open(target, "x", encoding="utf-8", newline="\n") as fh:
-                fh.write(content)
+            if os.path.exists(target):
+                raise FileExistsError("item already exists")
+            atomic_write_text(target, content)
         except FileExistsError:
             self._send_json(409, {"ok": False, "error": "item already exists"})
             return
@@ -1211,13 +1273,16 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
-            os.remove(target)
+            trashed = trash_user_path(base, target, os.path.splitext(os.path.basename(target))[0])
         except OSError as exc:
             self._send_json(500, {"ok": False, "error": str(exc)})
             return
+        except ValueError as exc:
+            self._send_json(403, {"ok": False, "error": str(exc)})
+            return
 
-        print(paint(f"Deleted: {os.path.relpath(target, base)}", YELLOW), flush=True)
-        self._send_json(200, {"ok": True})
+        print(paint(f"Moved to trash: {os.path.relpath(target, base)} -> {trashed}", YELLOW), flush=True)
+        self._send_json(200, {"ok": True, "trashed": trashed})
 
     def _save_campaign_file(self):
         # The editor saves scene markdown back to disk via POST /__save.
@@ -1249,8 +1314,7 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
-            with open(target, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(content)
+            atomic_write_text(target, content)
         except OSError as exc:
             self._send_json(500, {"ok": False, "error": str(exc)})
             return
@@ -1276,11 +1340,8 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         target = os.path.join(user_root(os.getcwd()), OPTIONS_CURRENT_FILE)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
         try:
-            with open(target, "w", encoding="utf-8", newline="\n") as fh:
-                json.dump(data, fh, ensure_ascii=False, indent=2)
-                fh.write("\n")
+            atomic_write_json(target, data)
         except OSError as exc:
             self._send_json(500, {"ok": False, "error": str(exc)})
             return
