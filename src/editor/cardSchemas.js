@@ -504,7 +504,7 @@ const EditorSchemas = (() => {
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
     { key: "sourceItem", label: "SourceItem", kind: "text", mdLabel: "SourceItem" },
-    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type" },
+    { key: "type", label: "Type", kind: "itemType", mdLabel: "Type" },
     { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage" },
     rarityField(),
     fImage,
@@ -533,7 +533,7 @@ const EditorSchemas = (() => {
       default: "Spell",
     },
     fTitle,
-    { key: "tur", label: "Type", kind: "text", mdLabel: "Type" },
+    { key: "type", label: "Type", kind: "text", mdLabel: "Type" },
     { key: "cost", label: "Cost", kind: "text", mdLabel: "Cost" },
     { key: "range", label: "Range", kind: "text", mdLabel: "Range" },
     { key: "cooldown", label: "Cooldown", kind: "text", mdLabel: "Cooldown" },
@@ -616,7 +616,7 @@ const EditorSchemas = (() => {
     },
   }, [
     fTitle,
-    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type" },
+    { key: "type", label: "Type", kind: "itemType", mdLabel: "Type" },
     { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage" },
     rarityField(),
     fImage,

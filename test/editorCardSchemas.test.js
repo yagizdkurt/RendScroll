@@ -84,7 +84,7 @@ test("Item schema parses and serializes SourceItem slot", () => {
   ].join("\n"));
 
   assert.equal(values.sourceItem, "Lantern Base");
-  assert.equal(values.tur, "-");
+  assert.equal(values.type, "-");
   const out = EditorSchemas.serialize(schema, values);
   assert.match(out, /^SourceItem: Lantern Base$/m);
   assert.match(out, /^Type: -$/m);
@@ -119,7 +119,7 @@ test("card schemas serialize English headings and docking labels", () => {
   const itemOut = EditorSchemas.serialize(EditorSchemas.get("item"), {
     title: "Charm",
     sourceItem: "",
-    tur: "",
+    type: "",
     rarity: "",
     image: "",
     column: "left",
@@ -138,14 +138,14 @@ test("SourceItem schema has no instance-only slots", () => {
   const keys = schema.fields.map((f) => f.key);
   const out = EditorSchemas.serialize(schema, {
     title: "Lantern",
-    tur: "Tool",
+    type: "Tool",
     rarity: "2",
     image: "",
     properties: ["Glows"],
     body: "> Pale light.",
   });
 
-  assert.deepEqual(keys, ["title", "tur", "damage", "rarity", "image", "properties", "body"]);
+  assert.deepEqual(keys, ["title", "type", "damage", "rarity", "image", "properties", "body"]);
   assert.match(out, /^### SourceItem: Lantern$/m);
   assert.match(out, /^Type: Tool$/m);
   assert.match(out, /^Rarity: 2$/m);

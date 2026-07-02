@@ -24,13 +24,13 @@ function roundTrip(type, values) {
 
 test("item fields round-trip through the shared parseItemBody", () => {
   const values = {
-    title: "Blade", sourceItem: "", tur: "Weapon", damage: "1d8 kesme",
+    title: "Blade", sourceItem: "", type: "Weapon", damage: "1d8 slashing",
     rarity: "2", image: "blade.png", column: "right", textSize: "14",
     properties: ["Sharp", "Light"], body: "> A keen blade.", stuck: true, closed: false,
   };
   const { back } = roundTrip("item", values);
-  assert.equal(back.tur, "Weapon");
-  assert.equal(back.damage, "1d8 kesme");
+  assert.equal(back.type, "Weapon");
+  assert.equal(back.damage, "1d8 slashing");
   assert.equal(back.rarity, "2");
   assert.deepEqual(back.properties, ["Sharp", "Light"]);
   assert.equal(back.image, "blade.png");
@@ -43,26 +43,26 @@ test("item fields round-trip through the shared parseItemBody", () => {
 
 test("item unknown meta labels survive in the Body (nothing is dropped)", () => {
   const values = {
-    title: "Charm", sourceItem: "", tur: "Wondrous", damage: "", rarity: "",
+    title: "Charm", sourceItem: "", type: "Wondrous", damage: "", rarity: "",
     image: "", column: "left", textSize: "",
     properties: [], body: "Weight: 1 lb\n> A lucky charm.", stuck: false, closed: false,
   };
   const { back } = roundTrip("item", values);
-  assert.equal(back.tur, "Wondrous");
+  assert.equal(back.type, "Wondrous");
   assert.match(back.body, /Weight: 1 lb/);
   assert.match(back.body, /A lucky charm\./);
 });
 
 test("ability fields round-trip through the shared parseAbilityBody", () => {
   const values = {
-    keyword: "Spell", title: "Fireball", tur: "Evocation", cost: "3",
+    keyword: "Spell", title: "Fireball", type: "Evocation", cost: "3",
     range: "30ft", cooldown: "1", rarity: "3", column: "left", textSize: "",
     properties: ["Loud"], body: "> A roaring blast.\nLore:\n> Ancient flame.",
     stuck: false, closed: true,
   };
   const { back } = roundTrip("ability", values);
   assert.equal(back.keyword, "Spell");
-  assert.equal(back.tur, "Evocation");
+  assert.equal(back.type, "Evocation");
   assert.equal(back.cost, "3");
   assert.equal(back.range, "30ft");
   assert.equal(back.cooldown, "1");

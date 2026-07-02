@@ -73,10 +73,10 @@ class LauncherDurabilityTests(unittest.TestCase):
         self.assertEqual(json.loads(read(target)), {"theme": "dark", "size": 14})
 
     def test_campaign_file_delete_moves_markdown_to_trash(self):
-        target = os.path.join(self.tmp, "content", "items", "Yeni.md")
-        write(target, "### Item: Yeni\n")
+        target = os.path.join(self.tmp, "content", "items", "Fresh.md")
+        write(target, "### Item: Fresh\n")
 
-        h = self.handler("/__delete_campaign_file", {"path": "items/Yeni.md"})
+        h = self.handler("/__delete_campaign_file", {"path": "items/Fresh.md"})
         h._delete_campaign_file()
 
         status, payload = h.responses[-1]
@@ -84,7 +84,7 @@ class LauncherDurabilityTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["trashed"].startswith(".trash/"))
         self.assertFalse(os.path.exists(target))
-        self.assertEqual(read(os.path.join(self.tmp, "content", payload["trashed"])), "### Item: Yeni\n")
+        self.assertEqual(read(os.path.join(self.tmp, "content", payload["trashed"])), "### Item: Fresh\n")
 
     def test_campaign_delete_moves_folder_to_trash_and_clears_active_campaign(self):
         campaign = os.path.join(self.tmp, "content", "campaigns", "Legacy")

@@ -30,7 +30,7 @@ const RendScrollInlineFormatting = (() => {
           "</span>";
       },
     },
-    // Inline cross-reference: "[link=Calamity]eski bir kitap[/link]" renders as a
+    // Inline cross-reference: "[link=Calamity]an old book[/link]" renders as a
     // blue clickable span. The click handler (src/app/app.js) scrolls to the on-page
     // card with the matching data-ref-name, or previews it from RefLibrary.
     link: {
