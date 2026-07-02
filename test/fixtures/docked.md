@@ -1,11 +1,11 @@
 # Scene
 
-## Obje: Shrine
+## Object: Shrine
 > A small roadside shrine.
 
 ### Item: Holy Symbol
-Yapışık: T
-Tür: Wondrous
+Connect: T
+Type: Wondrous
 > A blessed silver token.
 
 ### Spell: Bless

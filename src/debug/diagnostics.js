@@ -14,7 +14,7 @@ const RendScrollDiagnostics = (() => {
     const p = parser();
     return p && p.directiveNames
       ? p.directiveNames
-      : new Set(["side", "image", "bg", "closed", "textsize", "size", "file", "yapışık", "connect", "combine"]);
+      : new Set(["side", "image", "bg", "closed", "textsize", "size", "file", "connect", "combine"]);
   }
 
   function skillRules() {
@@ -50,7 +50,7 @@ const RendScrollDiagnostics = (() => {
     const p = parser();
     const kw = p && p.keywordLower
       ? p.keywordLower(label)
-      : String(label || "").replace(/İ/g, "i").replace(/I/g, "i").toLowerCase();
+      : String(label || "").toLowerCase();
     return kw.replace(/[\s_-]+/g, "");
   }
 
@@ -236,7 +236,7 @@ const RendScrollDiagnostics = (() => {
   function normName(s) {
     const lib = refLib();
     if (lib) return lib.norm(s);
-    return String(s == null ? "" : s).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+    return String(s == null ? "" : s).trim().toLowerCase();
   }
 
   // Validate inline [link=Name] targets against the loaded RefLibrary and this

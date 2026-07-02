@@ -17,9 +17,9 @@ const ITEM_RARITIES = {
   "3": "Epic",
 };
 
-const ITEM_RARITY_LABELS = new Set(["nadirlik", "rarity"]);
-const ITEM_TYPE_LABELS = new Set(["tür", "type"]);
-const ITEM_DAMAGE_LABELS = new Set(["hasar", "damage"]);
+const ITEM_RARITY_LABELS = new Set(["rarity"]);
+const ITEM_TYPE_LABELS = new Set(["type"]);
+const ITEM_DAMAGE_LABELS = new Set(["damage"]);
 
 function itemTitleText(head) {
   return head.textContent.trim()
@@ -30,16 +30,16 @@ function itemTitleText(head) {
 }
 
 const ItemData = (() => {
-  // Turkish-aware lowercaser — the one owner is utils/text.js (browser global
+  // Shared lowercaser — the one owner is utils/text.js (browser global
   // `rsLower`, loaded first; Node requires it), so the rule is not restated here.
   const lower = (typeof rsLower !== "undefined")
     ? rsLower
     : require("../../utils/text.js").rsLower;
   function normLabel(label) {
     const l = lower(label).replace(/\s+/g, " ").trim();
-    if (l === "tür" || l === "type") return "type";
-    if (l === "nadirlik" || l === "rarity") return "rarity";
-    if (l === "hasar" || l === "damage") return "damage";
+    if (l === "type") return "type";
+    if (l === "rarity") return "rarity";
+    if (l === "damage") return "damage";
     return l;
   }
   function isClear(value) {
@@ -60,7 +60,7 @@ const ItemData = (() => {
       properties: [],
       controls: [],
       extras: [],
-      propertiesLabel: "Özellikler",
+      propertiesLabel: "Properties",
     };
     let i = 0;
     const hm = lines[0] && lines[0].match(/^\s*###\s+(source\s*item|sourceitem|item)\s*:\s*(.*)$/i);
@@ -69,12 +69,12 @@ const ItemData = (() => {
       out.title = hm[2].trim();
       i = 1;
     }
-    const control = /^(side|text\s*size|yapışık|connect|combine|closed)\s*:\s*(.*)$/i;
+    const control = /^(side|text\s*size|connect|combine|closed)\s*:\s*(.*)$/i;
     while (i < lines.length) {
       const line = lines[i];
       const t = line.trim();
       if (!t) { i++; continue; }
-      const props = t.match(/^(özellikler|properties)\s*:\s*$/i);
+      const props = t.match(/^properties\s*:\s*$/i);
       if (props) {
         out.propertiesLabel = line.trim().replace(/:\s*$/, "");
         i++;
@@ -159,7 +159,7 @@ const ItemData = (() => {
       metaRows: mergeRows(base.metaRows, instance.metaRows),
       description: chooseLines(instance.description, base.description),
       properties: chooseList(instance.properties, base.properties),
-      propertiesLabel: instance.properties.length ? instance.propertiesLabel : (base.propertiesLabel || instance.propertiesLabel || "Özellikler"),
+      propertiesLabel: instance.properties.length ? instance.propertiesLabel : (base.propertiesLabel || instance.propertiesLabel || "Properties"),
       controls: instance.controls || [],
       extras: chooseLines(instance.extras, base.extras),
     };
@@ -180,7 +180,7 @@ const ItemData = (() => {
     }
     if (data.properties && data.properties.length) {
       lines.push("");
-      lines.push((data.propertiesLabel || "Özellikler") + ":");
+      lines.push((data.propertiesLabel || "Properties") + ":");
       data.properties.forEach((prop) => lines.push("- " + prop));
     }
     if (data.extras && data.extras.length) {
@@ -261,7 +261,7 @@ function itemPropertiesFromModel(label, items) {
   tmp.innerHTML = renderMarkdown(items.map((p) => "- " + p).join("\n"));
   const list = tmp.querySelector("ul, ol");
   if (!list) return null;
-  return renderProperties({ textContent: (label || "Özellikler") + ":" }, list, {
+  return renderProperties({ textContent: (label || "Properties") + ":" }, list, {
     sectionClass: "item-properties",
     titleClass: "item-properties-title",
   });

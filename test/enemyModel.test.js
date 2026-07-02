@@ -56,10 +56,10 @@ test("unlabelled bullets are kept as traits (back-compat with old rosters)", () 
   assert.deepEqual(rec.traits, ["Nimble Escape: Disengage as a bonus action"]);
 });
 
-test("Turkish Taktik bullets are parsed as tactics", () => {
+test("Tactics bullets are parsed as tactics", () => {
   const [rec] = CEM.parseEnemyBlock([
     "- Goblin | AC 15 | HP 7",
-    "  - Taktik: Attacks the nearest creature",
+    "  - Tactics: Attacks the nearest creature",
   ]);
   assert.deepEqual(rec.tactics, ["Attacks the nearest creature"]);
   assert.deepEqual(rec.traits, []);
@@ -121,7 +121,7 @@ test("serializeDamageTerms writes canonical mixed damage text", () => {
 test("combat schema serialize/parse round-trips the Enemies block", () => {
   const schema = EditorSchemas.get("combat");
   const md = [
-    "### Savaş: Ambush",
+    "### Combat: Ambush",
     "> The brush rustles…",
     "Enemies:",
     "- Goblin | AC 15 | HP 7 | Init +2 | x3",
@@ -144,7 +144,7 @@ test("combat schema serialize/parse round-trips the Enemies block", () => {
 test("combat schema serialize/parse round-trips mixed attack damage", () => {
   const schema = EditorSchemas.get("combat");
   const md = [
-    "### Savaş: Mixed Damage",
+    "### Combat: Mixed Damage",
     "Enemies:",
     "- Wraith | AC 13 | HP 22 | Init +3",
     "  - Attack: Touch | +5 | 1d4 necrotic + 1d4 radiant",

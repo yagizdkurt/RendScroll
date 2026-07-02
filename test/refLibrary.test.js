@@ -24,16 +24,16 @@ function stubLibrary(files) {
 }
 
 const ITEMS = [
-  { name: "Calamity", path: "items/Calamity.md", content: "### Item: Calamity\nTür: Kitap\n> Lanetli.\n" },
-  { name: "Gümüş Anahtar", path: "items/Gümüş Anahtar.md", content: "### Item: Gümüş Anahtar\nTür: Anahtar\n" },
+  { name: "Calamity", path: "items/Calamity.md", content: "### Item: Calamity\nType: Book\n> Cursed.\n" },
+  { name: "Silver Key", path: "items/Silver Key.md", content: "### Item: Silver Key\nType: Key\n" },
 ];
 
 test("parser leaves standalone [item=Name] as plain markdown", () => {
-  const doc = RendScrollParser.parseRendScroll("# S\n\n## Olay\n\n[item=Gümüş Anahtar]\n");
+  const doc = RendScrollParser.parseRendScroll("# S\n\n## Event\n\n[item=Silver Key]\n");
   const refs = doc.sections.flatMap((s) => s.blocks).filter((b) => b.kind === "ref");
   const plain = doc.sections.flatMap((s) => s.blocks).filter((b) => b.kind === "plain");
   assert.equal(refs.length, 0);
-  assert.match(plain.map((b) => b.lines.join("\n")).join("\n"), /\[item=Gümüş Anahtar\]/);
+  assert.match(plain.map((b) => b.lines.join("\n")).join("\n"), /\[item=Silver Key\]/);
 });
 
 test("[item=] with an empty name is plain text", () => {
@@ -42,20 +42,20 @@ test("[item=] with an empty name is plain text", () => {
   assert.equal(refs.length, 0);
 });
 
-test("RefLibrary resolves a reference to its file source (case/Turkish-insensitive)", async () => {
+test("RefLibrary resolves a reference to its file source (case-insensitive)", async () => {
   await stubLibrary(ITEMS);
   const r = RefLibrary.resolve("item", "calamity");
   assert.equal(r.ok, true);
   assert.equal(r.cardType, "sourceitem");
-  assert.match(r.source, /Lanetli/);
-  assert.equal(RefLibrary.has("item", "GÜMÜŞ ANAHTAR".replace(/I/g, "İ")), true);
+  assert.match(r.source, /Cursed/);
+  assert.equal(RefLibrary.has("item", "SILVER KEY"), true);
   assert.equal(RefLibrary.resolve("item", "Nope").ok, false);
 });
 
 test("RefLibrary resolves SourceItem files and keeps legacy Item files readable", async () => {
   await stubLibrary([
-    { name: "New", path: "items/New.md", content: "### SourceItem: New\nTür: Relic\n" },
-    { name: "Legacy", path: "items/Legacy.md", content: "### Item: Legacy\nTür: Tool\n" },
+    { name: "New", path: "items/New.md", content: "### SourceItem: New\nType: Relic\n" },
+    { name: "Legacy", path: "items/Legacy.md", content: "### Item: Legacy\nType: Tool\n" },
   ]);
 
   assert.equal(RefLibrary.resolve("item", "New").cardType, "sourceitem");
@@ -81,7 +81,7 @@ test("createFile then deleteFile add and remove a cache entry", async () => {
   global.fetch = async (url, opts) => {
     posted.push({ url, body: opts && opts.body ? JSON.parse(opts.body) : null });
     if (url === "/__create_library_file") {
-      return { ok: true, json: async () => ({ ok: true, entry: { name: "Yeni", path: "items/Yeni.md" } }) };
+      return { ok: true, json: async () => ({ ok: true, entry: { name: "Fresh", path: "items/Fresh.md" } }) };
     }
     if (url === "/__delete_campaign_file") {
       return { ok: true, json: async () => ({ ok: true }) };
@@ -89,13 +89,13 @@ test("createFile then deleteFile add and remove a cache entry", async () => {
     return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
   };
 
-  await RefLibrary.createFile("item", "Yeni", "### Item: Yeni\n");
-  assert.equal(RefLibrary.has("item", "Yeni"), true);
+  await RefLibrary.createFile("item", "Fresh", "### Item: Fresh\n");
+  assert.equal(RefLibrary.has("item", "Fresh"), true);
 
-  await RefLibrary.deleteFile("item", "Yeni");
-  assert.equal(RefLibrary.has("item", "Yeni"), false);
+  await RefLibrary.deleteFile("item", "Fresh");
+  assert.equal(RefLibrary.has("item", "Fresh"), false);
   // Delete targets the library file path under items/.
-  assert.equal(posted.some((p) => p.url === "/__delete_campaign_file" && p.body.path === "items/Yeni.md"), true);
+  assert.equal(posted.some((p) => p.url === "/__delete_campaign_file" && p.body.path === "items/Fresh.md"), true);
 });
 
 test("campaign-local entries carry origin and report overrides over global ones", async () => {
@@ -145,19 +145,19 @@ test("library item migration helper writes SourceItem and strips instance-only f
     "SourceItem: Old",
     "Side: R",
     "Text Size: 14",
-    "Yapışık: T",
+    "Connect: T",
     "Closed: T",
-    "Tür: Tool",
+    "Type: Tool",
     "",
   ].join("\n"));
 
   assert.match(out, /^### SourceItem: Lantern$/m);
-  assert.match(out, /^Tür: Tool$/m);
+  assert.match(out, /^Type: Tool$/m);
   assert.doesNotMatch(out, /^### Item:/m);
   assert.doesNotMatch(out, /^SourceItem:/m);
   assert.doesNotMatch(out, /^Side:/m);
   assert.doesNotMatch(out, /^Text Size:/m);
-  assert.doesNotMatch(out, /^Yapışık:/m);
+  assert.doesNotMatch(out, /^Connect:/m);
   assert.doesNotMatch(out, /^Closed:/m);
   assert.equal(RefLibrary.itemInstanceContent("Lantern"), "### Item: Lantern\nSourceItem: Lantern\n");
 });
@@ -167,12 +167,12 @@ test("scene diagnostics flag broken links but ignore deprecated item blocks", as
   const src = [
     "# Scene",
     "",
-    "## Olay",
+    "## Event",
     "",
     "[item=Calamity]",
     "[item=Missing]",
     "",
-    "Masada [link=Calamity]kitap[/link] ve [link=Nope]yok[/link].",
+    "On the table a [link=Calamity]book[/link] and [link=Nope]nothing[/link].",
     "",
     "[item=]",
   ].join("\n");

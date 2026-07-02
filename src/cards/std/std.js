@@ -25,7 +25,7 @@ function buildStdCard(cardNode, head, nodes) {
     const card = document.createElement("div");
     card.className = "std-card";
 
-    // Optional label after the colon ("### STD: Varış" -> "Varış" title).
+    // Optional label after the colon ("### STD: Arrival" -> "Arrival" title).
     const headEls = [];
     const name = head.textContent.trim().replace(/^\s*std\s*:\s*/i, "").trim();
     if (name) {

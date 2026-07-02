@@ -99,12 +99,12 @@ const SCENE = [
   "",
   "---",
   "",
-  "### Obje: Shrine",
+  "### Object: Shrine",
   "> A small shrine.",
   "",
   "### Item: Holy Symbol",
-  "Yapışık: T",
-  "Tür: Wondrous",
+  "Connect: T",
+  "Type: Wondrous",
   "",
   "# Interlude",
   "",
@@ -177,7 +177,7 @@ test("stamps survive the two-column layout into every placement context", () => 
   const asideCard = page.querySelector(".col-aside .sc-card");
   assert.ok(asideCard && asideCard.dataset.srcStart, "right-column card keeps its stamp");
 
-  // A docked (Yapışık: T) item lands in its host's column, still stamped.
+  // A docked (Connect: T) item lands in its host's column, still stamped.
   const docked = page.querySelector(".page-grid .item-card");
   assert.ok(docked && docked.dataset.srcStart, "docked card keeps its stamp");
 

@@ -3,7 +3,7 @@
    offered as a grouped picker in the editor).
 
    Each type belongs to a coloring `category` (weapon / armor / gear). `find()`
-   matches case-insensitively (Turkish-safe), so a card written "scimitar" still
+   matches case-insensitively, so a card written "scimitar" still
    resolves to the canonical "Scimitar" + weapon color. An unknown value is left
    as-is (custom items keep working, neutral color).
 
@@ -29,10 +29,9 @@ const ItemTypes = (() => {
         "Ammunition", "Adventuring Gear", "Tool"] },
   ];
 
-  // Keyword-style folding: both İ and I -> plain "i" (these are English D&D type
-  // names, so we want "SLING"/"RİNG" to fold to "sling"/"ring", not the dotless ı).
+  // Case-folding for English D&D type names ("SLING" -> "sling").
   function lower(value) {
-    return String(value == null ? "" : value).replace(/[İI]/g, "i").toLowerCase();
+    return String(value == null ? "" : value).toLowerCase();
   }
 
   const byKey = new Map();

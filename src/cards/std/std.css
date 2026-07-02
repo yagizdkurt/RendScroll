@@ -1,5 +1,5 @@
 ﻿/* ---------- Standard (STD) Cards ---------- */
-/* Basit gruplama kartı: altında sadece ">" read-aloud veya normal paragraf. */
+/* Simple grouping card: only ">" read-aloud blocks or normal paragraphs below it. */
 .page .std-card{
   margin:.6rem 0 .9rem;
   padding:.7rem .9rem .75rem;

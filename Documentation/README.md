@@ -382,7 +382,7 @@ SourceItem: Lantern of Still Rain
 Rarity: -
 ```
 
-`Side:`, `Text Size:`, `Combine:` / `Yapışık:`, and `Closed:` are scene-item
+`Side:`, `Text Size:`, `Combine:` / `Connect:`, and `Closed:` are scene-item
 settings and do not inherit from SourceItem.
 
 Item fields:
@@ -478,12 +478,12 @@ Truthy values include `T`, `true`, `yes`, and `1`.
 
 Use a combat card only for the information needed to run the fight quickly.
 
-Current renderer keyword: `Savaş`.
+Current renderer keyword: `Combat`.
 
-The card body can still use English labels such as `Stats:` and `Tactics:`, but the heading trigger should be `Savaş` so the combat renderer recognizes it.
+The card body uses English labels such as `Stats:` and `Tactics:`, and the heading trigger should be `Combat` so the combat renderer recognizes it.
 
 ```md
-### Savaş: Cursed Villager
+### Combat: Cursed Villager
 > The villager turns with a wet gasp and rushes forward, eyes wide and empty.
 Stats:
 - AC 10 | HP 11 | Speed 30 ft
@@ -671,7 +671,7 @@ General:
 > 2: "Second answer."
 > 3: "Third answer."
 
-### Savaş: Enemy Name
+### Combat: Enemy Name
 > Complete opening combat description.
 Stats:
 - AC X | HP Y | Speed Z

@@ -51,6 +51,28 @@ test("insertAtLine can insert a card after a target card", () => {
   assert.ok(out.indexOf("### STD: Inserted") < out.indexOf("### STD: Two"));
 });
 
+test("card stuck/column come from the parser directive derivation (no drift)", () => {
+  // The outline model reads column/stuck straight off the canonical AST, so it
+  // agrees with the renderer's TRUTHY set for every truthy spelling (e.g. "yes").
+  const model = EditorOutline.parse([
+    "# Scene",
+    "## Event",
+    "### Object: Shrine",
+    "> host",
+    "",
+    "### Item: Holy Symbol",
+    "Connect: yes",
+    "Side: R",
+    "> body",
+    "",
+  ].join("\n"));
+  const item = cardByTitle(model, "Holy Symbol");
+
+  assert.ok(item, "item card is present in the model");
+  assert.equal(item.stuck, true, "Connect: yes must dock the card (matches renderer)");
+  assert.equal(item.column, "right", "Side: R must place the card in the right column");
+});
+
 test("rewriteBlockColumn writes Side R for right-column card inserts", () => {
   const model = EditorOutline.parse("# Scene\n## Event\n");
   const block = EditorOutline.rewriteBlockColumn(model, "### STD: Inserted\n> body", "right");

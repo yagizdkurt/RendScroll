@@ -3,5 +3,5 @@
 ### Item: Broken Thing
 Side
 Closed:
-Tür: Junk
+Type: Junk
 > A broken, useless thing.

@@ -5,7 +5,7 @@
    leak into the rendered body as a stray line. This catches that at test time,
    mirroring cardBuilders.test.js's manifest<->registry guard philosophy.
 
-   (Type-specific labels — Tür/Nadirlik/Hasar/… — are owned by the card builders,
+   (Type-specific labels — Type/Rarity/Damage/… — are owned by the card builders,
    not the parser, so they are intentionally not checked here.) */
 
 const { test } = require("node:test");

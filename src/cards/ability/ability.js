@@ -5,22 +5,22 @@
 
    An ability is written as one of:
 
-     ### Skill: İsim        ### Spell: İsim
-     ### Passive: İsim      ### Effect: İsim
+     ### Skill: Name        ### Spell: Name
+     ### Passive: Name      ### Effect: Name
 
    The keyword used becomes the card's label (SKILL / SPELL / PASSIVE / EFFECT).
    The card renders in the left column by default; a "Side: R" line moves it to
    the right column. Fields:
 
-     Tür: ...                 -> meta row
-     Maliyet / Menzil / Bekleme: ...   -> meta rows
-     Nadirlik: 1|2|3          -> rarity badge (Common/Rare/Epic)
-     > serbest açıklama       -> description (read-aloud-ish)
-     Özellikler:              -> titled bullet sub-section
+     Type: ...                -> meta row
+     Cost / Range / Cooldown: ...   -> meta rows
+     Rarity: 1|2|3            -> rarity badge (Common/Rare/Epic)
+     > free description       -> description (read-aloud-ish)
+     Properties:              -> titled bullet sub-section
      - ...
      Lore:                    -> read-aloud styled lore panel
      > ...
-     Yapışık: T  (Connect: T) -> snaps onto the preceding item/obje/ability */
+     Connect: T  (Combine: T) -> snaps onto the preceding item/object/ability */
 
 const ABILITY_HEAD = /^\s*(skill|spell|passive|effect)\s*:/i;
 
@@ -38,17 +38,17 @@ const ABILITY_RARITIES = {
   "3": "Epic",
 };
 
-const ABILITY_NON_META_LABELS = new Set(["dm", "özellikler", "properties", "lore"]);
+const ABILITY_NON_META_LABELS = new Set(["dm", "properties", "lore"]);
 
-// Özel işlenen alanlar TR/EN: "Nadirlik"/"Rarity" rozet olur, "Özellikler"/
-// "Properties" liste alt-bölümü olur, "Lore" read-aloud panel olur.
-const ABILITY_RARITY_LABELS = new Set(["nadirlik", "rarity"]);
-const ABILITY_PROPERTIES_LABELS = new Set(["özellikler", "properties"]);
+// Specially handled fields: "Rarity" becomes a badge, "Properties" a list
+// sub-section, "Lore" a read-aloud panel.
+const ABILITY_RARITY_LABELS = new Set(["rarity"]);
+const ABILITY_PROPERTIES_LABELS = new Set(["properties"]);
 const ABILITY_LORE_LABELS = new Set(["lore"]);
 
-/* "Yapışık: T" / "Connect: T" flag'i: ability'yi bir önceki obje/item/yapışık
-   ability'ye yapıştırır. (Item renderer ile aynı sözcükler.) */
-const ABILITY_STUCK_LABELS = new Set(["yapışık", "connect", "combine"]);
+/* "Connect: T" / "Combine: T" flag: sticks the ability onto the preceding
+   object/item/connected ability. (Same words as the Item renderer.) */
+const ABILITY_STUCK_LABELS = new Set(["connect", "combine"]);
 const ABILITY_STUCK_TRUTHY = new Set(["t", "true", "yes", "1"]);
 
 /* Keyword captured from the heading -> uppercase label ("Spell" -> "SPELL"). */
@@ -91,19 +91,19 @@ function abilityPropertiesFromModel(label, items) {
   tmp.innerHTML = renderMarkdown(items.map((p) => "- " + p).join("\n"));
   const list = tmp.querySelector("ul, ol");
   if (!list) return null;
-  return renderProperties({ textContent: (label || "Özellikler") + ":" }, list, {
+  return renderProperties({ textContent: (label || "Properties") + ":" }, list, {
     sectionClass: "ability-properties",
     titleClass: "ability-properties-title",
   });
 }
 
-// Parse the ability body lines into a model: meta rows (Tür/Maliyet/…), the
-// properties list (Özellikler:), the lore panel (Lore:), and the description
+// Parse the ability body lines into a model: meta rows (Type/Cost/…), the
+// properties list (Properties:), the lore panel (Lore:), and the description
 // (> …). Image/Side/stuck are universal directives read from the AST node, so
 // they never appear here. Mirrors the old node loop, on text not DOM.
 function parseAbilityBody(cardNode) {
   const lines = cardBodyLines(cardNode);
-  const model = { metaRows: [], properties: [], propertiesLabel: "Özellikler", description: [], lore: [], extras: [] };
+  const model = { metaRows: [], properties: [], propertiesLabel: "Properties", description: [], lore: [], extras: [] };
   let i = 0;
   let mode = "body"; // flips to "lore" after a bare "Lore:" label
   while (i < lines.length) {

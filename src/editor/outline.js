@@ -1,18 +1,21 @@
-/* Outline model: the editor's single source of truth.
+/* Outline model: the editor's editing view over the canonical parser AST.
 
-   Parses a scene's RAW markdown into a structural model (header band + events,
-   each holding ordered cards with their source line ranges, type, default
-   column, and docking flag) WITHOUT ever losing a byte. serialize() returns the
-   exact original text, so saving an unedited scene is a guaranteed no-op.
+   parse() runs the ONE canonical parser (RendScrollParser.parseRendScroll) and
+   maps its source-preserving AST into the editor's structural model (header band
+   + events, each holding ordered cards with their source line ranges, type,
+   column, and docking flag) WITHOUT ever losing a byte. There is no second
+   structural parse here — grouping, classification, and the column/stuck
+   derivation all come from the AST, so the editor model and the renderer agree
+   by construction. serialize() returns the exact original text, so saving an
+   unedited scene is a guaranteed no-op.
 
    All edit operations are string splices over the original text followed by a
    re-parse — we never reconstruct markdown from a lossy tree.
 
-   Classification mirrors the cards exactly (src/cards/<type>/*.js) so the
-   model agrees with what actually gets drawn:
-     - column: layout.js:layoutIsAside (left default + the "Side: R" override)
-     - types : each renderer's heading regex
-     - docked: item.js / ability.js "Yapışık:|Connect: T" flag
+   The model mirrors what actually gets drawn because it IS the render AST:
+     - column: parser side-directive derivation (left default + "Side: R")
+     - types : the parser's CARD_TYPES manifest / heading classification
+     - docked: the parser's Connect:/Combine: directive + TRUTHY derivation
    Knows nothing about the DOM or the sidebar. */
 
 const EditorOutline = (() => {
@@ -24,128 +27,71 @@ const EditorOutline = (() => {
 
   // Classification + line primitives are delegated to the shared core so the
   // editor model and the renderer agree by construction (single source of truth).
-  const lower = RSP.lower;
   const splitLines = RSP.splitLines;
   const lineText = RSP.lineText;
   const cardType = RSP.cardType;
-  const cardTitle = RSP.cardTitle;
   const canDock = RSP.canDock;
 
   const HEADING_RE = RSP.regexes.HEADING_RE;
   const HR_RE = RSP.regexes.HR_RE;
-  const STUCK_RE = RSP.regexes.STUCK_RE;
   const SIDE_RE = RSP.regexes.SIDE_RE;
 
-  function isHeading(text) {
-    return HEADING_RE.test(text);
-  }
   function isHr(text) {
     return HR_RE.test(text);
   }
 
-  // Every card renders in the left column by default; a "Side: R" line in the
-  // body (scanned where the card is built) moves it to the right.
-  function defaultColumn(type, content) {
-    return "left";
-  }
-
   // --- Parse ---------------------------------------------------------------
 
+  // The editor model is a thin view over the canonical parser AST — the parser
+  // owns all structural grouping (header band + events), card classification, and
+  // the source-preserving column/stuck derivation (so the editor and renderer
+  // agree by construction). Only three extras are mapped on here: per-card ids,
+  // the <hr> line list (used to split layout rows / dock groups), and the coarse
+  // per-region "leading editable span" plainBlocks (which the AST has no
+  // equivalent of). All edit ops remain raw-text splices followed by a re-parse.
   function parse(md) {
-    const lines = splitLines(md);
-    const eol = md.includes("\r\n") ? "\r\n" : "\n";
+    const doc = RSP.parseRendScroll(md);
+    const lines = doc.lines;
 
-    // Pass 1: record every heading / HR line as a boundary, and collect cards
-    // with their start line. Card end is filled from the boundary list after.
-    const boundaries = []; // line indices that terminate a card body
-    const headings = [];   // { line, level, content, type }
-    const hrLines = [];    // <hr> line indices (used to split layout rows)
+    // <hr> line indices: the parser records them as internal boundaries but does
+    // not expose them, so re-scan the raw lines (an HR scan, not a re-parse).
+    const hrLines = [];
     for (let i = 0; i < lines.length; i++) {
-      const text = lineText(lines[i]);
-      const hm = text.match(HEADING_RE);
-      if (hm) {
-        const level = hm[1].length;
-        const content = hm[2];
-        headings.push({ line: i, level, content, type: cardType(level, content) });
-        boundaries.push(i);
-      } else if (isHr(text)) {
-        boundaries.push(i);
-        hrLines.push(i);
-      }
+      if (isHr(lineText(lines[i]))) hrLines.push(i);
     }
 
-    function nextBoundary(after) {
-      for (const b of boundaries) if (b > after) return b;
-      return lines.length;
-    }
-
-    // Pass 2: group into regions (header band + events) and attach cards.
+    // Map AST sections -> editor regions, minting document-order card ids. Each
+    // card's start/end are the AST range line indices verbatim, so they stay
+    // byte-identical to the renderer's data-src-start/data-src-end stamps (the
+    // join anchors.js relies on). column/stuck come straight off the AST — no
+    // re-scan — which is what fixes the STUCK_RE-vs-TRUTHY drift (e.g. "Connect: yes").
     let cardId = 0;
-    let plainId = 0;
-    const events = [];
-    let cur = { kind: "header", headingStart: -1, title: "", start: 0, end: lines.length, cards: [] };
-    let headerTitleTaken = false;
-
-    function closeCur(endLine) {
-      cur.end = endLine;
-      events.push(cur);
-    }
-
-    for (const h of headings) {
-      if (h.type) {
-        // A card heading (H3 card, or an H2 Obje) — belongs to the current region.
-        const end = nextBoundary(h.line);
-        const content = h.content;
-        const type = h.type;
-        const card = {
+    const events = doc.sections.map((s) => ({
+      kind: s.kind,
+      full: !!s.full,
+      level: s.level,
+      headingStart: s.headingRange ? s.headingRange.startLine : -1,
+      title: s.title,
+      start: s.start,
+      end: s.range.endLine,
+      cards: s.blocks
+        .filter((b) => b.kind === "card")
+        .map((b) => ({
           id: cardId++,
-          type,
-          title: cardTitle(type, content),
-          level: h.level,
-          column: defaultColumn(type, content),
-          stuck: false,
-          start: h.line,
-          titleLine: h.line,
-          end,
-        };
-        // Scan the card body for the docking flag ("Yapışık:|Connect: T") and a
-        // "Side: R" column override (default stays left).
-        for (let j = h.line + 1; j < end; j++) {
-          const bt = lineText(lines[j]).trim();
-          if (STUCK_RE.test(lower(bt))) card.stuck = true;
-          const sm = bt.match(SIDE_RE);
-          if (sm) card.column = /^r/i.test(sm[1].trim()) ? "right" : "left";
-        }
-        cur.cards.push(card);
-        continue;
-      }
+          type: b.type,
+          title: b.title,
+          level: b.level,
+          column: b.column,
+          stuck: b.stuck,
+          start: b.range.startLine,
+          titleLine: b.titleRange.startLine,
+          end: b.range.endLine,
+        })),
+    }));
 
-      // Non-card heading: page title (first H1 in the header) or an event divider.
-      if (h.level === 1 && cur.kind === "header" && cur.headingStart === -1 && !headerTitleTaken) {
-        cur.headingStart = h.line;
-        cur.title = h.content.trim();
-        headerTitleTaken = true;
-        continue;
-      }
-
-      closeCur(h.line);
-      cur = {
-        kind: "event",
-        // An H1 after the header opens a FULL-WIDTH section (layout.js): its body
-        // cards render in a single .grid-full box, not the two-column row. An H2
-        // is a normal event with a two-column row.
-        full: h.level === 1,
-        headingStart: h.line,
-        title: h.content.trim(),
-        start: h.line,
-        end: lines.length,
-        cards: [],
-      };
-    }
-    closeCur(lines.length);
-
-    // Pass 3: expose editable non-card heading/body blocks. These are leading
-    // plain markdown spans only; card ranges remain owned by their card editors.
+    // Expose editable non-card heading/body blocks. These are leading plain
+    // markdown spans only; card ranges remain owned by their card editors.
+    let plainId = 0;
     const plainBlocks = [];
     events.forEach((ev) => {
       const hasHeading = ev.headingStart >= 0;
@@ -169,7 +115,7 @@ const EditorOutline = (() => {
         id: plainId++,
         kind: ev.kind === "header" ? "header" : "section",
         eventKind: ev.kind,
-        level: hasHeading ? lineText(lines[ev.headingStart]).match(HEADING_RE)[1].length : 0,
+        level: hasHeading ? ev.level : 0,
         title: hasHeading ? ev.title : "",
         start: hasHeading ? ev.headingStart : bodyStart,
         headingLine: hasHeading ? ev.headingStart : -1,
@@ -179,7 +125,7 @@ const EditorOutline = (() => {
       });
     });
 
-    return { raw: md, lines, eol, events, boundaries, hrLines, plainBlocks };
+    return { raw: doc.raw, lines, eol: doc.eol, events, hrLines, plainBlocks };
   }
 
   // --- Serialize (exact) ---------------------------------------------------
@@ -486,7 +432,7 @@ const EditorOutline = (() => {
     moveCardGroup,
     rewriteBlockColumn,
     // exposed for anchors.js / tests
-    _internals: { cardType, defaultColumn, lower, splitLines, canDock },
+    _internals: { cardType, splitLines, canDock },
   };
 })();
 

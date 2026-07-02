@@ -1,4 +1,4 @@
-﻿/* ---------- Beklenmedik / Unexpected card (simple grouping box) ---------- */
+﻿/* ---------- Unexpected card (simple grouping box) ---------- */
 .page .unexpected-card{
   position:relative;
   overflow:hidden;
@@ -9,7 +9,7 @@
   border-left:6px solid #8a6d2f;
   border-radius:4px;
 }
-/* Soluk soru filigranı: bloğun ortasında, contain ile blok/kolonu aşmaz. */
+/* Faint question-mark watermark: centered in the block, contained so it never overflows the block/column. */
 .page .unexpected-card::before{
   content:"";
   position:absolute;

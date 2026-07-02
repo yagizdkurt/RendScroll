@@ -83,7 +83,7 @@ test("NPC: type, title, directives, column, body", () => {
   assert.equal(npc.column, "right");
   // Stat lines and dialogue topics stay in the body (renderer interprets them).
   assert.match(bodyText(npc), /Race: Human/);
-  assert.match(bodyText(npc), /İlk Diyalog:/);
+  assert.match(bodyText(npc), /First dialogue:/);
 });
 
 // --- Skill Checks ----------------------------------------------------------
@@ -116,7 +116,7 @@ test("Skill Checks accepts asterisk and dash markers as checks", () => {
 
 test("embedded Checks blocks accept asterisk markers", () => {
   const cards = allCards(parseRendScroll([
-    "## Obje: Altar",
+    "## Object: Altar",
     "> Cold stone.",
     "Checks:",
     "* Arcana:",
@@ -153,14 +153,14 @@ test("Item: type, title, Image directive, meta stays in body", () => {
   assert.equal(item.type, "item");
   assert.equal(item.title, "Rusty Key");
   assert.ok(directiveNames(item).includes("image"));
-  assert.match(bodyText(item), /Özellikler:/);
-  assert.match(bodyText(item), /Tür: Key/);
+  assert.match(bodyText(item), /Properties:/);
+  assert.match(bodyText(item), /Type: Key/);
 });
 
 test("SourceItem: library base item parses as sourceitem", () => {
   const cards = allCards(parseRendScroll([
     "### SourceItem: Silver Key",
-    "Tür: Key",
+    "Type: Key",
     "",
   ].join("\n")));
 
@@ -192,9 +192,9 @@ test("standalone item refs after cards are plain card body text", () => {
   assert.match(bodyText(first), /\[item=Silver Key\]/);
 });
 
-// --- Object (Obje at H2) ---------------------------------------------------
+// --- Object (Object at H2) -------------------------------------------------
 
-test("Object: H2 Obje with Checks group and Loot in body", () => {
+test("Object: H2 Object with Checks group and Loot in body", () => {
   const cards = allCards(parseFixture("object.md"));
   assert.equal(cards.length, 1);
   const obj = cards[0];
@@ -209,7 +209,7 @@ test("Object: H2 Obje with Checks group and Loot in body", () => {
 
 // --- Combat ----------------------------------------------------------------
 
-test("Combat: Savaş heading maps to combat", () => {
+test("Combat: Combat heading maps to combat", () => {
   const cards = allCards(parseFixture("combat.md"));
   assert.equal(cards.length, 1);
   assert.equal(cards[0].type, "combat");
@@ -285,7 +285,7 @@ test("Collapsable directive is recorded on the section, not the body", () => {
 
 // --- Docked / connected cards ----------------------------------------------
 
-test("Docked: Yapışık/Combine set stuck and dock under their host", () => {
+test("Docked: Connect/Combine set stuck and dock under their host", () => {
   const cards = allCards(parseFixture("docked.md"));
   assert.equal(cards.length, 3);
   const [obj, item, ability] = cards;
@@ -299,12 +299,12 @@ test("Docked: Yapışık/Combine set stuck and dock under their host", () => {
   assert.equal(RendScrollParser.canDock(ability, item), true);
 });
 
-// --- Turkish card names ----------------------------------------------------
+// --- Card name classification ----------------------------------------------
 
-test("Turkish names: Obje / Savaş / Beklenmedik classify correctly", () => {
-  const cards = allCards(parseFixture("turkish.md"));
+test("names: Object / Combat / Unexpected classify correctly", () => {
+  const cards = allCards(parseFixture("classify.md"));
   assert.deepEqual(cards.map((c) => c.type), ["obj", "combat", "unexpected"]);
-  assert.deepEqual(cards.map((c) => c.title), ["Mezar", "İskeletler", "Çöküş"]);
+  assert.deepEqual(cards.map((c) => c.title), ["Grave", "Skeletons", "Collapse"]);
 });
 
 // --- Scene manifest --------------------------------------------------------
@@ -331,7 +331,7 @@ test("Malformed directives are kept as unknown blocks, never dropped", () => {
   assert.match(reasons, /colon/);
   assert.match(reasons, /value/);
   // Real content survives.
-  assert.match(bodyText(item), /Tür: Junk/);
+  assert.match(bodyText(item), /Type: Junk/);
 });
 
 // --- Unknown card type -----------------------------------------------------

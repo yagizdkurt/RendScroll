@@ -133,7 +133,7 @@ test("std: builds an std-card carrying the heading title", () => {
 });
 
 test("item: builds an item-card with the item name and meta", () => {
-  const card = win.__T.renderCard("item", "### Item: Iron Sword\nTür: Weapon\nNadirlik: 2\n");
+  const card = win.__T.renderCard("item", "### Item: Iron Sword\nType: Weapon\nRarity: 2\n");
   assert.ok(card, "no card produced");
   assert.ok(card.classList.contains("item-card"), "expected .item-card");
   assert.match(card.textContent, /Iron Sword/);
@@ -152,7 +152,7 @@ test("item: builds an item-card with the item name and meta", () => {
 test("item: meta grid, rarity badge, type pill, damage, properties, description, Side", () => {
   const card = win.__T.renderCard(
     "item",
-    "### Item: Blade\nSide: R\nTür: Weapon\nNadirlik: 2\nHasar: 1d8 kesme\n\n> A keen blade.\n\nÖzellikler:\n- Sharp\n"
+    "### Item: Blade\nSide: R\nType: Weapon\nRarity: 2\nDamage: 1d8 slashing\n\n> A keen blade.\n\nProperties:\n- Sharp\n"
   );
   assert.ok(card.classList.contains("item-card"), "expected .item-card");
   assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
@@ -164,15 +164,15 @@ test("item: meta grid, rarity badge, type pill, damage, properties, description,
   assert.ok(card.querySelector(".item-description"), "expected .item-description");
 });
 
-test("item: Yapışık: T marks the card .item-stuck", () => {
-  const card = win.__T.renderCard("item", "### Item: Ring\nYapışık: T\nTür: Wondrous\n");
+test("item: Connect: T marks the card .item-stuck", () => {
+  const card = win.__T.renderCard("item", "### Item: Ring\nConnect: T\nType: Wondrous\n");
   assert.ok(card.classList.contains("item-stuck"), "expected .item-stuck");
 });
 
 test("ability: label, meta, rarity, properties, lore, description", () => {
   const card = win.__T.renderCard(
     "ability",
-    "### Spell: Fireball\nTür: Evocation\nMaliyet: 3\nNadirlik: 3\n\n> A roaring blast.\n\nÖzellikler:\n- Loud\nLore:\n> Ancient flame.\n"
+    "### Spell: Fireball\nType: Evocation\nCost: 3\nRarity: 3\n\n> A roaring blast.\n\nProperties:\n- Loud\nLore:\n> Ancient flame.\n"
   );
   assert.ok(card.classList.contains("ability-card"), "expected .ability-card");
   const label = card.querySelector(".ability-label");
@@ -187,7 +187,7 @@ test("ability: label, meta, rarity, properties, lore, description", () => {
 test("combat: roster rows, checks, runner, Side, portrait", () => {
   const card = win.__T.renderCard(
     "combat",
-    "### Savaş: Ambush\nImage: goblin.png\nSide: R\nStat:\n- AC 15 | HP 20\nEnemies:\n- Goblin | AC 15 | HP 7\n- Orc | AC 13 | HP 15\nChecks:\n- Perception:\n> 10: spot them\n"
+    "### Combat: Ambush\nImage: goblin.png\nSide: R\nStat:\n- AC 15 | HP 20\nEnemies:\n- Goblin | AC 15 | HP 7\n- Orc | AC 13 | HP 15\nChecks:\n- Perception:\n> 10: spot them\n"
   );
   assert.ok(card.classList.contains("combat-card"), "expected .combat-card");
   assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
@@ -200,7 +200,7 @@ test("combat: roster rows, checks, runner, Side, portrait", () => {
 test("npc: stat row, personality, dialogue subcard, checks, portrait", () => {
   const card = win.__T.renderCard(
     "npc",
-    "### NPC: Bob\nImage: bob.png\nRace: Human\nKişilik:\n> Friendly.\nSelam:\n> Hi there.\nChecks:\n- Insight:\n> 10: he is honest\n"
+    "### NPC: Bob\nImage: bob.png\nRace: Human\nPersonality:\n> Friendly.\nGreeting:\n> Hi there.\nChecks:\n- Insight:\n> 10: he is honest\n"
   );
   assert.ok(card.classList.contains("npc-card"), "expected .npc-card");
   assert.ok(card.querySelector(".npc-stat-row"), "expected a .npc-stat-row (Race)");
@@ -212,7 +212,7 @@ test("npc: stat row, personality, dialogue subcard, checks, portrait", () => {
 test("obj: title, checks section, loot panel, BG watermark", () => {
   const card = win.__T.renderCard(
     "obj",
-    "### Obje: Chest\nBG: chest.png\n> A heavy chest.\nChecks:\n- Investigation:\n> 10: a false bottom\nLoot:\n- 20 gold\n"
+    "### Object: Chest\nBG: chest.png\n> A heavy chest.\nChecks:\n- Investigation:\n> 10: a false bottom\nLoot:\n- 20 gold\n"
   );
   assert.ok(card.classList.contains("obj-card"), "expected .obj-card");
   assert.ok(/Point Of Interest/.test(card.textContent), "expected POI title");

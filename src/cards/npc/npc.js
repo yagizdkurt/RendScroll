@@ -8,11 +8,10 @@
 
 const NPC_FIELD_LABELS = new Set([
   "personality:",
-  "kişilik:",
-  "ilk diyalog:",
-  "sorarsa:",
-  "bildikleri:",
-  "bilmedikleri:",
+  "first dialogue:",
+  "if asked:",
+  "what they know:",
+  "what they don't know:",
   "race:",
   "age:",
   "occupation:",
@@ -24,7 +23,6 @@ const NPC_FIELD_LABELS = new Set([
 
 const NPC_PERSONALITY_LABELS = new Set([
   "personality:",
-  "kişilik:",
 ]);
 
 const NPC_STAT_LINE = /^(race|age|occupation|alignment|hp|ac)\s*:\s*(.*)$/i;
@@ -79,8 +77,8 @@ function npcDialogueDivider(text) {
   return divider;
 }
 
-// A body line that opens a dialogue topic subcard. "#### Başlık" shorthand or a
-// bare "Başlık:" line that is NOT a known NPC field label. Returns the title text
+// A body line that opens a dialogue topic subcard. "#### Title" shorthand or a
+// bare "Title:" line that is NOT a known NPC field label. Returns the title text
 // (or "" when the line is not a topic). Dialog answers start with ">" or "-", so
 // they never match.
 function npcTopicFromLine(line) {
@@ -100,7 +98,7 @@ function npcSubheading(text) {
   return subtitle;
 }
 
-// A small uppercase label above the Checks sub-section (same look as Obje).
+// A small uppercase label above the Checks sub-section (same look as Object).
 function npcSectionTitle(text) {
   const el = document.createElement("div");
   el.className = "obj-section-title";
@@ -203,7 +201,7 @@ function buildNpcCard(cardNode, head, nodes) {
 
     parseNpcBody(cardNode).forEach((seg) => {
       if (seg.kind === "checks") {
-        // "Checks:" renders as a sub-section (same look as Obje), leaving any
+        // "Checks:" renders as a sub-section (same look as Object), leaving any
         // open dialog subcard / identity column.
         currentSubcard = null;
         identityTarget = null;

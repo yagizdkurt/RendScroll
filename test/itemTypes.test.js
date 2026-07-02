@@ -12,11 +12,10 @@ test("find resolves canonical label + category, case-insensitively", () => {
   assert.deepEqual(ItemTypes.find("Wondrous Item"), { label: "Wondrous Item", category: "gear" });
 });
 
-test("Turkish dotted/dotless I folds when matching", () => {
+test("matching is case-insensitive", () => {
   // "Sling" upper-cased to "SLING" then lowered should still match.
   assert.equal(ItemTypes.category("SLING"), "weapon");
-  // İ (dotted capital) folds to i, not the dotless ı.
-  assert.deepEqual(ItemTypes.find("RİNG"), { label: "Ring", category: "gear" });
+  assert.deepEqual(ItemTypes.find("RING"), { label: "Ring", category: "gear" });
 });
 
 test("category and label fall back gracefully for custom types", () => {

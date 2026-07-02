@@ -19,8 +19,7 @@
 const RendScrollParser = (() => {
   // --- low-level text helpers (canonical; outline.js delegates here) --------
 
-  // Turkish-aware lowercase (İ/I -> dotted/dotless i), matching every renderer's
-  // rsLower(). Used for the includes-based classification (npc / skill check) and
+  // Lowercase used for the includes-based classification (npc / skill check) and
   // for truthy-value tests — the same places the card builders use it. Delegates to
   // the single owner in utils/text.js (browser global `rsLower`, loaded first; Node
   // requires it) so the rule is not restated here.
@@ -28,12 +27,10 @@ const RendScrollParser = (() => {
     ? rsLower
     : require("../utils/text.js").rsLower;
 
-  // ASCII-leaning lowercase for DIRECTIVE KEYWORDS. The card builders match these with
-  // case-insensitive regex (e.g. /^image\s*:/i), NOT rsLower — so "Image" must map
-  // to "image", not the dotless "ımage" that lower() would produce. Both İ and I
-  // fold to a plain "i" here so the keyword set stays ASCII.
+  // Lowercase for DIRECTIVE KEYWORDS. Kept distinct from lower() as the canonical
+  // hook for keyword normalization, though it is a plain lowercase today.
   function keywordLower(s) {
-    return String(s).replace(/İ/g, "i").replace(/I/g, "i").toLowerCase();
+    return String(s).toLowerCase();
   }
 
   // Split into lines that each KEEP their trailing newline, so join("") is the
@@ -52,21 +49,21 @@ const RendScrollParser = (() => {
 
   const HEADING_RE = /^(#{1,6})\s+(.*)$/;
   const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
-  // Docking flag (item.js / ability.js): yapışık|connect|combine + truthy value.
-  const STUCK_RE = /^(yapışık|connect|combine)\s*:\s*(t|true|yes|1)\s*$/;
+  // Docking flag (item.js / ability.js): connect|combine + truthy value.
+  const STUCK_RE = /^(connect|combine)\s*:\s*(t|true|yes|1)\s*$/;
   const SIDE_RE = /^side\s*:\s*(.+)$/i;
   // Heading-level "Collapsable:" directive (cardCollapse.js markHeadingCollapsable).
   const COLLAPSABLE_RE = /^collaps[ai]ble\s*:\s*(t|f|true|false)?$/i;
   // Universal, cross-card directive lines. Type-specific scalar fields (NPC
-  // stats, item Tür/Nadirlik, dialogue topics, …) are intentionally NOT here —
+  // stats, item type/rarity, dialogue topics, …) are intentionally NOT here —
   // they stay in the card body, and each type's renderer interprets them, exactly
   // as the card builders do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
   const DIRECTIVE_NAMES = new Set([
-    "side", "image", "bg", "closed", "textsize", "size", "file", "yapışık", "connect", "combine",
+    "side", "image", "bg", "closed", "textsize", "size", "file", "connect", "combine",
   ]);
-  const STUCK_NAMES = new Set(["yapışık", "connect", "combine"]);
-  const TRUTHY = new Set(["t", "true", "yes", "1", "evet"]);
+  const STUCK_NAMES = new Set(["connect", "combine"]);
+  const TRUTHY = new Set(["t", "true", "yes", "1"]);
 
   function isHeading(text) { return HEADING_RE.test(text); }
   function isHr(text) { return HR_RE.test(text); }
@@ -83,9 +80,7 @@ const RendScrollParser = (() => {
   // type by adding a row here AND registering its builder via
   // RendScrollCards.register(...) in cards/<type>/<type>.js.
   //   levels    — heading levels this type is a card at (obj is H2+H3; rest H3-only)
-  //   headingRe — case-insensitive test on the RAW heading. lower() must NOT be
-  //               applied first: it maps "I"->"ı" (dotless), turning "Item" into
-  //               "ıtem". OR
+  //   headingRe — case-insensitive test on the RAW heading. OR
   //   includes  — substring test on the lower()'d heading (npc / skill check, which
   //               the card builders also lower)
   //   strip     — regex removed from the heading to get the title; defaults to
@@ -98,16 +93,16 @@ const RendScrollParser = (() => {
     { type: "sourceenemy", levels: [3], headingRe: /^\s*source\s*enemy\s*:/i, fallback: "SourceEnemy" },
     { type: "item",        levels: [3], headingRe: /^\s*item\s*:/i,           fallback: "Item" },
     { type: "ability",     levels: [3], headingRe: /^\s*(skill|spell|passive|effect)\s*:/i, fallback: "Ability" },
-    { type: "obj",         levels: [2, 3], headingRe: /^\s*(obje|object|poi)\s*:/i, fallback: "POI" },
-    { type: "combat",      levels: [3], headingRe: /^\s*(sava[şs]|combat)\s*:/i, fallback: "Combat" },
-    { type: "unexpected",  levels: [3], headingRe: /^\s*(beklenmedik|unexpected)\s*:/i, fallback: "Unexpected" },
+    { type: "obj",         levels: [2, 3], headingRe: /^\s*(object|poi)\s*:/i, fallback: "POI" },
+    { type: "combat",      levels: [3], headingRe: /^\s*combat\s*:/i, fallback: "Combat" },
+    { type: "unexpected",  levels: [3], headingRe: /^\s*unexpected\s*:/i, fallback: "Unexpected" },
     { type: "narrative",   levels: [3], headingRe: /^\s*narrative\s*$/i, title: () => "Narrative" },
     { type: "manifest",    levels: [3], headingRe: /^\s*manifest\s*$/i, title: () => "Scene Manifest" },
     { type: "std",         levels: [3], headingRe: /^std\s*:/i,              fallback: "STD" },
     { type: "picture",     levels: [3], headingRe: /^\s*picture\s*:/i,       fallback: "Picture" },
     { type: "audio",       levels: [3], headingRe: /^\s*audio\s*:/i,         fallback: "Audio" },
     { type: "npc",         levels: [3], includes: "npc", strip: /^\s*npc\s*:\s*/i, fallback: "NPC" },
-    { type: "echo",        levels: [3], headingRe: /^\s*(yankı|yanki|echo)\b/i, title: (c) => c },
+    { type: "echo",        levels: [3], headingRe: /^\s*echo\b/i, title: (c) => c },
   ];
   const CARD_TYPE_BY_NAME = CARD_TYPES.reduce((m, r) => { m[r.type] = r; return m; }, {});
 
@@ -126,7 +121,7 @@ const RendScrollParser = (() => {
 
   // Heading content (after "## ") -> card type, or "" when the heading is not a
   // card (an event divider / page title / plain section). `level` matters: only
-  // Obje/Object/POI are cards at H2 (obj.js queries h2+h3); the rest are H3-only.
+  // Object/POI are cards at H2 (obj.js queries h2+h3); the rest are H3-only.
   function cardType(level, content) {
     if (level !== 2 && level !== 3) return "";
     const raw = String(content).trim();
@@ -154,7 +149,7 @@ const RendScrollParser = (() => {
     return CARD_TYPES.map((r) => r.type);
   }
 
-  // Canonical sticky-docking rule, as data. A "Yapışık" (stuck) card may dock
+  // Canonical sticky-docking rule, as data. A stuck ("Connect") card may dock
   // seamlessly under the last-placed host card. This is the ONE source of truth;
   // layout.js (DOM/classList) and editor/anchors.js (model) both derive from it via
   // dockAllows() instead of re-encoding the rule.
@@ -184,8 +179,8 @@ const RendScrollParser = (() => {
   // --- check / outcome parsing (canonical; cardSchemas.js delegates here) ---
 
   const CHECK_LABEL_RE = /^(skill\s+)?checks?\s*:\s*$/i;
-  const NPC_TOPIC_RE = /^[ \t]*[\wÇĞİÖŞÜçğıöşü][\wÇĞİÖŞÜçğıöşü ]*:[ \t]*$/;
-  const COMBAT_LABEL_RE = /^[A-Za-zÇĞİÖŞÜçğıöşü ]+:\s*$/;
+  const NPC_TOPIC_RE = /^[ \t]*[\w][\w ]*:[ \t]*$/;
+  const COMBAT_LABEL_RE = /^[A-Za-z ]+:\s*$/;
 
   function trimOuterBlankLines(lines) {
     const out = lines.slice();
@@ -596,7 +591,7 @@ const RendScrollParser = (() => {
     for (const h of headings) {
       const type = cardType(h.level, h.content);
       if (type) {
-        // A card heading (H3 card, or an H2 Obje) belongs to the current section.
+        // A card heading (H3 card, or an H2 Object) belongs to the current section.
         flushGap(h.line);
         const end = nextBoundary(h.line);
         cur.blocks.push(buildCard(lines, offs, h.line, h.level, h.content, end));

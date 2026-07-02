@@ -137,7 +137,7 @@ const CombatEnemyModel = (() => {
       case "resist": case "resistance": case "resistances": rec.resist = val; break;
       case "immune": case "immunity": case "immunities": rec.immune = val; break;
       case "trait": case "traits": rec.traits.push(val); break;
-      case "tactics": case "tactic": case "taktik": rec.tactics.push(val); break;
+      case "tactics": case "tactic": rec.tactics.push(val); break;
       default: rec.traits.push(t); break;
     }
   }

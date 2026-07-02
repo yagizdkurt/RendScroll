@@ -19,7 +19,7 @@
   border-top-left-radius:0;
   border-top-right-radius:0;
   border-top-width:1px;
-  /* Objenin sol yeşil çizgisi yapışık item'a da iner, blok bütünlüğü için. */
+  /* The object's left green line extends down onto the connected item too, for block cohesion. */
   border-left:6px solid #5b6a4a;
 }
 

@@ -1,4 +1,4 @@
-/* Card collapse (aç/kapa).
+/* Card collapse (expand/collapse).
    Runs AFTER every feature renderer has built its card, but does not touch any
    of them: it only adds a toggle button to each card's title and flips an
    `is-collapsed` class. It never fetches files and never touches the sidebar.
@@ -43,7 +43,7 @@ const CardCollapse = (() => {
     const btn = card.querySelector(":scope > .card-head > .card-toggle");
     if (btn) {
       btn.setAttribute("aria-expanded", String(!collapsed));
-      btn.setAttribute("aria-label", collapsed ? "Kartı aç" : "Kartı kapat");
+      btn.setAttribute("aria-label", collapsed ? "Expand card" : "Collapse card");
     }
   }
 
@@ -152,7 +152,7 @@ const HeadingCollapse = (() => {
 
   function syncBtn(btn, collapsed) {
     btn.setAttribute("aria-expanded", String(!collapsed));
-    btn.setAttribute("aria-label", collapsed ? "Olayı aç" : "Olayı kapat");
+    btn.setAttribute("aria-label", collapsed ? "Expand event" : "Collapse event");
   }
 
   // Re-derive every unit's visibility from the headings' collapsed state.

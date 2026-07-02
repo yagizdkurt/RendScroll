@@ -1,6 +1,6 @@
 ﻿/* ---------- Ability Cards (Skill / Spell / Passive / Effect) ---------- */
-/* Arcane karşılığı: item kartının altın/parşömen temasının yerine indigo/mor
-   bir büyü teması. Yapı item kartıyla aynıdır; sadece renkler değişir. */
+/* Arcane counterpart: an indigo/purple spell theme in place of the item card's
+   gold/parchment theme. The structure is identical to the item card; only the colors change. */
 .page .ability-card{
   --arcane-deep:#473a86;
   --arcane-edge:#6f5bd0;
@@ -19,14 +19,14 @@
 .page .ability-card > :first-child{margin-top:0;}
 .page .ability-card > :last-child{margin-bottom:0;}
 
-/* "Yapışık" ability: bir önceki item/obje/yapışık ability ile tek bir
-   kesintisiz blok gibi birleşir. (Yerleşim layout.js'te aynı sütuna iner.) */
+/* A connected ("Connect") ability merges with the preceding item/object/connected
+   ability into one seamless block. (Layout places it in the same column in layout.js.) */
 .page .ability-card.ability-stuck{
   margin-top:0;
   border-top-left-radius:0;
   border-top-right-radius:0;
   border-top-width:1px;
-  /* Sol mor çizgi, host ile blok bütünlüğü için aşağı iner. */
+  /* The left purple line extends down for block cohesion with the host. */
   border-left:6px solid var(--arcane-edge);
 }
 

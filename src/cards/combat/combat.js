@@ -1,17 +1,17 @@
-/* Combat (Savaş) section renderer.
-   Receives a root DOM element and modifies ONLY Savaş sections in the DOM.
+/* Combat section renderer.
+   Receives a root DOM element and modifies ONLY Combat sections in the DOM.
    It never fetches files and never touches the sidebar.
 
-   A Savaş block is written as:
+   A Combat block is written as:
 
-     ### Savaş: İsim
-     `DM notu (read-aloud değil, kenar notu)`     (optional)
+     ### Combat: Name
+     `DM note (a side note, not read-aloud)`     (optional)
      Stat:
-     - AC 16 | HP 80 | Hız 30 ft.
-     - Atak: ...
-     Taktik:
+     - AC 16 | HP 80 | Speed 30 ft.
+     - Attack: ...
+     Tactics:
      - ...
-     Özel Mekanik:          (any "Label:" line opens a new titled sub-section)
+     Special Mechanic:      (any "Label:" line opens a new titled sub-section)
      - ...
 
    Layout produced (a single .combat-card):
@@ -26,7 +26,7 @@
 
 // True only for a combat heading (colon form).
 function isCombatHead(h) {
-  return /^\s*(sava[şs]|combat)\s*:/.test(rsLower(h.textContent).trim());
+  return /^\s*combat\s*:/.test(rsLower(h.textContent).trim());
 }
 
 // A bare "Label:" line (letters/spaces only, ending in a colon) opens a combat
@@ -84,7 +84,7 @@ function parseCombatBody(cardNode) {
   return segs;
 }
 
-// Build one Savaş card from its parsed AST node. Image/Side come from the resolved
+// Build one Combat card from its parsed AST node. Image/Side come from the resolved
 // directives; the Checks / Enemies / sub-section / content segments come from the
 // shared parseCombatBody.
 function buildCombatCard(cardNode, head, nodes) {
@@ -93,7 +93,7 @@ function buildCombatCard(cardNode, head, nodes) {
 
     const title = document.createElement("div");
     title.className = "combat-title";
-    title.textContent = head.textContent.trim().replace(/^\s*(sava[şs]|combat)\s*:\s*/i, "").trim();
+    title.textContent = head.textContent.trim().replace(/^\s*combat\s*:\s*/i, "").trim();
 
     // Header = title + leading content (before the first "Label:" section),
     // placed beside the portrait when an Image is given; sections flow below.
@@ -106,7 +106,7 @@ function buildCombatCard(cardNode, head, nodes) {
 
     parseCombatBody(cardNode).forEach((seg) => {
       if (seg.kind === "checks") {
-        // "Checks:" renders identically to the Skill Checks panel (and Obje's).
+        // "Checks:" renders identically to the Skill Checks panel (and Object's).
         headOpen = false;
         const section = document.createElement("div");
         section.className = "combat-section";
@@ -246,8 +246,8 @@ function tacticRules(tactics) {
       if (t) rules.push(t);
     });
   });
-  if (rules.length && /^(taktik|tactics?)\s*:?\s*$/i.test(rules[0])) rules.shift();
-  if (rules.length) rules[0] = rules[0].replace(/^(taktik|tactics?)\s*:\s*/i, "").trim();
+  if (rules.length && /^tactics?\s*:?\s*$/i.test(rules[0])) rules.shift();
+  if (rules.length) rules[0] = rules[0].replace(/^tactics?\s*:\s*/i, "").trim();
   return rules;
 }
 

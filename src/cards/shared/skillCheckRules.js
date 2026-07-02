@@ -86,22 +86,22 @@ const RendScrollSkillChecks = (() => {
     { re: /detect magic/, disp: null, icon: "✨", noDC: false },
   ];
 
-  const PASSIVE = /passive|ilk bak/;
+  const PASSIVE = /passive/;
 
   function lower(name) {
     if (typeof RendScrollParser !== "undefined" && RendScrollParser.lower) {
       return RendScrollParser.lower(name);
     }
-    return String(name).replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+    return String(name).toLowerCase();
   }
 
   function normalizedKey(name) {
-    return lower(name).replace(/ı/g, "i");
+    return lower(name);
   }
 
   function resolveSkill(name) {
     const lname = lower(name);
-    const key = lname.replace(/ı/g, "i");
+    const key = lname;
 
     const spell = SPELL.find((s) => s.re.test(key));
     if (spell) {

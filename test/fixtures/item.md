@@ -1,9 +1,9 @@
 # Scene
 
 ### Item: Rusty Key
-Tür: Key
-Nadirlik: 1
+Type: Key
+Rarity: 1
 Image: key.png
-Özellikler:
+Properties:
 - Opens the crypt door.
 > An old iron key, cold to the touch.

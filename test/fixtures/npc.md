@@ -8,5 +8,5 @@ Side: R
 Race: Human
 HP: 12
 
-İlk Diyalog:
+First dialogue:
 > Who goes there?

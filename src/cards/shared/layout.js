@@ -29,10 +29,10 @@ function cardStuckOf(node, type) {
   return !!type && node.classList.contains(type + "-stuck");
 }
 
-// Whether a "Yapışık" card (node) may dock seamlessly under the last-placed host
-// card. The rule itself lives once in the parser (RendScrollParser.dockAllows); a
-// stuck item hangs off an Obje or another stuck item, a stuck ability off an item,
-// an Obje, or another stuck ability.
+// Whether a stuck ("Connect") card (node) may dock seamlessly under the last-placed
+// host card. The rule itself lives once in the parser (RendScrollParser.dockAllows); a
+// stuck item hangs off an Object or another stuck item, a stuck ability off an item,
+// an Object, or another stuck ability.
 function canDockUnder(node, host) {
   const nt = cardTypeOf(node);
   const ht = cardTypeOf(host);
@@ -139,7 +139,7 @@ function layoutTwoColumns(root) {
     if (node.tagName === "HR") { gridFull(node); continue; }
 
     // Body of an H1 section: collect into one full-width container. Docking
-    // still applies so a "Yapışık: T" card stacks under its host here too.
+    // still applies so a "Connect: T" card stacks under its host here too.
     if (fullMode) {
       if (!fullBox) {
         fullBox = document.createElement("div");
@@ -152,7 +152,7 @@ function layoutTwoColumns(root) {
 
     if (!main) newRow();
 
-    // A "Yapışık: T" card docks under the preceding host in that host's OWN
+    // A "Connect: T" card docks under the preceding host in that host's OWN
     // column — overriding the default aside placement. dockOrPlace tries the
     // dock first (see canDockUnder for the rules); only if it can't dock does
     // it route to the requested column, so the flag bites only when the card is

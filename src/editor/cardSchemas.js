@@ -59,7 +59,7 @@ const EditorSchemas = (() => {
       })();
 
   const lower = RSP.lower;
-  const TRUTHY = /^(t|true|evet|yes|1)$/i;
+  const TRUTHY = /^(t|true|yes|1)$/i;
 
   function checkSkillOptions() {
     return SCR.skillOptions();
@@ -412,7 +412,7 @@ const EditorSchemas = (() => {
   const fImage = { key: "image", label: "Image (portrait)", kind: "text", mdLabel: "Image" };
   const fBg = { key: "bg", label: "BG (watermark)", kind: "text", mdLabel: "BG" };
   const fClosed = { key: "closed", label: "Start collapsed", kind: "flag", mdLabel: "Closed" };
-  const fStuck = { key: "stuck", label: "Stick to card above", kind: "flag", mdLabel: "Combine", mdAliases: ["Yapışık", "Connect"] };
+  const fStuck = { key: "stuck", label: "Stick to card above", kind: "flag", mdLabel: "Combine", mdAliases: ["Connect"] };
   // Column is serialized as a "Side:" body line (default left writes nothing,
   // "right" writes "Side: R"). See serialize()/parse().
   const fColumn = {
@@ -425,7 +425,7 @@ const EditorSchemas = (() => {
     inputMode: "numeric", defaultOption: "defaultCardTextSize",
   };
   const rarityField = () => ({
-    key: "rarity", label: "Rarity", kind: "select", mdLabel: "Rarity", mdAliases: ["Nadirlik"],
+    key: "rarity", label: "Rarity", kind: "select", mdLabel: "Rarity",
     options: [
       { value: "", label: "—" },
       { value: "1", label: "1 · Common" },
@@ -487,7 +487,7 @@ const EditorSchemas = (() => {
 
   define("npc", "NPC", keywordHeading("NPC"), [
     fTitle,
-    { key: "personality", label: "Personality", kind: "list", mdLabel: "Personality", mdAliases: ["Kişilik"] },
+    { key: "personality", label: "Personality", kind: "list", mdLabel: "Personality" },
     { key: "race", label: "Race", kind: "text", mdLabel: "Race" },
     { key: "age", label: "Age", kind: "text", mdLabel: "Age" },
     { key: "occupation", label: "Occupation", kind: "text", mdLabel: "Occupation" },
@@ -504,13 +504,13 @@ const EditorSchemas = (() => {
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
     { key: "sourceItem", label: "SourceItem", kind: "text", mdLabel: "SourceItem" },
-    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type", mdAliases: ["Tür"] },
-    { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage", mdAliases: ["Hasar"] },
+    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type" },
+    { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage" },
     rarityField(),
     fImage,
     fColumn,
     fTextSize,
-    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
+    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, extra lines…"),
     fStuck, fClosed,
   ], { fromBody: itemFromBody });
@@ -533,19 +533,19 @@ const EditorSchemas = (() => {
       default: "Spell",
     },
     fTitle,
-    { key: "tur", label: "Type", kind: "text", mdLabel: "Type", mdAliases: ["Tür"] },
-    { key: "cost", label: "Cost", kind: "text", mdLabel: "Cost", mdAliases: ["Maliyet"] },
-    { key: "range", label: "Range", kind: "text", mdLabel: "Range", mdAliases: ["Menzil"] },
-    { key: "cooldown", label: "Cooldown", kind: "text", mdLabel: "Cooldown", mdAliases: ["Bekleme"] },
+    { key: "tur", label: "Type", kind: "text", mdLabel: "Type" },
+    { key: "cost", label: "Cost", kind: "text", mdLabel: "Cost" },
+    { key: "range", label: "Range", kind: "text", mdLabel: "Range" },
+    { key: "cooldown", label: "Cooldown", kind: "text", mdLabel: "Cooldown" },
     rarityField(),
     fColumn,
     fTextSize,
-    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
+    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, Lore: …"),
     fStuck, fClosed,
   ], { fromBody: abilityFromBody });
 
-  define("obj", "Object / POI", keywordHeading("Object", ["Obje", "POI"]), [
+  define("obj", "Object / POI", keywordHeading("Object", ["POI"]), [
     fTitle,
     fImage, fBg,
     fColumn,
@@ -554,7 +554,7 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
-  define("combat", "Combat", keywordHeading("Combat", ["Savaş", "Savas"]), [
+  define("combat", "Combat", keywordHeading("Combat"), [
     fTitle,
     fImage,
     fColumn,
@@ -616,11 +616,11 @@ const EditorSchemas = (() => {
     },
   }, [
     fTitle,
-    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type", mdAliases: ["Tür"] },
-    { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage", mdAliases: ["Hasar"] },
+    { key: "tur", label: "Type", kind: "itemType", mdLabel: "Type" },
+    { key: "damage", label: "Damage", kind: "damage", mdLabel: "Damage" },
     rarityField(),
     fImage,
-    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties", mdAliases: ["Özellikler"] },
+    { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, extra lines…"),
   ]);
 

@@ -11,10 +11,10 @@ const RendScrollInlineFormatting = (() => {
       .replace(/>/g, "&gt;");
   }
 
-  // Turkish-safe lowercase, matching rsLower() / RefLibrary.norm() so a link's
+  // Lowercase, matching rsLower() / RefLibrary.norm() so a link's
   // name resolves against the same key the cards are stamped with.
   function lower(value) {
-    return String(value == null ? "" : value).replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+    return String(value == null ? "" : value).toLowerCase();
   }
 
   const TAGS = {

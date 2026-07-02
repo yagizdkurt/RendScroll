@@ -1,6 +1,6 @@
 # Scene
 
-## Obje: Altar
+## Object: Altar
 > An ancient stone altar, stained dark.
 Checks:
 - Religion:

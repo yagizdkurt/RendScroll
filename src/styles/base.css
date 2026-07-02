@@ -8,12 +8,12 @@
   --parchment-lt:#fdf1dc;
   --note-bg:#e8e2c8;
   --rule:#c0a36a;
-  --sc-easy:#3f6f3a;     /* DC ≤10  — yeşil  */
-  --sc-medium:#b9912f;   /* DC 11–14 — açık altın */
+  --sc-easy:#3f6f3a;     /* DC ≤10  — green  */
+  --sc-medium:#b9912f;   /* DC 11–14 — light gold */
   --sc-hard:#b5641e;     /* DC 15–19 — turuncu */
   --sc-deadly:var(--maroon); /* DC 20+ — bordo */
-  --sc-fail:#4a4540;     /* fail satırı — kömür/gri */
-  --mystic:#6a3d8c;      /* özel/mistik check — mor */
+  --sc-fail:#4a4540;     /* fail row — charcoal/gray */
+  --mystic:#6a3d8c;      /* special/mystic check — purple */
   --sidebar-width-expanded:260px;
   --sidebar-width-collapsed:66px;
   --topbar-height:52px;
@@ -992,9 +992,9 @@ body[data-opt-pagebg="custom"] .page{
 .page h3.echo-section{border-left-color:#6b5aa0;color:#4a3c78;}
 
 /* ---------- Body ---------- */
-/* Default: tüm render metni kalın. font-weight miras alındığı için
-   p/li/td/em/blockquote gibi ağırlık belirtmeyen her öğe bold olur;
-   başlıkların 600-800 ağırlıkları kendi kurallarıyla korunur. */
+/* Default: all rendered text is bold. Because font-weight is inherited,
+   every element that does not set its own weight (p/li/td/em/blockquote) becomes
+   bold; the 600-800 weights of headings are preserved by their own rules. */
 .page{font-weight:700;font-family:var(--reader-font);}
 
 .page p{

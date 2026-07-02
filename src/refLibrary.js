@@ -32,8 +32,8 @@ const RefLibrary = (() => {
   let ready = false;
 
   function norm(name) {
-    // Turkish-safe lowercase (İ/I), matching the card builders' rsLower().
-    return String(name == null ? "" : name).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+    // Lowercase, matching the card builders' rsLower().
+    return String(name == null ? "" : name).trim().toLowerCase();
   }
 
   function typeMap(type) {
@@ -267,7 +267,7 @@ const RefLibrary = (() => {
     } else {
       lines.unshift("### SourceItem: " + n);
     }
-    return lines.filter((line) => !/^\s*(source\s*item|sourceitem|side|text\s*size|yapışık|connect|combine|closed)\s*:/i.test(line.trim())).join("\n");
+    return lines.filter((line) => !/^\s*(source\s*item|sourceitem|side|text\s*size|connect|combine|closed)\s*:/i.test(line.trim())).join("\n");
   }
 
   // Normalize a created/edited enemy block into a SourceEnemy library file:
@@ -276,16 +276,16 @@ const RefLibrary = (() => {
     const n = String(name || "").trim();
     let src = String(content || "").replace(/\r?\n/g, "\n");
     const lines = src.split("\n");
-    const heading = lines.findIndex((line) => /^\s*###\s+(source\s*enemy|sourceenemy|sava[şs]|enemy)\s*:/i.test(line));
+    const heading = lines.findIndex((line) => /^\s*###\s+(source\s*enemy|sourceenemy|enemy)\s*:/i.test(line));
     if (heading >= 0) {
       lines[heading] = lines[heading].replace(
-        /^\s*###\s+(source\s*enemy|sourceenemy|sava[şs]|enemy)\s*:\s*(.*)$/i,
+        /^\s*###\s+(source\s*enemy|sourceenemy|enemy)\s*:\s*(.*)$/i,
         (_, _kind, title) => "### SourceEnemy: " + (String(title || "").trim() || n)
       );
     } else {
       lines.unshift("### SourceEnemy: " + n);
     }
-    return lines.filter((line) => !/^\s*(side|text\s*size|yapışık|connect|combine|closed|enemies)\s*:/i.test(line.trim())).join("\n");
+    return lines.filter((line) => !/^\s*(side|text\s*size|connect|combine|closed|enemies)\s*:/i.test(line.trim())).join("\n");
   }
 
   return {

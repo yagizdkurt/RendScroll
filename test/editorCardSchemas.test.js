@@ -58,7 +58,7 @@ test("schema lists parse asterisk markers and serialize canonical dash markers",
   const schema = EditorSchemas.get("item");
   const values = EditorSchemas.parse(schema, [
     "### Item: Rope",
-    "Özellikler:",
+    "Properties:",
     "* Climbing",
     "* Quiet",
     "",
@@ -79,7 +79,7 @@ test("Item schema parses and serializes SourceItem slot", () => {
   const values = EditorSchemas.parse(schema, [
     "### Item: Lantern",
     "SourceItem: Lantern Base",
-    "Tür: -",
+    "Type: -",
     "",
   ].join("\n"));
 

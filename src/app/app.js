@@ -27,9 +27,9 @@ let currentLibraryName = null;
 
 /* Known label lines from the template that should stand out. */
 const FIELD_LABELS = new Set([
-  "kişilik:", "ilk diyalog:", "sorarsa:", "bildikleri:", "bilmedikleri:",
-  "stat:", "taktik:", "genel:", "cesetler:", "köpek:", "sandıklar:",
-  "amaç:", "öz:", "kültist:", "cult hunter:",
+  "personality:", "first dialogue:", "if asked:", "what they know:", "what they don't know:",
+  "stat:", "tactics:", "general:", "corpses:", "dog:", "chests:",
+  "goal:", "summary:", "cultist:", "cult hunter:",
 ]);
 
 function createTopScrollImage() {
@@ -55,9 +55,9 @@ function enhanceBaseStyling(root) {
     const t = rsLower(h.textContent);
     if (t.includes("skill check")) h.classList.add("skill-section");
     else if (t.includes("npc")) h.classList.add("npc-section");
-    else if (t.includes("savaş") || t.includes("combat")) h.classList.add("combat-section");
-    else if (t.includes("beklenmedik")) h.classList.add("contingency-section");
-    else if (t.includes("yankı")) h.classList.add("echo-section");
+    else if (t.includes("combat")) h.classList.add("combat-section");
+    else if (t.includes("unexpected")) h.classList.add("contingency-section");
+    else if (t.includes("echo")) h.classList.add("echo-section");
   });
 
   // Short "Label:" paragraphs become emphasized field labels.

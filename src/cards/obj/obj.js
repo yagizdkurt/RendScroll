@@ -1,19 +1,19 @@
-/* Object (Obje) section renderer.
-   Receives a root DOM element and modifies ONLY Obje sections in the DOM.
+/* Object section renderer.
+   Receives a root DOM element and modifies ONLY Object sections in the DOM.
    It never fetches files and never touches the sidebar.
 
-   An Obje is written as:
+   An Object is written as:
 
-     ### Obje: İsim
-     > Serbest açıklama / DM anlatımı (read-aloud)
-     BG: kapi.png            (optional; default watermark = chest.png)
+     ### Object: Name
+     > Free description / DM narration (read-aloud)
+     BG: door.png            (optional; default watermark = chest.png)
      Checks:
      - Investigation:
      > 10: ...
      > 15: ...
      Loot:
-     - 20 altın
-     - Kutsal sembol
+     - 20 gold
+     - Holy symbol
 
    Layout produced (a single .obj-card):
      - title
@@ -26,7 +26,7 @@
 
 /* A node ends the current section if it's a new heading/separator OR a card that
    another renderer already produced (e.g. an NPC card placed right after this
-   Obje). Without the card check the collector would swallow the next card. */
+   Object). Without the card check the collector would swallow the next card. */
 function objIsBoundary(n) {
   if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
   return isRenderedCard(n);
@@ -37,7 +37,7 @@ function objIsBoundary(n) {
 
 function objTitleText(head) {
   const raw = head.textContent.trim();
-  const m = raw.match(/^\s*(obje|object|poi)\s*:\s*(.*)$/i);
+  const m = raw.match(/^\s*(object|poi)\s*:\s*(.*)$/i);
   if (!m) return raw;
 
   const title = m[2].trim();
@@ -74,9 +74,9 @@ function parseObjBody(cardNode) {
   return segs;
 }
 
-// Build one Obje card from its parsed AST node. BG/Image/Side come from the
+// Build one Object card from its parsed AST node. BG/Image/Side come from the
 // resolved directives; the Checks / description / Loot segments come from the
-// shared parseObjBody, so a title-only Obje still returns a real card editor
+// shared parseObjBody, so a title-only Object still returns a real card editor
 // anchors can attach to.
 function buildObjCard(cardNode, head, nodes) {
     const card = document.createElement("div");

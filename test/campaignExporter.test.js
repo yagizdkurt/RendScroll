@@ -7,10 +7,10 @@ const CampaignExporter = require("../src/exporter/exporter.js");
 const { collect, scanAssets, collectRefNames, imageRefPath, audioRefPath } = CampaignExporter;
 
 // A minimal stand-in for RefLibrary: maps item/enemy names to entries with a
-// path + source, using the same Turkish-safe normalization the real one uses.
+// path + source, using the same normalization the real one uses.
 function fakeRefLib(items, enemies) {
   const norm = (s) =>
-    String(s == null ? "" : s).trim().replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase();
+    String(s == null ? "" : s).trim().toLowerCase();
   const map = { item: new Map(), enemy: new Map() };
   Object.entries(items || {}).forEach(([name, source]) =>
     map.item.set(norm(name), { name, path: "items/" + name + ".md", source })

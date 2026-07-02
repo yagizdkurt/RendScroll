@@ -14,12 +14,12 @@ test("ItemData inherits empty item fields from SourceItem", () => {
     "",
   ].join("\n"), () => [
     "### SourceItem: Lantern",
-    "Tür: Tool",
-    "Nadirlik: 2",
+    "Type: Tool",
+    "Rarity: 2",
     "Image: lamp",
     "> Pale light.",
     "",
-    "Özellikler:",
+    "Properties:",
     "- Glows",
     "",
   ].join("\n"));
@@ -28,8 +28,8 @@ test("ItemData inherits empty item fields from SourceItem", () => {
   assert.match(out, /^Side: R$/m);
   assert.doesNotMatch(out, /^Text Size:/m);
   assert.match(out, /^Image: lamp$/m);
-  assert.match(out, /^Tür: Tool$/m);
-  assert.match(out, /^Nadirlik: 2$/m);
+  assert.match(out, /^Type: Tool$/m);
+  assert.match(out, /^Rarity: 2$/m);
   assert.match(out, /^> Pale light\.$/m);
   assert.match(out, /^- Glows$/m);
 });
@@ -38,32 +38,32 @@ test("ItemData item fields override SourceItem fields", () => {
   const out = ItemData.resolveItemSource([
     "### Item: Lantern",
     "SourceItem: Lantern",
-    "Tür: Weapon",
-    "Nadirlik: 3",
+    "Type: Weapon",
+    "Rarity: 3",
     "Image: sword",
     "> Sharp.",
     "",
-    "Özellikler:",
+    "Properties:",
     "- Cuts",
     "",
   ].join("\n"), () => [
     "### SourceItem: Lantern",
-    "Tür: Tool",
-    "Nadirlik: 2",
+    "Type: Tool",
+    "Rarity: 2",
     "Image: lamp",
     "> Pale light.",
     "",
-    "Özellikler:",
+    "Properties:",
     "- Glows",
     "",
   ].join("\n"));
 
-  assert.match(out, /^Tür: Weapon$/m);
-  assert.match(out, /^Nadirlik: 3$/m);
+  assert.match(out, /^Type: Weapon$/m);
+  assert.match(out, /^Rarity: 3$/m);
   assert.match(out, /^Image: sword$/m);
   assert.match(out, /^> Sharp\.$/m);
   assert.match(out, /^- Cuts$/m);
-  assert.doesNotMatch(out, /^Tür: Tool$/m);
+  assert.doesNotMatch(out, /^Type: Tool$/m);
   assert.doesNotMatch(out, /^- Glows$/m);
 });
 
@@ -71,28 +71,28 @@ test("ItemData dash clears inherited fields", () => {
   const out = ItemData.resolveItemSource([
     "### Item: Lantern",
     "SourceItem: Lantern",
-    "Tür: -",
+    "Type: -",
     "Image: -",
     "> -",
     "",
-    "Özellikler:",
+    "Properties:",
     "- -",
     "",
   ].join("\n"), () => [
     "### SourceItem: Lantern",
-    "Tür: Tool",
+    "Type: Tool",
     "Image: lamp",
     "> Pale light.",
     "",
-    "Özellikler:",
+    "Properties:",
     "- Glows",
     "",
   ].join("\n"));
 
-  assert.doesNotMatch(out, /^Tür:/m);
+  assert.doesNotMatch(out, /^Type:/m);
   assert.doesNotMatch(out, /^Image:/m);
   assert.doesNotMatch(out, /^> Pale light\.$/m);
-  assert.doesNotMatch(out, /^Özellikler:$/m);
+  assert.doesNotMatch(out, /^Properties:$/m);
 });
 
 test("ItemData SourceItem render output drops instance-only controls", () => {
@@ -100,16 +100,16 @@ test("ItemData SourceItem render output drops instance-only controls", () => {
     "### SourceItem: Lantern",
     "Side: R",
     "Text Size: 14",
-    "Yapışık: T",
+    "Connect: T",
     "Closed: T",
-    "Tür: Tool",
+    "Type: Tool",
     "",
   ].join("\n"));
 
   assert.match(out, /^### SourceItem: Lantern$/m);
-  assert.match(out, /^Tür: Tool$/m);
+  assert.match(out, /^Type: Tool$/m);
   assert.doesNotMatch(out, /^Side:/m);
   assert.doesNotMatch(out, /^Text Size:/m);
-  assert.doesNotMatch(out, /^Yapışık:/m);
+  assert.doesNotMatch(out, /^Connect:/m);
   assert.doesNotMatch(out, /^Closed:/m);
 });

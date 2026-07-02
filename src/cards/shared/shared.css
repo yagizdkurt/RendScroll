@@ -1,5 +1,5 @@
 ﻿/* ---------- Shared card figure (header row + portrait) ---------- */
-/* Used by Item / Ability / Obje / Combat / Std / Unexpected cards: the header
+/* Used by Item / Ability / Object / Combat / Std / Unexpected cards: the header
    content (title, meta, leading description) sits on the left and the Image
    portrait top-right. Built by cardFigure() in cards/shared/cardImage.js, and ONLY
    when an Image is present — so a card without an image reserves no portrait. */
@@ -34,9 +34,9 @@
    the toggle sits over the portrait's top-right corner. */
 .page .card-figure.card-head{padding-right:0;}
 
-/* "Yapışık" item: bir önceki obje/yapışık item ile tek bir kesintisiz blok
-   gibi birleşir. Host alt kenarını, item üst kenarını paylaşılan tek bir
-   ayraca indirir. (Yerleşim layout.js'te, aynı sütuna indirilir.) */
+/* A connected ("Connect") item merges with the preceding object/connected item into
+   one seamless block. The host's bottom edge and the item's top edge collapse into a
+   single shared divider. (Layout places it in the same column in layout.js.) */
 .page .obj-card.has-stuck-below,
 .page .item-card.has-stuck-below,
 .page .ability-card.has-stuck-below{
@@ -45,7 +45,7 @@
   border-bottom-right-radius:0;
 }
 
-/* ---------- Card collapse (aç/kapa) ---------- */
+/* ---------- Card collapse (expand/collapse) ---------- */
 /* The title bar hosts the toggle in its top-right corner. Extra right padding
    keeps long titles from running under the button. */
 .page .card-head{
