@@ -204,6 +204,11 @@ function renderCardBlock(doc, card) {
   if (!cardEl) return els;
   applyCardTextSize(cardEl, cardTextSize(card));
   stampRefName(cardEl, card.title);
+  // Source line range of this card in the scene. layout only MOVES nodes, so the
+  // stamp survives into the final grid; editor/anchors.js joins it back to the
+  // outline card by line instead of re-simulating the layout routing.
+  cardEl.dataset.srcStart = String(card.range.startLine);
+  cardEl.dataset.srcEnd = String(card.range.endLine);
   return [cardEl];
 }
 

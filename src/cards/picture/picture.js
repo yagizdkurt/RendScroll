@@ -63,5 +63,5 @@ function buildPictureCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("picture", { build: buildPictureCard });
+  RendScrollCards.register("picture", { build: buildPictureCard, cssClass: "picture-card" });
 }

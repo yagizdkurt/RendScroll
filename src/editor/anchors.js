@@ -1,140 +1,16 @@
 /* Anchoring: map rendered card elements back to source blocks WITHOUT touching
-   any renderer. After renderPage() has produced the 2-column grid, we replay the
-   exact routing rules from layout.js (layoutIsAside + canDockUnder) over the
-   outline model to know, per event-row and column, the source order of cards —
-   then zip that to the card <div>s in the DOM and stamp each with data-block-id.
+   any renderer. renderPage() stamps every card <div> with data-src-start/
+   data-src-end (the card's source line range) at render time, and layout only
+   MOVES nodes, so identity is carried by the DOM itself — no layout re-simulation.
+   decorate() finds the stamped elements, joins each to its outline card by line
+   (EditorOutline.findCardByStart), and stamps data-block-id.
 
    It also installs per-card editing handles and insert zones, wired to the
    handler callbacks the controller (editor.js) passes in. */
 
 const EditorAnchors = (() => {
-  // Card types that the card builders turn into a single card <div>. Plain "###"
-  // sections and Yankı/Echo produce no card div, so they are not anchorable.
-  const ANCHORABLE = new Set([
-    "npc", "item", "ability", "obj", "combat", "unexpected", "narrative", "std", "skillchecks",
-    "sourceitem", "picture", "audio", "manifest",
-  ]);
-
-  // DOM class for each card type (from the card builders).
-  const CARD_CLASS = {
-    npc: "npc-card", item: "item-card", sourceitem: "item-card", ability: "ability-card", obj: "obj-card",
-    combat: "combat-card", unexpected: "unexpected-card", std: "std-card",
-    narrative: "narrative-card", skillchecks: "sc-card", picture: "picture-card", audio: "audio-card",
-    manifest: "manifest-card",
-  };
-  const CARD_DIV_SELECTOR = Object.values(CARD_CLASS).map((c) => ":scope > ." + c).join(",");
-  const CARD_DOM_SELECTOR = Object.values(CARD_CLASS).map((c) => "." + c).join(",");
-
   function editorOn() {
     return document.body.classList.contains("editor-on");
-  }
-
-  function anchorable(cards) {
-    return cards.filter((c) => ANCHORABLE.has(c.type));
-  }
-
-  // Docking rule lives once in the parser; this replays it over model cards (same
-  // shape the parser uses), so layout and anchoring can never silently drift.
-  function canDock(node, host) {
-    return RendScrollParser.canDock(node, host);
-  }
-
-  // Replay dockOrPlace over a row's cards (source order) -> { left:[], right:[] }
-  // in the same order the layout appended them to col-main / col-aside.
-  function routeRow(cards) {
-    const left = [];
-    const right = [];
-    let last = null; // { card, column }
-    for (const card of cards) {
-      let column;
-      if (card.stuck && canDock(card, last && last.card)) {
-        column = last.column; // docked into host's column
-      } else {
-        column = card.column;
-      }
-      (column === "right" ? right : left).push(card);
-      last = { card, column };
-    }
-    return { left, right };
-  }
-
-  // Group an event/section's anchorable cards by how many <hr>s precede them
-  // inside it. layout.js turns an <hr> into a gridFull that resets the current
-  // row / full-box, so each <hr> between cards starts a new layout unit.
-  function hrGroups(model, ev) {
-    const hrs = (model.hrLines || []).filter((h) => h > ev.start && h < ev.end);
-    const groups = new Map();
-    for (const card of anchorable(ev.cards)) {
-      let key = 0;
-      for (const h of hrs) if (h < card.start) key++;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(card);
-    }
-    return [...groups.keys()].sort((a, b) => a - b).map((k) => groups.get(k));
-  }
-
-  // Two-column event -> one routed row per <hr> group.
-  function eventRows(model, ev) {
-    return hrGroups(model, ev).map((cards) => {
-      const r = routeRow(cards);
-      r.ev = ev;
-      return r;
-    });
-  }
-
-  // Walk the grid's children in document order and collect the card-bearing
-  // units: two-column rows ([.col-main … .col-aside]) and full-width boxes
-  // (a .grid-full that holds cards — the body of an H1 section). A .grid-full
-  // that holds only a heading / <hr> is a divider and is skipped.
-  function gridUnits(grid) {
-    const units = [];
-    let row = null;
-    [...grid.children].forEach((el) => {
-      if (el.classList.contains("col-main")) {
-        row = { type: "row", main: el, aside: null };
-        units.push(row);
-      } else if (el.classList.contains("col-aside")) {
-        if (row) row.aside = el;
-      } else if (el.classList.contains("col-divider")) {
-        /* spacer */
-      } else if (el.classList.contains("grid-full")) {
-        row = null;
-        if (el.querySelector(CARD_DIV_SELECTOR.replace(/:scope > /g, ""))) {
-          units.push({ type: "full", full: el });
-        }
-      }
-    });
-    return units;
-  }
-
-  // Stamp + decorate the card <div>s of one column against an ordered card list.
-  // ctx = { eventRef } so insert targets in this column know their event.
-  function zipColumn(container, cards, handlers, ctx) {
-    if (!container) return;
-    container._editorDropTarget = {
-      afterCardId: cards.length ? cards[cards.length - 1].id : null,
-      column: container.dataset.col || null,
-      eventRef: ctx && ctx.eventRef,
-    };
-    const divs = [...container.querySelectorAll(CARD_DIV_SELECTOR)];
-    if (divs.length !== cards.length) {
-      console.warn(`[editor] card anchor mismatch in ${container.className || "container"}: dom=${divs.length} model=${cards.length}`);
-      if (!container._editorContextMenuBound) bindColumnContextMenu(container, cards, handlers, ctx);
-      container.appendChild(insertZone(container._editorDropTarget, handlers));
-      return;
-    }
-    cards.forEach((card, i) => {
-      const el = divs[i];
-      if (!el) return;
-      el.dataset.blockId = String(card.id);
-      decorateCard(el, card, handlers, {
-        column: container.dataset.col || null,
-        eventRef: ctx && ctx.eventRef,
-      });
-    });
-    bindColumnContextMenu(container, cards, handlers, ctx);
-    // An explicit insert zone at the end of the column.
-    container.appendChild(insertZone(container._editorDropTarget, handlers));
   }
 
   function insertTargetFromPoint(container, cards, y, ctx) {
@@ -270,13 +146,47 @@ const EditorAnchors = (() => {
     [...grid.querySelectorAll(".col-aside")].forEach((c) => (c.dataset.col = "right"));
   }
 
+  // Resolve one container's stamped card <div>s to their outline cards (DOM order),
+  // decorate them, and wire the container as a drop/insert target for dragDrop.js
+  // and the column context menu. A stamp that resolves to no outline card is a
+  // per-card failure (warned), not a whole-column one.
+  function wireContainer(container, eventRef, model, handlers) {
+    if (!container) return;
+    const column = container.dataset.col || null;
+    const found = [];
+    [...container.querySelectorAll(":scope > [data-src-start]")].forEach((el) => {
+      const hit = EditorOutline.findCardByStart(model, Number(el.dataset.srcStart));
+      if (!hit) {
+        console.warn("[editor] no outline card at source line " + el.dataset.srcStart);
+        return;
+      }
+      found.push({ el, card: hit.card, event: hit.event });
+    });
+    const ev = eventRef || (found.length ? found[0].event : null);
+    found.forEach(({ el, card }) => {
+      el.dataset.blockId = String(card.id);
+      decorateCard(el, card, handlers, { column, eventRef: ev });
+    });
+    const cards = found.map((f) => f.card);
+    container._editorDropTarget = {
+      afterCardId: cards.length ? cards[cards.length - 1].id : null,
+      column,
+      eventRef: ev,
+    };
+    bindColumnContextMenu(container, cards, handlers, { eventRef: ev });
+    // An explicit insert zone at the end of the column.
+    if (!container.querySelector(":scope > .editor-insert-zone")) {
+      container.appendChild(insertZone(container._editorDropTarget, handlers));
+    }
+  }
+
   function decorate(page, model, handlers) {
-    // Header band: single column, pure source order (layout puts everything there).
+    // Header band: single column (layout puts everything before the first H2 there).
     const headerEl = page.querySelector(".page-header");
     const headerEv = model.events.find((e) => e.kind === "header");
     if (headerEl && headerEv) {
       headerEl.dataset.col = "left";
-      zipColumn(headerEl, anchorable(headerEv.cards), handlers, { eventRef: headerEv });
+      wireContainer(headerEl, headerEv, model, handlers);
       const headerPlain = (model.plainBlocks || []).find((b) => b.kind === "header");
       decoratePlainBlock(headerEl, headerPlain, handlers);
     }
@@ -291,11 +201,34 @@ const EditorAnchors = (() => {
     tagColumns(grid);
     grid.querySelectorAll(":scope > .editor-chapter-zone").forEach((n) => n.remove());
 
+    // Walk the grid children in document order. A heading .grid-full (H1/H2)
+    // advances the "current event"; every card container after it — the row
+    // columns and the H1 section's full-width card box — is wired to that event.
     const sectionBlocks = (model.plainBlocks || []).filter((b) => b.kind === "section");
-    const sectionEls = [...grid.querySelectorAll(":scope > .grid-full")].filter((el) => {
-      const first = el.firstElementChild;
-      return first && /^(H1|H2)$/.test(first.tagName);
+    const sectionEls = [];
+    let currentEv = null;
+    [...grid.children].forEach((el) => {
+      const cl = el.classList;
+      if (cl.contains("grid-full")) {
+        const first = el.firstElementChild;
+        if (first && /^(H1|H2)$/.test(first.tagName)) {
+          const block = sectionBlocks[sectionEls.length];
+          sectionEls.push(el);
+          currentEv = block
+            ? model.events.find((e) => e.headingStart === block.headingLine) || null
+            : null;
+          return;
+        }
+        // Full-width content box: only card-bearing ones are drop/insert targets
+        // (a lone <hr> divider is not).
+        if (el.querySelector("[data-src-start]")) wireContainer(el, currentEv, model, handlers);
+        return;
+      }
+      if (cl.contains("col-main") || cl.contains("col-aside")) {
+        wireContainer(el, currentEv, model, handlers);
+      }
     });
+
     sectionBlocks.forEach((block, i) => {
       const el = sectionEls[i];
       decoratePlainBlock(el, block, handlers);
@@ -312,44 +245,9 @@ const EditorAnchors = (() => {
         grid.insertBefore(zone, nextSection);
       }
     });
-
-    const domUnits = gridUnits(grid);
-
-    // Model units in document order, matching the grid: an H2 event yields routed
-    // two-column rows; an H1 section yields single-column full-width boxes.
-    const modelUnits = [];
-    model.events
-      .filter((e) => e.kind === "event")
-      .forEach((ev) => {
-        if (ev.full) {
-          hrGroups(model, ev).forEach((cards) => modelUnits.push({ type: "full", cards, ev }));
-        } else {
-          eventRows(model, ev).forEach((r) => modelUnits.push({ type: "row", left: r.left, right: r.right, ev }));
-        }
-      });
-
-    const n = Math.min(domUnits.length, modelUnits.length);
-    for (let i = 0; i < n; i++) {
-      const du = domUnits[i];
-      const mu = modelUnits[i];
-      if (du.type !== mu.type) {
-        console.warn(`[editor] unit type mismatch at ${i}: dom=${du.type} model=${mu.type}`);
-        continue;
-      }
-      const ctx = { eventRef: mu.ev };
-      if (du.type === "row") {
-        zipColumn(du.main, mu.left, handlers, ctx);
-        zipColumn(du.aside, mu.right, handlers, ctx);
-      } else {
-        zipColumn(du.full, mu.cards, handlers, ctx);
-      }
-    }
-    if (domUnits.length !== modelUnits.length) {
-      console.warn(`[editor] unit count mismatch: dom=${domUnits.length} model=${modelUnits.length}`);
-    }
   }
 
-  return { decorate, _internals: { eventRows, routeRow, ANCHORABLE, CARD_CLASS } };
+  return { decorate };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = EditorAnchors;

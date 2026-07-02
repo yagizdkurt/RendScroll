@@ -134,7 +134,7 @@ function buildObjCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("obj", { build: buildObjCard });
+  RendScrollCards.register("obj", { build: buildObjCard, cssClass: "obj-card" });
 }
 
 if (typeof window !== "undefined") window.parseObjBody = parseObjBody;

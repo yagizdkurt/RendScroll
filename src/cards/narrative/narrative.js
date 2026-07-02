@@ -30,5 +30,5 @@ function buildNarrativeCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("narrative", { build: buildNarrativeCard });
+  RendScrollCards.register("narrative", { build: buildNarrativeCard, cssClass: "narrative-card" });
 }

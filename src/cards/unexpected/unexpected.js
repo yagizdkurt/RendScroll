@@ -48,5 +48,5 @@ function buildUnexpectedCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("unexpected", { build: buildUnexpectedCard });
+  RendScrollCards.register("unexpected", { build: buildUnexpectedCard, cssClass: "unexpected-card" });
 }

@@ -231,6 +231,18 @@ const EditorOutline = (() => {
     return (model.plainBlocks || []).find((b) => b.id === id) || null;
   }
 
+  // Find a card by its heading line index. The renderer stamps each card element
+  // with data-src-start (the parser AST's range.startLine, which equals the
+  // outline card's `start` by construction), so this is the join anchors.js uses
+  // to map a rendered card back to the model without replaying layout routing.
+  function findCardByStart(model, startLine) {
+    for (const ev of model.events) {
+      const c = ev.cards.find((x) => x.start === startLine);
+      if (c) return { event: ev, card: c };
+    }
+    return null;
+  }
+
   function cardHrGroup(model, ev, card) {
     const hrs = (model.hrLines || []).filter((h) => h > ev.start && h < ev.end);
     let key = 0;
@@ -464,6 +476,7 @@ const EditorOutline = (() => {
     replaceCard,
     deleteCard,
     findCard,
+    findCardByStart,
     findPlainBlock,
     cardSource,
     plainBlockSource,

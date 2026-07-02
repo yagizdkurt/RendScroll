@@ -259,7 +259,7 @@ function buildNpcCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("npc", { build: buildNpcCard });
+  RendScrollCards.register("npc", { build: buildNpcCard, cssClass: "npc-card" });
 }
 
 if (typeof window !== "undefined") window.parseNpcBody = parseNpcBody;

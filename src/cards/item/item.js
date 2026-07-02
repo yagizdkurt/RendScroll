@@ -331,6 +331,6 @@ if (typeof module !== "undefined" && module.exports) module.exports = { ItemData
    sourceitem (library base item) renders through the same builder. No normalizer:
    the builder reads directives/body from the parsed AST node (via ItemData.parse). */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("item", { build: buildItemCard });
-  RendScrollCards.register("sourceitem", { build: buildSourceItemCard });
+  RendScrollCards.register("item", { build: buildItemCard, cssClass: "item-card" });
+  RendScrollCards.register("sourceitem", { build: buildSourceItemCard, cssClass: "item-card" });
 }

@@ -51,5 +51,5 @@ function buildStdCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("std", { build: buildStdCard });
+  RendScrollCards.register("std", { build: buildStdCard, cssClass: "std-card" });
 }

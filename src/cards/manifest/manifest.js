@@ -137,5 +137,5 @@ if (typeof module !== "undefined" && module.exports) module.exports = { parseMan
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("manifest", { build: buildManifestCard });
+  RendScrollCards.register("manifest", { build: buildManifestCard, cssClass: "manifest-card" });
 }
