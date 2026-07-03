@@ -158,11 +158,14 @@ const RendererOptions = (() => {
   }
 
   // ---- Init / persistence ------------------------------------------------
-  async function fetchJSON(url) {
+  async function fetchJSON(url, opts) {
+    const optionalMissing = !!(opts && opts.optionalMissing);
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) {
-        warn("Could not load " + url + " (HTTP " + res.status + ").");
+        if (!(optionalMissing && res.status === 404)) {
+          warn("Could not load " + url + " (HTTP " + res.status + ").");
+        }
         return null;
       }
       return await res.json();
@@ -184,7 +187,7 @@ const RendererOptions = (() => {
     defaults = mergeState(schemaDefaults(), fileDefaults || {});
     // Prefer the gitignored current file; fall back to a localStorage mirror
     // (e.g. opened as file://), then to defaults.
-    const current = (await fetchJSON(CURRENT_URL)) || localFallback() || {};
+    const current = (await fetchJSON(CURRENT_URL, { optionalMissing: true })) || localFallback() || {};
     committed = mergeState(defaults, current);
     Object.assign(working, committed);
     apply(committed);
