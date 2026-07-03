@@ -23,6 +23,8 @@ const SceneGraphPanel = (() => {
   const ZOOM_MIN = 0.3;
   const ZOOM_MAX = 2.5;
   const WIDTH_KEY = "rendscroll-scenegraph-width";
+  const EDGE_LABEL_GLYPH_W = 12.8;
+  const EDGE_LABEL_BG_H = 36;
 
   const M = typeof SceneGraphModel !== "undefined" ? SceneGraphModel : null;
 
@@ -32,6 +34,7 @@ const SceneGraphPanel = (() => {
   let world = null;          // <g class="rsg-world"> carrying the pan/zoom transform
   let statusEl = null;
   let detailsEl = null;
+  let edgeMenu = null;
 
   let graph = null;          // manual graph (graph.json content), null until loaded
   let readOnly = false;      // future-version graph.json: display, never write
@@ -44,6 +47,7 @@ const SceneGraphPanel = (() => {
   let selected = null;       // {kind:"node", scene} | {kind:"edge", edge}
   let view = { tx: 20, ty: 20, k: 1 };
   let gesture = null;        // active pointer gesture (pan/node/port)
+  let pendingConnect = null; // {from, band} after Add transition until target click
 
   let dirty = false;
   let saveTimer = null;
@@ -284,6 +288,20 @@ const SceneGraphPanel = (() => {
     statusEl.textContent = bits.join(" · ");
   }
 
+  function closeEdgeMenu() {
+    if (!edgeMenu) return;
+    edgeMenu.remove();
+    edgeMenu = null;
+  }
+
+  function cancelPendingConnect() {
+    if (!pendingConnect) return;
+    if (pendingConnect.band && pendingConnect.band.parentNode) {
+      pendingConnect.band.remove();
+    }
+    pendingConnect = null;
+  }
+
   function truncateTitle(text, max) {
     return text.length > max ? text.slice(0, max - 1) + "…" : text;
   }
@@ -323,15 +341,15 @@ const SceneGraphPanel = (() => {
       if (edge.label) {
         const label = truncateTitle(edge.label, 32);
         const text = svgEl("text", {
-          x: geo.labelX, y: geo.labelY - 6, "class": "rsg-edge-label",
+          x: geo.labelX, y: geo.labelY - 10, "class": "rsg-edge-label",
           "text-anchor": "middle",
         });
         text.textContent = (edge.locked ? "⤳ " : "") + label;
         // Legibility backing sized from an estimated glyph width (measuring
         // needs layout, which jsdom lacks and a rebuild loop doesn't want).
-        const w = (label.length + (edge.locked ? 2 : 0)) * 6.4 + 10;
+        const w = (label.length + (edge.locked ? 2 : 0)) * EDGE_LABEL_GLYPH_W + 18;
         g.appendChild(svgEl("rect", {
-          x: geo.labelX - w / 2, y: geo.labelY - 20, width: w, height: 18,
+          x: geo.labelX - w / 2, y: geo.labelY - 34, width: w, height: EDGE_LABEL_BG_H,
           rx: 4, "class": "rsg-edge-label-bg",
         }));
         g.appendChild(text);
@@ -411,6 +429,133 @@ const SceneGraphPanel = (() => {
     }
   }
 
+  function edgeFromGroup(edgeG) {
+    if (!edgeG) return null;
+    const key = edgeG.getAttribute("data-edge");
+    const locked = edgeG.getAttribute("data-locked") === "1";
+    return displayEdges.find((d) => edgeIdentity(d) === key && !!d.locked === locked)
+      || displayEdges.find((d) => edgeIdentity(d) === key)
+      || null;
+  }
+
+  function openEdgeMenu(edge, clientX, clientY) {
+    closeEdgeMenu();
+    selected = { kind: "edge", edge };
+    renderDetails();
+    render();
+
+    edgeMenu = el("div", "rsg-edge-menu print-hide");
+    edgeMenu.addEventListener("click", (e) => e.stopPropagation());
+    const action = el("button", "rsg-edge-menu-btn",
+      edge.locked ? "delete card to delete transition" : "Delete transition");
+    action.type = "button";
+    if (edge.locked) {
+      action.disabled = true;
+    } else {
+      action.addEventListener("click", () => {
+        closeEdgeMenu();
+        deleteSelectedEdge();
+      });
+    }
+    edgeMenu.appendChild(action);
+    document.body.appendChild(edgeMenu);
+    positionMenu(edgeMenu, clientX, clientY);
+  }
+
+  function positionMenu(menu, clientX, clientY) {
+    const rect = menu.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - rect.width - 8, Math.max(8, clientX));
+    const y = Math.min(window.innerHeight - rect.height - 8, Math.max(8, clientY));
+    menu.style.left = x + "px";
+    menu.style.top = y + "px";
+  }
+
+  function edgeExists(from, to) {
+    return displayEdges.some((edge) => edge.from === from && edge.to === to);
+  }
+
+  function updatePendingConnect(clientX, clientY) {
+    if (!pendingConnect) return;
+    const from = nodeOf(pendingConnect.from);
+    if (!from) {
+      cancelPendingConnect();
+      return;
+    }
+    const p = toWorld(clientX, clientY);
+    const p1 = rectExitPoint(from, p.x, p.y);
+    pendingConnect.band.setAttribute("d", "M " + p1.x + " " + p1.y + " L " + p.x + " " + p.y);
+  }
+
+  function startNodeConnection(scene, clientX, clientY) {
+    if (readOnly) return;
+    closeEdgeMenu();
+    cancelPendingConnect();
+    selected = { kind: "node", scene };
+    renderDetails();
+    render();
+
+    const node = nodeOf(scene);
+    if (!node) return;
+    const band = svgEl("path", {
+      "class": "rsg-rubberband rsg-rubberband-pending",
+      fill: "none",
+      "marker-end": "url(#rsg-arrow)",
+    });
+    world.appendChild(band);
+    pendingConnect = { from: scene, band };
+
+    if (typeof clientX === "number" && typeof clientY === "number") updatePendingConnect(clientX, clientY);
+    else {
+      const p = { x: node.x + NODE_W + 80, y: node.y + NODE_H / 2 };
+      const p1 = rectExitPoint(node, p.x, p.y);
+      band.setAttribute("d", "M " + p1.x + " " + p1.y + " L " + p.x + " " + p.y);
+    }
+  }
+
+  function completePendingConnect(e) {
+    if (!pendingConnect) return false;
+    const targetG = nodeGroupFrom(e.target) || nodeGroupAtPoint(toWorld(e.clientX, e.clientY));
+    const to = targetG && targetG.getAttribute("data-scene");
+    const from = pendingConnect.from;
+
+    if (!to || to === from) {
+      setDetailsError("Click another scene to connect the transition.");
+      updatePendingConnect(e.clientX, e.clientY);
+      return true;
+    }
+    if (edgeExists(from, to)) {
+      setDetailsError("That transition already exists.");
+      updatePendingConnect(e.clientX, e.clientY);
+      return true;
+    }
+    if (M.addEdge(graph, from, to)) {
+      cancelPendingConnect();
+      markDirty();
+      render();
+      const fresh = displayEdges.find((edge) => !edge.locked && edge.from === from && edge.to === to);
+      if (fresh) selectEdge(fresh);
+    }
+    return true;
+  }
+
+  function openNodeMenu(scene, clientX, clientY) {
+    closeEdgeMenu();
+    cancelPendingConnect();
+    selected = { kind: "node", scene };
+    renderDetails();
+    render();
+
+    edgeMenu = el("div", "rsg-edge-menu rsg-node-menu print-hide");
+    edgeMenu.addEventListener("click", (e) => e.stopPropagation());
+    const action = el("button", "rsg-edge-menu-btn rsg-node-menu-add", "Add transition");
+    action.type = "button";
+    action.disabled = readOnly;
+    action.addEventListener("click", (e) => startNodeConnection(scene, e.clientX, e.clientY));
+    edgeMenu.appendChild(action);
+    document.body.appendChild(edgeMenu);
+    positionMenu(edgeMenu, clientX, clientY);
+  }
+
   let detailsError = "";
   function setDetailsError(msg) {
     detailsError = msg || "";
@@ -428,7 +573,7 @@ const SceneGraphPanel = (() => {
       lock.title = lockedEdgeMessage(edge);
       row.appendChild(lock);
     } else if (!readOnly) {
-      const del = el("button", "rsg-detail-delete", "✕");
+      const del = el("button", "rsg-detail-delete rsg-detail-delete-icon", "✕");
       del.type = "button";
       del.title = "Delete this link";
       del.addEventListener("click", () => {
@@ -495,7 +640,7 @@ const SceneGraphPanel = (() => {
     input.addEventListener("blur", applyLabel);
     labelWrap.appendChild(input);
     if (!readOnly) {
-      const del = el("button", "rsg-detail-delete", "Delete link");
+      const del = el("button", "rsg-detail-delete rsg-detail-delete-text", "Delete link");
       del.type = "button";
       del.addEventListener("click", deleteSelectedEdge);
       labelWrap.appendChild(del);
@@ -523,6 +668,11 @@ const SceneGraphPanel = (() => {
 
   function onPointerDown(e) {
     if (e.button !== 0) return;
+    closeEdgeMenu();
+    if (completePendingConnect(e)) {
+      e.preventDefault();
+      return;
+    }
     const port = e.target.getAttribute && e.target.getAttribute("data-port");
     const nodeG = nodeGroupFrom(e.target);
     const edgeG = edgeGroupFrom(e.target);
@@ -541,10 +691,7 @@ const SceneGraphPanel = (() => {
         offsetX: start.x - node.x, offsetY: start.y - node.y,
       };
     } else if (edgeG) {
-      const key = edgeG.getAttribute("data-edge");
-      const locked = edgeG.getAttribute("data-locked") === "1";
-      const edge = displayEdges.find((d) => edgeIdentity(d) === key && !!d.locked === locked)
-        || displayEdges.find((d) => edgeIdentity(d) === key);
+      const edge = edgeFromGroup(edgeG);
       if (edge) selectEdge(edge);
       gesture = null;
       return;
@@ -561,7 +708,29 @@ const SceneGraphPanel = (() => {
     e.preventDefault();
   }
 
+  function onContextMenu(e) {
+    const edgeG = edgeGroupFrom(e.target);
+    if (edgeG) {
+      const edge = edgeFromGroup(edgeG);
+      if (!edge) return;
+      e.preventDefault();
+      openEdgeMenu(edge, e.clientX, e.clientY);
+      return;
+    }
+    const nodeG = nodeGroupFrom(e.target);
+    if (nodeG) {
+      e.preventDefault();
+      openNodeMenu(nodeG.getAttribute("data-scene"), e.clientX, e.clientY);
+      return;
+    }
+    closeEdgeMenu();
+  }
+
   function onPointerMove(e) {
+    if (pendingConnect && !gesture) {
+      updatePendingConnect(e.clientX, e.clientY);
+      return;
+    }
     if (!gesture) return;
     if (gesture.type === "pan") {
       view.tx = gesture.startTx + (e.clientX - gesture.startClientX);
@@ -755,6 +924,7 @@ const SceneGraphPanel = (() => {
     svg.addEventListener("pointerdown", onPointerDown);
     svg.addEventListener("pointermove", onPointerMove);
     svg.addEventListener("pointerup", onPointerUp);
+    svg.addEventListener("contextmenu", onContextMenu);
     svg.addEventListener("dblclick", onDblClick);
     svg.addEventListener("wheel", onWheel, { passive: false });
 
@@ -768,13 +938,15 @@ const SceneGraphPanel = (() => {
       document.getElementById("sidebar");
     if (!host || document.getElementById("rs-scenegraph-toggle")) return;
 
-    const btn = el("button", "rsg-toggle-btn print-hide", "🗺");
+    const btn = el("button", "rsg-toggle-btn print-hide", "🗺 Map");
     btn.id = "rs-scenegraph-toggle";
     btn.type = "button";
     btn.setAttribute("aria-label", "Open the scene progression map");
     btn.title = "Scene progression map";
     btn.addEventListener("click", api.toggle);
-    host.appendChild(btn);
+    const exportControl = host.querySelector(".printer-export");
+    if (exportControl) host.insertBefore(btn, exportControl);
+    else host.appendChild(btn);
   }
 
   // --- lifecycle ---------------------------------------------------------------
@@ -801,6 +973,8 @@ const SceneGraphPanel = (() => {
     },
     close() {
       if (panel) panel.classList.remove("is-open");
+      closeEdgeMenu();
+      cancelPendingConnect();
       const t = document.getElementById("rs-scenegraph-toggle");
       if (t) t.classList.remove("is-active");
       flushSave();
@@ -829,6 +1003,7 @@ const SceneGraphPanel = (() => {
     derivedByScene = new Map();
     unresolvedRefs = [];
     selected = null;
+    cancelPendingConnect();
     setStatusNote("");
     const name = e.detail && e.detail.name;
     if (!name) {
@@ -845,7 +1020,9 @@ const SceneGraphPanel = (() => {
   document.addEventListener("keydown", (e) => {
     if (!isOpen()) return;
     if (e.key === "Escape") {
-      if (selected) clearSelection();
+      if (pendingConnect) cancelPendingConnect();
+      else if (edgeMenu) closeEdgeMenu();
+      else if (selected) clearSelection();
       else api.close();
       return;
     }
@@ -854,6 +1031,11 @@ const SceneGraphPanel = (() => {
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       deleteSelectedEdge();
     }
+  });
+  document.addEventListener("click", (e) => {
+    if (!edgeMenu) return;
+    if (e.target && edgeMenu.contains(e.target)) return;
+    closeEdgeMenu();
   });
 
   window.addEventListener("beforeunload", () => { flushSave(true); });

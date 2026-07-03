@@ -44,7 +44,7 @@ let serverGraph;   // what GET /__scene_graph returns
 
 before(async () => {
   const dom = new JSDOM(
-    '<!DOCTYPE html><body><header id="topbar"><div id="topbar-tools"></div></header></body>',
+    '<!DOCTYPE html><body><header id="topbar"><div id="topbar-tools"><div class="printer-export"></div></div></header></body>',
     { runScripts: "dangerously", url: "http://localhost/" });
   win = dom.window;
 
@@ -85,6 +85,7 @@ test("toggle button mounts into #topbar-tools", () => {
   const btn = win.document.getElementById("rs-scenegraph-toggle");
   assert.ok(btn, "expected the map toggle button");
   assert.strictEqual(btn.parentElement.id, "topbar-tools");
+  assert.strictEqual(btn.nextElementSibling.className, "printer-export");
 });
 
 test("open: renders one node per scene, current highlighted, derived edge locked", async () => {
@@ -107,6 +108,91 @@ test("open: renders one node per scene, current highlighted, derived edge locked
   await sleep(40);
   assert.ok(fetchLog.length >= 1, "sync should autosave the placed nodes");
   assert.strictEqual(fetchLog[fetchLog.length - 1].nodes.length, 3);
+});
+
+test("right-click on a transition-card edge shows disabled delete guidance", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const locked = panel.querySelector('.rsg-edge.is-locked[data-edge="scenes/1_intro.md|scenes/3_ambush.md"]');
+  assert.ok(locked, "expected a locked transition-card edge");
+
+  locked.dispatchEvent(new win.MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 120, clientY: 140,
+  }));
+
+  const btn = win.document.querySelector(".rsg-edge-menu-btn");
+  assert.ok(btn, "expected the edge context menu");
+  assert.strictEqual(btn.textContent, "delete card to delete transition");
+  assert.strictEqual(btn.disabled, true);
+});
+
+test("right-click on a manual edge can delete it", async () => {
+  await win.SceneGraphPanel.open();
+  const graph = win.SceneGraphPanel._graph();
+  const M = win.SceneGraphModel;
+  assert.ok(M.addEdge(graph, "scenes/2_baron.md", "scenes/3_ambush.md"));
+  assert.ok(M.setEdgeLabel(graph, "scenes/2_baron.md", "scenes/3_ambush.md", "if talks fail"));
+  win.document.dispatchEvent(new win.CustomEvent("scene:loaded", {
+    detail: { path: "campaigns/demo/scenes/2_baron.md", text: SCENE_TEXT["campaigns/demo/scenes/2_baron.md"] } }));
+  await sleep(20);
+
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const manual = panel.querySelector('.rsg-edge[data-edge="scenes/2_baron.md|scenes/3_ambush.md"]:not(.is-locked)');
+  assert.ok(manual, "expected the manual edge");
+  const before = fetchLog.length;
+
+  manual.dispatchEvent(new win.MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 150, clientY: 160,
+  }));
+  const btn = win.document.querySelector(".rsg-edge-menu-btn");
+  assert.ok(btn, "expected the edge context menu");
+  assert.strictEqual(btn.textContent, "Delete transition");
+  assert.strictEqual(btn.disabled, false);
+  btn.click();
+  await sleep(30);
+
+  assert.strictEqual(M.findEdge(win.SceneGraphPanel._graph(), "scenes/2_baron.md", "scenes/3_ambush.md"), null);
+  assert.strictEqual(win.document.querySelector(".rsg-edge-menu"), null);
+  assert.ok(fetchLog.length > before, "delete should autosave");
+  const saved = fetchLog[fetchLog.length - 1];
+  assert.strictEqual(saved.edges.some((e) => e.from === "scenes/2_baron.md" && e.to === "scenes/3_ambush.md"), false);
+});
+
+test("right-click on a scene node can add a manual transition", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const node = panel.querySelector('[data-scene="scenes/2_baron.md"]');
+  assert.ok(node, "expected the scene node");
+  const before = fetchLog.length;
+
+  node.dispatchEvent(new win.MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 180, clientY: 180,
+  }));
+
+  const add = win.document.querySelector(".rsg-node-menu-add");
+  assert.ok(add, "expected add transition menu action");
+  assert.strictEqual(add.textContent, "Add transition");
+  add.click();
+
+  assert.ok(panel.querySelector(".rsg-rubberband-pending"), "expected a pending arrow");
+  assert.strictEqual(win.document.querySelector(".rsg-edge-menu"), null);
+
+  const intro = panel.querySelector('[data-scene="scenes/1_intro.md"]');
+  assert.ok(intro, "expected target scene node");
+  panel.querySelector(".rsg-svg").dispatchEvent(new win.MouseEvent("pointermove", {
+    bubbles: true, clientX: 220, clientY: 200,
+  }));
+  intro.dispatchEvent(new win.MouseEvent("pointerdown", {
+    bubbles: true, button: 0, clientX: 220, clientY: 200,
+  }));
+  await sleep(30);
+
+  const edge = win.SceneGraphModel.findEdge(win.SceneGraphPanel._graph(), "scenes/2_baron.md", "scenes/1_intro.md");
+  assert.ok(edge, "expected the new manual transition");
+  assert.strictEqual(panel.querySelector(".rsg-rubberband-pending"), null);
+  assert.ok(fetchLog.length > before, "add transition should autosave");
+  const saved = fetchLog[fetchLog.length - 1];
+  assert.ok(saved.edges.some((e) => e.from === "scenes/2_baron.md" && e.to === "scenes/1_intro.md"));
 });
 
 test("manual edge add + label persists via debounced autosave", async () => {
