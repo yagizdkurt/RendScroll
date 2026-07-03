@@ -29,9 +29,9 @@ That's it — you're at the table.
 
 ---
 
-## 🆕 Whats new
+## 🆕 Whats new (1.3)
 
-- **Combat helper.** Give an encounter its enemies and a **Start Combat** button appears. Roll into **initiative and turn order**, then **track every enemy's HP** as the blades fall — No attack roller or bloated features.
+- Now you can select assets via file browser so that you dont write "RendScrol" instead of "RendScroll" and mess up images.
 
 ---
 
@@ -52,6 +52,8 @@ That's it — you're at the table.
 - **Libraries** Do not write your items or enemies again and again or copy paste them. With libraries you can write an enemy once and use it in every campaign whenever you like.
 
 - **Write, edit, print or export** Adjust a scene right in the page, then **export a clean PDF** to lay beside your dice or export as campaign zip so that others can play it too. It even exports items and enemiess fully automated!
+
+- **Combat helper.** Initiative and turn order helper is there so that you dont forget whos after who, also track every enemy's HP so that you dont need to do math in your papers.
 
 ---
 
