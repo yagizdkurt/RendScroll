@@ -102,10 +102,13 @@ test("collect resolves transitive refs + assets, flags missing", () => {
 
   const { files, assetCandidates, missingRefs } = collect(scenes, refLib);
 
-  // Scenes + every resolved library file (including the one Kate transitively pulls in).
+  // Scenes + every resolved library file (including the one Kate transitively
+  // pulls in) + the campaign's scene progression graph (appended even if the
+  // file doesn't exist yet — the server skips missing sources).
   assert.deepEqual(
     files.sort(),
     [
+      "campaigns/Legacy/graph.json",
       "campaigns/Legacy/scenes/1.md",
       "campaigns/Legacy/scenes/2.md",
       "enemies/Kate.md",
@@ -128,5 +131,6 @@ test("collect de-dupes references by normalized name", () => {
     { path: "campaigns/Legacy/scenes/1.md", text: "SourceItem: Kazma\n[item=kazma]\n[item=KAZMA]" },
   ];
   const { files } = collect(scenes, refLib);
-  assert.deepEqual(files.sort(), ["campaigns/Legacy/scenes/1.md", "items/Kazma.md"]);
+  assert.deepEqual(files.sort(),
+    ["campaigns/Legacy/graph.json", "campaigns/Legacy/scenes/1.md", "items/Kazma.md"]);
 });

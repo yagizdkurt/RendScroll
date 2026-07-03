@@ -644,6 +644,33 @@ const EditorSchemas = (() => {
     fClosed,
   ]);
 
+  // Live scene list for the Transition target dropdown. Exposed via a property
+  // getter on the field (form.js reads field.options when the form opens), so
+  // the choices always match the current campaign without rebuilding the schema.
+  function transitionSceneOptions() {
+    const entries = (typeof RendScrollApp !== "undefined" && RendScrollApp.campaignEntries)
+      ? RendScrollApp.campaignEntries() : [];
+    const opts = [{ value: "", label: "—" }];
+    entries.forEach((e) => {
+      const stem = String(e.file || "").replace(/\.md$/i, "");
+      if (!stem) return;
+      const label = (e.number != null ? e.number + " · " : "") + (e.label || stem);
+      opts.push({ value: stem, label });
+    });
+    return opts;
+  }
+
+  define("transition", "Transition", keywordHeading("Transition"), [
+    fTitle,
+    {
+      key: "scene", label: "Target scene", kind: "select", mdLabel: "Scene",
+      get options() { return transitionSceneOptions(); },
+    },
+    fColumn,
+    fBody("> when the DM should use this transition…"),
+    fClosed,
+  ]);
+
   define("skillchecks", "Skill Checks", {
     heading() { return "Skill Checks"; },
     parseHeading(content, values) { values.column = "left"; },
@@ -712,7 +739,7 @@ const EditorSchemas = (() => {
   ], { fromBody: manifestFromBody });
 
   // Order shown in the insert menu. (manifest is intentionally excluded — see above.)
-  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture", "audio"];
+  const ORDER = ["narrative", "npc", "skillchecks", "obj", "combat", "item", "ability", "unexpected", "std", "picture", "audio", "transition"];
 
   return {
     get(type) { return REGISTRY[type] || null; },

@@ -317,6 +317,49 @@ def campaign_scenes_root(base_dir, name):
     return os.path.join(campaign_dir_path(base_dir, name), SCENES_SUBDIR)
 
 
+def scene_graph_path(base_dir, name):
+    """Per-campaign scene progression graph (nodes/edges the map panel edits)."""
+    return os.path.join(campaign_dir_path(base_dir, name), "graph.json")
+
+
+def _scene_graph_ref_ok(value):
+    """Scene refs in graph.json are campaign-relative ('scenes/…'). The server
+    never opens them as paths, but reject traversal-shaped strings anyway so
+    the file stays clean."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    norm = value.replace("\\", "/")
+    return not norm.startswith("/") and ".." not in norm.split("/")
+
+
+def validate_scene_graph(data):
+    """Validate a graph.json payload (version 1). Returns an error string, or
+    None when the payload is acceptable to write."""
+    if not isinstance(data, dict):
+        return "expected a JSON object"
+    if data.get("version") != 1:
+        return "unsupported graph version"
+    nodes = data.get("nodes")
+    edges = data.get("edges")
+    if not isinstance(nodes, list) or not isinstance(edges, list):
+        return "nodes and edges must be lists"
+    for node in nodes:
+        if not isinstance(node, dict) or not _scene_graph_ref_ok(node.get("scene")):
+            return "malformed node entry"
+        if not isinstance(node.get("x"), (int, float)) or not isinstance(node.get("y"), (int, float)):
+            return "node position must be numeric"
+        if isinstance(node.get("x"), bool) or isinstance(node.get("y"), bool):
+            return "node position must be numeric"
+    for edge in edges:
+        if not isinstance(edge, dict):
+            return "malformed edge entry"
+        if not _scene_graph_ref_ok(edge.get("from")) or not _scene_graph_ref_ok(edge.get("to")):
+            return "malformed edge entry"
+        if "label" in edge and not isinstance(edge["label"], str):
+            return "edge label must be a string"
+    return None
+
+
 def active_campaign_root(base_dir):
     """Absolute scenes/ folder of the active campaign, or None when none is
     selected or its folder is missing."""
@@ -992,6 +1035,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._assets()
             return
 
+        if path == "/__scene_graph":
+            self._scene_graph()
+            return
+
         super().do_GET()
 
     def _query_param(self, key, default=None):
@@ -1068,6 +1115,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == "/__save_options":
             self._save_options()
+            return
+
+        if path == "/__save_scene_graph":
+            self._save_scene_graph()
             return
 
         if path == "/__pick_asset":
@@ -1579,6 +1630,64 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         print(paint(f"Saved: {OPTIONS_CURRENT_FILE}", GREEN), flush=True)
+        self._send_json(200, {"ok": True})
+
+    def _scene_graph(self):
+        # GET /__scene_graph — the active campaign's progression graph. Like
+        # /__save_options, the target is a fixed file (campaigns/<active>/
+        # graph.json): no client-supplied path, no traversal surface. A missing
+        # file is the normal "no map yet" case; an unreadable one degrades to
+        # the empty default with a warning (the client surfaces it and only
+        # overwrites after the user's next deliberate edit).
+        if not ACTIVE_CAMPAIGN:
+            self._send_json(400, {"ok": False, "error": "no active campaign"})
+            return
+
+        empty = {"version": 1, "nodes": [], "edges": []}
+        target = scene_graph_path(os.getcwd(), ACTIVE_CAMPAIGN)
+        if not os.path.isfile(target):
+            self._send_json(200, {"ok": True, "graph": empty})
+            return
+        try:
+            with open(target, "r", encoding="utf-8") as fh:
+                graph = json.load(fh)
+        except (OSError, ValueError):
+            self._send_json(200, {"ok": True, "graph": empty,
+                                  "warning": "graph.json was unreadable"})
+            return
+        self._send_json(200, {"ok": True, "graph": graph})
+
+    def _save_scene_graph(self):
+        # POST /__save_scene_graph — body is the whole graph object. Writes are
+        # confined to the active campaign's fixed graph.json (the .md-only
+        # _resolve_writable guard is deliberately not involved).
+        if not ACTIVE_CAMPAIGN:
+            self._send_json(400, {"ok": False, "error": "no active campaign"})
+            return
+
+        try:
+            data = self._read_json_body()
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        error = validate_scene_graph(data)
+        if error:
+            self._send_json(400, {"ok": False, "error": error})
+            return
+
+        if not os.path.isdir(campaign_dir_path(os.getcwd(), ACTIVE_CAMPAIGN)):
+            self._send_json(404, {"ok": False, "error": "campaign folder not found"})
+            return
+
+        target = scene_graph_path(os.getcwd(), ACTIVE_CAMPAIGN)
+        try:
+            atomic_write_json(target, data)
+        except OSError as exc:
+            self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        print(paint(f"Saved: campaigns/{ACTIVE_CAMPAIGN}/graph.json", GREEN), flush=True)
         self._send_json(200, {"ok": True})
 
     def _export_source(self, rel):

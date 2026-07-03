@@ -50,6 +50,7 @@ const SCRIPTS = [
   "src/cards/manifest/manifest.js",
   "src/cards/picture/picture.js",
   "src/cards/audio/audio.js",
+  "src/cards/transition/transition.js",
   "src/cards/shared/cardCollapse.js",
 ];
 
@@ -269,6 +270,40 @@ test("audio: player, caption, Side", () => {
   assert.ok(card.classList.contains("card-right"), "Side: R should add .card-right");
   assert.ok(card.querySelector("audio"), "expected an <audio> element");
   assert.ok(card.querySelector(".audio-caption"), "expected a caption");
+});
+
+test("transition: title, description, enabled Continue button resolving the scene", () => {
+  // The builder resolves Scene: against RendScrollApp.campaignEntries at render
+  // time; stub the accessor the way app.js exposes it.
+  win.RendScrollApp = {
+    campaignEntries: () => [
+      { file: "3_ambush.md", path: "campaigns/demo/scenes/3_ambush.md", number: 3, label: "The Ambush" },
+    ],
+    guardedLoad: () => true,
+  };
+  const card = win.__T.renderCard(
+    "transition",
+    "### Transition: Take the Pass\nScene: 3_ambush\n> Use when they travel at night.\n"
+  );
+  delete win.RendScrollApp;
+  assert.ok(card.classList.contains("transition-card"), "expected .transition-card");
+  assert.match(card.querySelector(".transition-title").textContent, /Take the Pass/);
+  assert.match(card.querySelector(".transition-desc").textContent, /travel at night/);
+  const btn = card.querySelector(".transition-go");
+  assert.ok(btn, "expected the Continue button");
+  assert.strictEqual(btn.disabled, false, "button enabled when the scene resolves");
+  assert.match(btn.textContent, /The Ambush/);
+  assert.ok(!card.querySelector(".transition-warning"), "no warning when resolved");
+});
+
+test("transition: unknown scene disables the button and shows a warning", () => {
+  const card = win.__T.renderCard(
+    "transition",
+    "### Transition: Dead End\nScene: 99_missing\n"
+  );
+  const btn = card.querySelector(".transition-go");
+  assert.strictEqual(btn.disabled, true, "button disabled on a broken ref");
+  assert.match(card.querySelector(".transition-warning").textContent, /99_missing/);
 });
 
 test("std: title + portrait + body", () => {

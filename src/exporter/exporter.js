@@ -76,8 +76,18 @@ const CampaignExporter = (() => {
   // -> { files: [paths], assetCandidates: [paths], missingRefs: [{type,name}] }
   function collect(scenes, refLib) {
     const result = Assets.collectPackageReferences(scenes, refLib);
+    const files = result.files.slice();
+    // The scene progression map (campaigns/<Name>/graph.json) travels with the
+    // package. Appended unconditionally: the server skips missing sources, and
+    // export_dest_subpath places it at the exported campaign root.
+    const scenePrefix = scenes.length
+      ? String(scenes[0].path).replace(/\\/g, "/").split("/scenes/")[0]
+      : "";
+    if (scenePrefix && scenePrefix !== String(scenes[0].path).replace(/\\/g, "/")) {
+      files.push(scenePrefix + "/graph.json");
+    }
     return {
-      files: result.files,
+      files,
       assetCandidates: result.assetCandidates,
       missingRefs: result.missingRefs,
     };

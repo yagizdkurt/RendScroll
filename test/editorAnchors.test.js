@@ -48,6 +48,7 @@ const SCRIPTS = [
   "src/cards/manifest/manifest.js",
   "src/cards/picture/picture.js",
   "src/cards/audio/audio.js",
+  "src/cards/transition/transition.js",
 ];
 
 let cards;

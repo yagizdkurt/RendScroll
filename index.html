@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="src/editor/editor.css">
 <link rel="stylesheet" href="src/printer/printer.css">
 <link rel="stylesheet" href="src/debug/debugPanel.css">
+<link rel="stylesheet" href="src/sceneGraph/sceneGraph.css">
 <link rel="stylesheet" href="src/campaign/campaignManager.css">
 </head>
 <body>
@@ -83,6 +84,7 @@
   <script src="src/cards/manifest/manifest.js"></script>
   <script src="src/cards/picture/picture.js"></script>
   <script src="src/cards/audio/audio.js"></script>
+  <script src="src/cards/transition/transition.js"></script>
   <script src="src/cards/shared/cardCollapse.js"></script>
   <script src="src/cards/shared/layout.js"></script>
   <!-- Multi-campaign manager: lists/creates/switches/imports/exports campaigns and
@@ -126,5 +128,10 @@
   <!-- Debug panel (dev-only; read-only parser diagnostics, excluded from print) -->
   <script src="src/debug/diagnostics.js"></script>
   <script src="src/debug/debugPanel.js"></script>
+  <!-- Scene progression map: right-side dock showing scene->scene flow (manual
+       edges in campaigns/<Name>/graph.json + locked edges derived from Transition
+       cards). Pure model first, panel second — order is load-bearing. -->
+  <script src="src/sceneGraph/graphModel.js"></script>
+  <script src="src/sceneGraph/sceneGraph.js"></script>
 </body>
 </html>

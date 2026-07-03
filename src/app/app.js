@@ -345,6 +345,7 @@ async function activateCampaign(name) {
 
   if (!name) {
     showStartScreen();
+    document.dispatchEvent(new CustomEvent("campaign:activated", { detail: { name: null } }));
     return;
   }
 
@@ -357,6 +358,9 @@ async function activateCampaign(name) {
   }
   campaignEntries = entries;
   mountCampaignEntries(entries);
+  // The scene-graph panel (and any future subsystem) refreshes per-campaign
+  // state on this; fired after entries exist so listeners see the new list.
+  document.dispatchEvent(new CustomEvent("campaign:activated", { detail: { name } }));
 
   if (entries.length) {
     load(entries[0].path);

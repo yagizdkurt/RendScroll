@@ -1,0 +1,67 @@
+/* ---------- Transition Cards ---------- */
+/* A scene-flow signpost: name, "when to use" description, and the Continue
+   button the DM presses during play to jump to the target scene. */
+.page .transition-card{
+  margin:.6rem 0 .9rem;
+  padding:.5rem .7rem .6rem;
+  background:rgba(232,226,200,.45);
+  border:1px solid var(--gold-deep);
+  border-left:6px solid var(--maroon);
+  border-radius:4px;
+  box-shadow:inset 0 0 14px rgba(120,90,40,.10);
+}
+.page .transition-card > :last-child{margin-bottom:0;}
+
+.page .transition-title{
+  display:flex;
+  align-items:center;
+  gap:.45rem;
+  font-family:'Alegreya Sans SC',sans-serif;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--maroon);
+  font-size:.95rem;
+  font-weight:700;
+}
+.page .transition-glyph{
+  flex:0 0 auto;
+  font-size:1.1rem;
+  line-height:1;
+}
+
+.page .transition-desc{
+  margin-top:.35rem;
+  font-size:.95em;
+}
+.page .transition-desc > :first-child{margin-top:0;}
+.page .transition-desc > :last-child{margin-bottom:0;}
+
+.page .transition-footer{
+  margin-top:.5rem;
+}
+
+.page .transition-go{
+  font-family:'Alegreya Sans SC',sans-serif;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  font-weight:700;
+  font-size:.9rem;
+  color:#f3ead2;
+  background:var(--maroon);
+  border:1px solid var(--gold-deep);
+  border-radius:4px;
+  padding:.3rem .8rem;
+  cursor:pointer;
+}
+.page .transition-go:hover:not(:disabled){filter:brightness(1.15);}
+.page .transition-go:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+.page .transition-warning{
+  margin-top:.35rem;
+  color:var(--maroon);
+  font-style:italic;
+  font-size:.88em;
+}

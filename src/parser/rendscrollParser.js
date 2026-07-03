@@ -101,6 +101,7 @@ const RendScrollParser = (() => {
     { type: "std",         levels: [3], headingRe: /^std\s*:/i,              fallback: "STD" },
     { type: "picture",     levels: [3], headingRe: /^\s*picture\s*:/i,       fallback: "Picture" },
     { type: "audio",       levels: [3], headingRe: /^\s*audio\s*:/i,         fallback: "Audio" },
+    { type: "transition",  levels: [3], headingRe: /^\s*transition\s*:/i,    fallback: "Transition" },
     { type: "npc",         levels: [3], includes: "npc", strip: /^\s*npc\s*:\s*/i, fallback: "NPC" },
     { type: "echo",        levels: [3], headingRe: /^\s*echo\b/i, title: (c) => c },
   ];
