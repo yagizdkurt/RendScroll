@@ -15,6 +15,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
 const EditorSchemas = require("../src/editor/cardSchemas.js");
+const CombatEnemyModel = require("../src/cards/combat/enemyModel.js");
 
 function roundTrip(type, values) {
   const schema = EditorSchemas.get(type);
@@ -98,6 +99,101 @@ test("manifest is editable/serializable but absent from the insert menu", () => 
 
 test("manifest exports a pure parseManifestBody for reuse", () => {
   assert.equal(typeof require("../src/cards/manifest/manifest.js").parseManifestBody, "function");
+});
+
+/* The rebased field-table types (npc/obj/combat/std) now parse through the SAME
+   AST node the reader renders from (firstCardNode + fillUniversalFromNode +
+   mapFieldTable), so their editor fields must survive a serialize -> parse
+   round-trip too — the parity §1.6 asks for. */
+
+test("npc fields round-trip through the rebased AST field-table", () => {
+  const checks = EditorSchemas.parseChecks("- Investigation:\n> 12: A hidden ledger.");
+  const values = {
+    title: "Mara",
+    personality: ["Guarded", "Loyal"],
+    race: "Human", age: "40", occupation: "Envoy", alignment: "Neutral",
+    hp: "22", ac: "13",
+    image: "mara.png", bg: "hall.png",
+    column: "right", textSize: "14",
+    body: [
+      { kind: "text", text: "> Greetings, traveler." },
+      { kind: "text", text: "The Ledger:" },
+      { kind: "checksBlock", label: "Checks", checks },
+    ],
+    closed: true,
+  };
+  const { back } = roundTrip("npc", values);
+  assert.deepEqual(back.personality, ["Guarded", "Loyal"]);
+  assert.equal(back.race, "Human");
+  assert.equal(back.hp, "22");
+  assert.equal(back.image, "mara.png");     // universal, from the node
+  assert.equal(back.bg, "hall.png");        // universal, from the node
+  assert.equal(back.column, "right");       // "Side: R" -> node.column
+  assert.equal(back.textSize, "14");
+  assert.equal(back.closed, true);
+  // Body keeps the dialogue-topic prose and the Checks block, in source order.
+  assert.equal(back.body.length, 2);
+  assert.equal(back.body[0].kind, "text");
+  assert.match(back.body[0].text, /Greetings/);
+  assert.match(back.body[0].text, /The Ledger:/);
+  assert.equal(back.body[1].kind, "checksBlock");
+  assert.equal(back.body[1].checks[0].skill, "Investigation");
+});
+
+test("obj body round-trips prose + Checks + Loot through the AST field-table", () => {
+  const checks = EditorSchemas.parseChecks("- Perception:\n> 10: A faint draft.");
+  const values = {
+    title: "Altar", image: "", bg: "shrine.png", column: "left", textSize: "",
+    body: [
+      { kind: "text", text: "> An old stone altar." },
+      { kind: "checksBlock", label: "Checks", checks },
+      { kind: "text", text: "Loot:\n- 20 gold" },
+    ],
+    closed: false,
+  };
+  const { back } = roundTrip("obj", values);
+  assert.equal(back.bg, "shrine.png");
+  assert.equal(back.body.length, 3);
+  assert.equal(back.body[0].kind, "text");
+  assert.match(back.body[0].text, /old stone altar/);
+  assert.equal(back.body[1].kind, "checksBlock");
+  assert.equal(back.body[1].checks[0].skill, "Perception");
+  assert.equal(back.body[2].kind, "text");
+  assert.match(back.body[2].text, /Loot:/);
+  assert.match(back.body[2].text, /20 gold/);
+});
+
+test("combat body + enemies both round-trip; Side honored", () => {
+  const enemies = CombatEnemyModel.parseEnemyBlock(["- Goblin | AC 15 | HP 7 | Init +2"]);
+  const values = {
+    title: "Ambush", image: "", column: "right", textSize: "",
+    body: [{ kind: "text", text: "> Bandits leap out!" }],
+    enemies,
+    closed: false,
+  };
+  const { back } = roundTrip("combat", values);
+  assert.equal(back.column, "right");
+  assert.equal(back.body.length, 1);
+  assert.match(back.body[0].text, /Bandits leap out/);
+  assert.equal(back.enemies.length, 1);
+  assert.equal(back.enemies[0].name, "Goblin");
+  assert.equal(back.enemies[0].ac, "15");
+  assert.equal(back.enemies[0].hp, "7");
+});
+
+test("std title + body + universals round-trip via the AST node", () => {
+  const values = {
+    title: "Arrival", image: "gate.png", column: "right", textSize: "16",
+    body: "> The gates open.\nDust settles on the road.", closed: true,
+  };
+  const { back } = roundTrip("std", values);
+  assert.equal(back.title, "Arrival");
+  assert.equal(back.image, "gate.png");
+  assert.equal(back.column, "right");
+  assert.equal(back.textSize, "16");
+  assert.equal(back.closed, true);
+  assert.match(back.body, /gates open/);
+  assert.match(back.body, /Dust settles/);
 });
 
 test("every field-bearing type exports a pure parse<Type>Body for reuse", () => {

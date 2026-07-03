@@ -72,10 +72,15 @@ const EditorSchemas = (() => {
   const serializeOutcome = RSP.serializeOutcome;
   const parseChecks = RSP.parseChecks;
   const serializeChecks = RSP.serializeChecks;
-  const parseLinesWithChecks = RSP.parseLinesWithChecks;
   const serializeLinesWithChecks = RSP.serializeLinesWithChecks;
 
   // --- generic serialize ---------------------------------------------------
+
+  // Field keys the parser resolves into universal directives/flags (Side is the
+  // `column` field, emitted separately as "Side:"). serialize() emits these before
+  // the body and mapFieldTable/mapMetaToScalars read them off the node instead of
+  // the body — one source of truth for what "universal" means.
+  const DIRECTIVE_KEYS = new Set(["image", "bg", "textSize", "closed", "stuck", "size", "file"]);
 
   function serialize(schema, values) {
     const eol = "\n"; // outline.frameBlock re-maps to the file's EOL
@@ -83,7 +88,14 @@ const EditorSchemas = (() => {
     // Column: left is the default and writes nothing; right emits one "Side: R".
     const hasColumn = schema.fields.some((f) => f.key === "column");
     if (hasColumn && values.column === "right") out += "Side: R" + eol;
-    for (const f of schema.fields) {
+    // Emit universal directive/flag fields (Image/BG/Text Size/Closed/Combine/…)
+    // before the content fields: a "Closed: T" placed AFTER a trailing "Checks:"
+    // block is swallowed by the parser's check capture (it stops only at a boundary,
+    // not a directive line), so a card would silently lose its directive on reload.
+    // Stable sort keeps each group's original schema order.
+    const ordered = schema.fields.slice().sort((a, b) =>
+      (DIRECTIVE_KEYS.has(a.key) ? 0 : 1) - (DIRECTIVE_KEYS.has(b.key) ? 0 : 1));
+    for (const f of ordered) {
       // title/column/keyword are encoded in the heading / Side line above, never
       // as plain body lines.
       if (f.key === "title" || f.key === "column" || f.key === "keyword") continue;
@@ -194,22 +206,163 @@ const EditorSchemas = (() => {
     return leftover;
   }
 
-  // A schema that declares `fromBody` parses through the AST node + the shared
-  // per-type render parser (parse<Type>Body) instead of the generic field-table
-  // walk below — the same code the reader uses, so the two can never drift.
-  function parseViaNode(schema, blockText) {
-    const rawLines = blockText.split(/\r?\n/);
-    const values = initValues(schema);
-    schema.parseHeading(headingContentOf(rawLines), values);
-    const node = firstCardNode(blockText);
-    if (node) {
-      fillUniversalFromNode(schema, node, values);
-      schema.fromBody(node, values, {
-        render: RENDER,
-        mapMeta: (rows) => mapMetaToScalars(schema, rows, values),
+  // Universal directives/flags come off the AST node via fillUniversalFromNode, so
+  // the field-table mapper below never re-scans them (mirrors mapMetaToScalars
+  // skipping image/textSize). `column` is the Side line; the rest are DIRECTIVE_KEYS.
+  const UNIVERSAL_KEYS = new Set(["column", ...DIRECTIVE_KEYS]);
+
+  function trimBlankEdges(lines) {
+    const out = lines.slice();
+    while (out.length && out[0].trim() === "") out.shift();
+    while (out.length && out[out.length - 1].trim() === "") out.pop();
+    return out;
+  }
+
+  // The declarative field-table interpreter (the inverse of serialize()), reading
+  // the parsed AST NODE — the same source the reader consumes — instead of
+  // re-splitting the raw block. Universals are already filled from the node; here
+  // we peel the type-specific labelled scalars/lists/enemies out of the body's text
+  // runs and route whatever is left, interleaved with the parser's canonical
+  // Checks: groups (from cardOrderedBody), to the single catch-all field. Because
+  // directives are absent from node.body, the label table can no longer misfire on
+  // a directive line, and there is no bespoke Side:/truthiness re-parse.
+  function mapFieldTable(schema, node, values) {
+    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks", "narrativeText"]);
+    const labeled = schema.fields.filter(
+      (f) => f.mdLabel && !catchAllKinds.has(f.kind) && !UNIVERSAL_KEYS.has(f.key));
+    const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
+    // A label-less enemies field (SourceEnemy file): the bullet block sits directly
+    // under the heading, matched by shape, not by a preceding label.
+    const bareEnemies = schema.fields.find((f) => f.kind === "enemies" && !f.mdLabel);
+
+    // Leftover content as ordered segments mirroring cardOrderedBody:
+    //   { kind: "text", lines }            unmatched body lines (merged when adjacent)
+    //   { kind: "checks", label, checks }  a parsed check group in source position
+    const segments = [];
+    const pushTextLine = (line) => {
+      const last = segments[segments.length - 1];
+      if (last && last.kind === "text") last.lines.push(line);
+      else segments.push({ kind: "text", lines: [line] });
+    };
+
+    RENDER.cardOrderedBody(node).forEach((seg) => {
+      if (seg.kind === "checks") { segments.push(seg); return; }
+      const body = seg.lines;
+      for (let i = 0; i < body.length; i++) {
+        const line = body[i];
+        const t = line.trim();
+        let matched = false;
+
+        for (const f of labeled) {
+          const labs = fieldLabels(f).map((label) => lower(label));
+          const m = lower(t).match(/^([^:]+):\s*(.*)$/);
+          if (!m || !labs.includes(m[1].trim())) continue;
+
+          if (f.kind === "text" || f.kind === "select" || f.kind === "itemType" || f.kind === "damage") {
+            // recover original-case value from the raw line
+            const rv = t.match(/^[^:]+:\s*(.*)$/);
+            values[f.key] = rv ? rv[1].trim() : "";
+            matched = true;
+          } else if (f.kind === "flag") {
+            const rv = t.match(/^[^:]+:\s*(.*)$/);
+            values[f.key] = !!(rv && TRUTHY.test(rv[1].trim()));
+            matched = true;
+          } else if (f.kind === "list") {
+            // consume following "- " bullets (tolerating one blank line between).
+            const items = [];
+            let j = i + 1;
+            while (j < body.length) {
+              const bt = body[j].trim();
+              if (bt === "") { j++; continue; }
+              const bm = bt.match(/^[-*]\s+(.*)$/);
+              if (!bm) break;
+              items.push(bm[1].trim());
+              j++;
+            }
+            values[f.key] = items;
+            i = j - 1;
+            matched = true;
+          } else if (f.kind === "enemies") {
+            // consume following bullet lines (top-level enemies + indented
+            // abilities), tolerating one blank line between rows.
+            const block = [];
+            let j = i + 1;
+            while (j < body.length) {
+              const bl = body[j];
+              if (bl.trim() === "") { j++; continue; }
+              if (!/^\s*[-*]\s+/.test(bl)) break;
+              block.push(bl);
+              j++;
+            }
+            values[f.key] = CEM.parseEnemyBlock(block);
+            i = j - 1;
+            matched = true;
+          }
+          break;
+        }
+
+        // Bare enemies block (no preceding label): consume the contiguous bullets.
+        if (!matched && bareEnemies && /^[-*]\s+/.test(t)) {
+          const block = [];
+          let j = i;
+          while (j < body.length) {
+            const bl = body[j];
+            if (bl.trim() === "") { j++; continue; }
+            if (!/^\s*[-*]\s+/.test(bl)) break;
+            block.push(bl);
+            j++;
+          }
+          values[bareEnemies.key] = CEM.parseEnemyBlock(block);
+          i = j - 1;
+          matched = true;
+        }
+
+        if (!matched) pushTextLine(line);
+      }
+    });
+
+    if (linesField) fillCatchAll(linesField, segments, values);
+  }
+
+  // Route the leftover ordered segments to the schema's single catch-all field.
+  //   linesWithChecks: preserve the parser's Checks: groups in place, mapped to the
+  //     form value shape ([{kind:"text",text}|{kind:"checksBlock",label,checks}]) —
+  //     no text->reparse round-trip, so the reader's canonical checkGroups become
+  //     the editor value directly.
+  //   checks: collect every parsed check group (the Skill Checks card).
+  //   lines / narrativeText: join the text runs; check groups are dropped, matching
+  //     the reader (std/unexpected render only body text, never checks). A stray
+  //     "Checks:" block therefore round-trips out of these types' bodies — but it
+  //     was already invisible to the reader, so this aligns the two rather than
+  //     losing anything the reader showed.
+  function fillCatchAll(field, segments, values) {
+    if (field.kind === "linesWithChecks") {
+      const out = [];
+      segments.forEach((seg) => {
+        if (seg.kind === "checks") {
+          out.push({ kind: "checksBlock", label: seg.label || "Checks", checks: seg.checks });
+        } else {
+          const text = trimBlankEdges(seg.lines).join("\n");
+          if (text) out.push({ kind: "text", text });
+        }
       });
+      values[field.key] = out;
+      return;
     }
-    return values;
+    if (field.kind === "checks") {
+      const all = [];
+      segments.forEach((seg) => { if (seg.kind === "checks") all.push(...seg.checks); });
+      values[field.key] = all;
+      return;
+    }
+    const textLines = [];
+    segments.forEach((seg) => { if (seg.kind === "text") textLines.push(...seg.lines); });
+    const text = trimBlankEdges(textLines).join("\n");
+    if (field.kind === "narrativeText") {
+      values[field.key] = unquoteNarrativeText(stripTextLabel(text, field.mdLabel));
+    } else {
+      values[field.key] = text;
+    }
   }
 
   // Item / SourceItem: canonical ItemData.parse (via parseItemBody). Meta rows fold
@@ -245,129 +398,29 @@ const EditorSchemas = (() => {
     values.rewards = (m.rewards || []).slice();
   }
 
-  // --- generic parse (markdown block -> values) ----------------------------
+  // --- parse (markdown block -> values) ------------------------------------
 
+  // One spine for every card type: parse the block to its AST node, take the title
+  // from the heading and the universals off the node, then dispatch field mapping
+  // to either the shared per-type render parser (schema.fromBody — item/ability/
+  // manifest) or the declarative field-table interpreter (mapFieldTable — everyone
+  // else). Both read the SAME node the reader renders from, so editor/reader can't
+  // drift.
   function parse(schema, blockText) {
-    if (typeof schema.fromBody === "function") return parseViaNode(schema, blockText);
     const rawLines = blockText.split(/\r?\n/);
-    // drop a trailing empty element from a final newline
-    if (rawLines.length && rawLines[rawLines.length - 1] === "") rawLines.pop();
-
-    const values = {};
-    schema.fields.forEach((f) => {
-      if (f.kind === "list") values[f.key] = [];
-      else if (f.kind === "enemies") values[f.key] = [];
-      else if (f.kind === "checks" || f.kind === "linesWithChecks") values[f.key] = [];
-      else if (f.kind === "flag") values[f.key] = false;
-      else values[f.key] = "";
-    });
-
-    // Heading line -> title (+ column prefix, + dynamic keyword).
-    const headIdx = rawLines.findIndex((l) => /^###\s+/.test(l));
-    const headContent = headIdx >= 0 ? rawLines[headIdx].replace(/^###\s+/, "") : "";
-    schema.parseHeading(headContent, values);
-
-    const body = rawLines.slice(headIdx + 1);
-
-    // Build label lookups.
-    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks", "narrativeText"]);
-    const labeled = schema.fields.filter((f) => f.mdLabel && !catchAllKinds.has(f.kind));
-    const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
-    // A label-less enemies field (SourceEnemy file): the bullet block sits directly
-    // under the heading, so it's matched by shape, not by a preceding label.
-    const bareEnemies = schema.fields.find((f) => f.kind === "enemies" && !f.mdLabel);
-    const hasColumn = schema.fields.some((f) => f.key === "column");
-    const bodyOut = [];
-
-    for (let i = 0; i < body.length; i++) {
-      const line = body[i];
-      const t = line.trim();
-      let matched = false;
-
-      // "Side: R"/"Side: L" sets the column and is consumed (never reaches Body).
-      if (hasColumn) {
-        const sm = t.match(/^side\s*:\s*(.+)$/i);
-        if (sm) { values.column = /^r/i.test(sm[1].trim()) ? "right" : "left"; continue; }
+    const values = initValues(schema);
+    schema.parseHeading(headingContentOf(rawLines), values);
+    const node = firstCardNode(blockText);
+    if (node) {
+      fillUniversalFromNode(schema, node, values);
+      if (typeof schema.fromBody === "function") {
+        schema.fromBody(node, values, {
+          render: RENDER,
+          mapMeta: (rows) => mapMetaToScalars(schema, rows, values),
+        });
+      } else {
+        mapFieldTable(schema, node, values);
       }
-
-      for (const f of labeled) {
-        const labs = fieldLabels(f).map((label) => lower(label));
-        const m = lower(t).match(/^([^:]+):\s*(.*)$/);
-        if (!m || !labs.includes(m[1].trim())) continue;
-
-        if (f.kind === "text" || f.kind === "select" || f.kind === "itemType" || f.kind === "damage") {
-          // recover original-case value from the raw line
-          const rv = t.match(/^[^:]+:\s*(.*)$/);
-          values[f.key] = rv ? rv[1].trim() : "";
-          matched = true;
-        } else if (f.kind === "flag") {
-          const rv = t.match(/^[^:]+:\s*(.*)$/);
-          values[f.key] = !!(rv && TRUTHY.test(rv[1].trim()));
-          matched = true;
-        } else if (f.kind === "list") {
-          // consume following "- " bullets (tolerating one blank line between).
-          const items = [];
-          let j = i + 1;
-          while (j < body.length) {
-            const bt = body[j].trim();
-            if (bt === "") { j++; continue; }
-            const bm = bt.match(/^[-*]\s+(.*)$/);
-            if (!bm) break;
-            items.push(bm[1].trim());
-            j++;
-          }
-          values[f.key] = items;
-          i = j - 1;
-          matched = true;
-        } else if (f.kind === "enemies") {
-          // consume following bullet lines (top-level enemies + indented
-          // abilities), tolerating one blank line between rows.
-          const block = [];
-          let j = i + 1;
-          while (j < body.length) {
-            const bl = body[j];
-            if (bl.trim() === "") { j++; continue; }
-            if (!/^\s*[-*]\s+/.test(bl)) break;
-            block.push(bl);
-            j++;
-          }
-          values[f.key] = CEM.parseEnemyBlock(block);
-          i = j - 1;
-          matched = true;
-        }
-        break;
-      }
-
-      // Bare enemies block (no preceding label): consume the contiguous bullets.
-      if (!matched && bareEnemies && /^[-*]\s+/.test(t)) {
-        const block = [];
-        let j = i;
-        while (j < body.length) {
-          const bl = body[j];
-          if (bl.trim() === "") { j++; continue; }
-          if (!/^\s*[-*]\s+/.test(bl)) break;
-          block.push(bl);
-          j++;
-        }
-        values[bareEnemies.key] = CEM.parseEnemyBlock(block);
-        i = j - 1;
-        matched = true;
-      }
-
-      if (!matched) bodyOut.push(line);
-    }
-
-    if (linesField) {
-      // trim leading/trailing blank lines from the catch-all body
-      while (bodyOut.length && bodyOut[0].trim() === "") bodyOut.shift();
-      while (bodyOut.length && bodyOut[bodyOut.length - 1].trim() === "") bodyOut.pop();
-      const text = bodyOut.join("\n");
-      if (linesField.kind === "checks") values[linesField.key] = parseChecks(text);
-      else if (linesField.kind === "linesWithChecks") {
-        values[linesField.key] = parseLinesWithChecks(text, linesField.checkMode);
-      } else if (linesField.kind === "narrativeText") {
-        values[linesField.key] = unquoteNarrativeText(stripTextLabel(text, linesField.mdLabel));
-      } else values[linesField.key] = text;
     }
     return values;
   }
