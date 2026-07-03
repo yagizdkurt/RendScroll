@@ -5,9 +5,10 @@
    native engine produces a vector (selectable-text) PDF via "Save as PDF".
 
    Design notes:
-   - Read-only: it never mutates #page, source files, or saved content. All the
-     visual transformation lives declaratively in printer.css (@media print),
-     so there is no DOM state to change and restore.
+   - Mostly read-only: it never mutates source files or saved content. The only
+     DOM mutation is the reversible beforeprint event regroup used for pagination.
+     The visual transformation lives declaratively in printer.css (@media print),
+     plus the dynamic print settings style below.
    - Renderer-independent: it knows nothing about NPC/item/skill-check cards. It
      prints whatever currently lives in #page, so it survives renderer rewrites.
    - Make-and-forget: ~1 button + window.print(). No upkeep as the app grows. */
@@ -65,15 +66,23 @@
     delete grid.dataset.printGrouped;
   }
 
-  window.addEventListener("beforeprint", groupEvents);
+  function preparePrintDom() {
+    applySettings();
+    groupEvents();
+  }
+
+  window.addEventListener("beforeprint", preparePrintDom);
   window.addEventListener("afterprint", ungroupEvents);
 
-  // --- Print settings (orientation + zoom) -------------------------------
+  // --- Print settings (orientation + zoom + columns) ---------------------
   // Chromium's print dialog hides the orientation control when @page pins an
   // orientation, and ignores zoom entirely. So we own both here: the sidebar
   // subsection writes the current choices into a dynamic <style> element that
   // overrides printer.css. It lives in @media print, so the screen is untouched.
-  const settings = { orientation: "portrait", zoom: 50 };
+  const FALLBACK_CARD_SELECTOR =
+    ".sc-card,.npc-card,.item-card,.ability-card,.obj-card,.combat-card," +
+    ".std-card,.unexpected-card,.narrative-card,.manifest-card,.picture-card,.audio-card";
+  const settings = { orientation: "portrait", zoom: 50, columns: "2" };
 
   function ensureDynamicStyle() {
     let el = document.getElementById("printer-dynamic-style");
@@ -85,16 +94,91 @@
     return el;
   }
 
+  function cssString(value) {
+    return '"' + String(value || "")
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\r/g, "\\A ")
+      .replace(/\n/g, "\\A ")
+      .replace(/\f/g, "\\A ") + '"';
+  }
+
+  function printTitle() {
+    const h1 = document.querySelector("#page .page-header h1") || document.querySelector("#page h1");
+    const raw = h1 ? h1.textContent.replace(/\s+/g, " ").trim() : "";
+    if (!raw) return "RendScroll";
+    return raw.length > 90 ? raw.slice(0, 89) + "..." : raw;
+  }
+
+  function printCardSelector() {
+    if (
+      typeof RendScrollCards !== "undefined" &&
+      RendScrollCards &&
+      typeof RendScrollCards.cardSelector === "function"
+    ) {
+      const selector = RendScrollCards.cardSelector();
+      if (selector) return selector;
+    }
+    return FALLBACK_CARD_SELECTOR;
+  }
+
   function applySettings() {
+    const cardSelector = printCardSelector();
+    const oneColumn =
+      settings.columns === "1"
+        ? "#page .print-event{display:block;break-inside:auto;page-break-inside:auto;}" +
+          "#page .print-event>.col-divider{display:none!important;}" +
+          "#page .print-event>.col-main,#page .print-event>.col-aside{display:block;min-width:0;}" +
+          "#page .print-event>.col-aside{margin-top:.75rem;}" +
+          "#page .page-grid>.col-divider{display:none!important;}" +
+          "#page .page-grid>.col-main,#page .page-grid>.col-aside{display:block;min-width:0;}"
+        : "";
+
     ensureDynamicStyle().textContent =
       "@media print{" +
       "@page{ size:A4 " +
       settings.orientation +
-      "; margin:6mm; }" +
+      "; margin:14mm 10mm 12mm;" +
+      "@top-center{content:" +
+      cssString(printTitle()) +
+      ";font-family:Georgia,'Times New Roman',serif;font-size:8pt;color:#5d4630;}" +
+      "@bottom-center{content:\"RendScroll \" counter(pageNumber);font-family:Georgia,'Times New Roman',serif;font-size:7pt;color:#5d4630;}" +
+      "}" +
       "#page{ zoom:" +
       settings.zoom / 100 +
       "; }" +
+      cardSelector +
+      "{break-inside:avoid;page-break-inside:avoid;}" +
+      oneColumn +
       "}";
+  }
+
+  function mountSegmentedChoice(label, pairs, value, onChange) {
+    const caption = document.createElement("span");
+    caption.className = "opt-caption";
+    caption.textContent = label;
+
+    const row = document.createElement("div");
+    row.className = "opt-choices";
+    pairs.forEach(function (pair) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "opt-choice" + (value() === pair[0] ? " on" : "");
+      b.textContent = pair[1];
+      b.addEventListener("click", function () {
+        onChange(pair[0]);
+        row.querySelectorAll(".opt-choice").forEach((c) => c.classList.remove("on"));
+        b.classList.add("on");
+        applySettings();
+      });
+      row.appendChild(b);
+    });
+
+    const wrap = document.createElement("div");
+    wrap.className = "printer-choice-group";
+    wrap.appendChild(caption);
+    wrap.appendChild(row);
+    return wrap;
   }
 
   function mountButton() {
@@ -126,28 +210,25 @@
     caption.textContent = "Export";
     group.appendChild(caption);
 
-    // --- Orientation: Portrait / Landscape ---
-    const choices = document.createElement("div");
-    choices.className = "opt-choices";
-    [
-      ["portrait", "Portrait"],
-      ["landscape", "Landscape"],
-    ].forEach(function (pair) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "opt-choice" + (settings.orientation === pair[0] ? " on" : "");
-      b.textContent = pair[1];
-      b.addEventListener("click", function () {
-        settings.orientation = pair[0];
-        choices
-          .querySelectorAll(".opt-choice")
-          .forEach((c) => c.classList.remove("on"));
-        b.classList.add("on");
-        applySettings();
-      });
-      choices.appendChild(b);
-    });
-    group.appendChild(choices);
+    group.appendChild(mountSegmentedChoice(
+      "Orientation",
+      [
+        ["portrait", "Portrait"],
+        ["landscape", "Landscape"],
+      ],
+      () => settings.orientation,
+      (value) => { settings.orientation = value; }
+    ));
+
+    group.appendChild(mountSegmentedChoice(
+      "Columns",
+      [
+        ["2", "2 Columns"],
+        ["1", "1 Column"],
+      ],
+      () => settings.columns,
+      (value) => { settings.columns = value; }
+    ));
 
     // --- Zoom % ---
     const zoomRow = document.createElement("label");

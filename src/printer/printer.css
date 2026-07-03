@@ -53,6 +53,11 @@
   text-transform:uppercase;
   color:var(--gold, #c9ad6a);
 }
+.printer-choice-group{
+  display:flex;
+  flex-direction:column;
+  gap:.3rem;
+}
 .printer-export-pop .opt-choices{ display:flex; gap:.3rem; }
 .printer-export-pop .opt-choice{
   flex:1 1 0;
@@ -129,7 +134,22 @@
      sidebar's Export subsection via a dynamic <style> (#printer-dynamic-style,
      see printer.js) which is injected after this file and therefore wins. These
      defaults only apply if that script hasn't run. */
-  @page{ size:A4 portrait; margin:6mm; }
+  @page{
+    size:A4 portrait;
+    margin:14mm 10mm 12mm;
+    @top-center{
+      content:"RendScroll";
+      font-family:Georgia,'Times New Roman',serif;
+      font-size:8pt;
+      color:#5d4630;
+    }
+    @bottom-center{
+      content:"RendScroll " counter(pageNumber);
+      font-family:Georgia,'Times New Roman',serif;
+      font-size:7pt;
+      color:#5d4630;
+    }
+  }
 
   /* --- Hide all app chrome; print only the document --- */
   #topbar,
@@ -239,6 +259,7 @@
     column-gap:1rem;
     align-items:start;
     break-inside:avoid;
+    page-break-inside:avoid;
   }
   /* The original `.page-grid > .col-*` child-combinator rules no longer reach
      these nodes once wrapped, so re-apply what's needed. */
@@ -255,10 +276,13 @@
   #page p, #page li, #page blockquote,
   #page .npc-stat-row, #page .sc-row,
   .sc-card, .npc-card, .item-card, .ability-card,
-  .obj-card, .combat-card, .std-card, .unexpected-card{
+  .obj-card, .combat-card, .std-card, .unexpected-card,
+  .narrative-card, .manifest-card, .picture-card, .audio-card{
     break-inside:avoid;
+    page-break-inside:avoid;
   }
   .page h1, .page h2, .page h3{
     break-after:avoid;
+    page-break-after:avoid;
   }
 }
