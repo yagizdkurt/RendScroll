@@ -125,7 +125,13 @@ def configure_console():
     global COLOR_ENABLED
 
     os.system("")
-    COLOR_ENABLED = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+    # sys.stdout is None when launched without std handles (e.g. a detached
+    # process); degrade to no color instead of crashing before the heartbeat.
+    COLOR_ENABLED = (
+        sys.stdout is not None
+        and sys.stdout.isatty()
+        and os.environ.get("NO_COLOR") is None
+    )
 
 
 def get_base_dir():

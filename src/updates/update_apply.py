@@ -85,10 +85,15 @@ def _wait_for_parent(pid, log):
 
 
 def _relaunch(command, cwd):
-    """Start the launcher detached and return the Popen handle."""
+    """Start the launcher in its own console and return the Popen handle.
+
+    The launcher is an interactive console app and its startup touches
+    sys.stdout; a DETACHED_PROCESS child has no std handles (sys.stdout is
+    None), which crashes it before the heartbeat is written. CREATE_NEW_CONSOLE
+    gives it the fresh visible console a normal launch has."""
     kwargs = {"cwd": cwd, "close_fds": True}
     if os.name == "nt":
-        kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        kwargs["creationflags"] = 0x00000010  # CREATE_NEW_CONSOLE
     else:
         kwargs["start_new_session"] = True
     return subprocess.Popen(command, **kwargs)
