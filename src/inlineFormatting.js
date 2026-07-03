@@ -3,6 +3,15 @@
    normal Markdown parsing inside valid tag bodies. */
 
 const RendScrollInlineFormatting = (() => {
+  // Reuse the canonical lowercaser and the parser's font-size validation instead of
+  // restating them (browser globals; require fallbacks for the Node test).
+  const _rsLower = (typeof rsLower !== "undefined")
+    ? rsLower
+    : require("./utils/text.js").rsLower;
+  const _parser = (typeof RendScrollParser !== "undefined")
+    ? RendScrollParser
+    : require("./parser/rendscrollParser.js");
+
   function escapeAttr(value) {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -14,14 +23,15 @@ const RendScrollInlineFormatting = (() => {
   // Lowercase, matching rsLower() / RefLibrary.norm() so a link's
   // name resolves against the same key the cards are stamped with.
   function lower(value) {
-    return String(value == null ? "" : value).toLowerCase();
+    return _rsLower(value == null ? "" : value);
   }
 
   const TAGS = {
     size: {
       requiresValue: true,
       validate(value) {
-        return /^\d+(?:\.\d+)?$/.test(value) && Number(value) >= 8 && Number(value) <= 32;
+        // Inline [size=NN] is a font-size in px; shares the 8–32 rule with Text Size:.
+        return _parser.validTextSize(value);
       },
       render(token, parser) {
         const px = Number(token.value);

@@ -12,10 +12,10 @@
    The card renders in the left column by default; a "Side: R" line moves it
    to the right column. It never fetches files or touches the sidebar. */
 
-// Picture width is a percentage of the column; clamp to a sane 5–100 range.
+// Picture width is a percentage of the column; the 5–100 range is owned by the
+// parser (RendScrollParser.validSize) so it never drifts from directive validation.
 function validPictureSize(value) {
-  const n = Number(value);
-  return /^\d+(?:\.\d+)?$/.test(String(value || "")) && n >= 5 && n <= 100;
+  return RendScrollParser.validSize(value);
 }
 
 // Build one Picture card from its parsed AST node. Image/Size/Side come straight

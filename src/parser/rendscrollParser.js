@@ -366,10 +366,17 @@ const RendScrollParser = (() => {
   }
 
   // Canonical "Text Size:" value check (8–32). The ONE place this range lives;
-  // app.js consumes it so the renderer never restates the rule.
+  // app.js and the inline [size=] tag consume it so nothing restates the rule.
   function validTextSize(value) {
     const s = String(value);
     return /^\d+(?:\.\d+)?$/.test(s) && Number(s) >= 8 && Number(s) <= 32;
+  }
+
+  // Canonical "Size:" (Picture column width) percentage check (5–100). Shared with
+  // the picture builder so the range never drifts.
+  function validSize(value) {
+    const s = String(value);
+    return /^\d+(?:\.\d+)?$/.test(s) && Number(s) >= 5 && Number(s) <= 100;
   }
 
   // Classify one trimmed body line. Returns a directive descriptor, a malformed
@@ -387,10 +394,7 @@ const RendScrollParser = (() => {
         if (name === "textsize" && !validTextSize(value)) return null;
         // "Size:" on a Picture card is a column-width percentage (5–100). A
         // non-numeric value (e.g. prose "Size: Large") falls through to body.
-        if (name === "size") {
-          const pct = Number(value);
-          if (!/^\d+(?:\.\d+)?$/.test(value) || pct < 5 || pct > 100) return null;
-        }
+        if (name === "size" && !validSize(value)) return null;
         return { kind: "directive", name, rawLabel: m[1].trim(), value };
       }
       return null;
@@ -677,9 +681,22 @@ const RendScrollParser = (() => {
     return JSON.stringify(view, null, 2);
   }
 
+  // First card block in a parsed document (or null). The ONE walk; app.js and the
+  // editor call it on a doc they parsed, instead of each restating the loop.
+  function firstCardNode(doc) {
+    if (!doc || !Array.isArray(doc.sections)) return null;
+    for (const section of doc.sections) {
+      for (const block of (section.blocks || [])) {
+        if (block.kind === "card") return block;
+      }
+    }
+    return null;
+  }
+
   return {
     parseRendScroll,
     debugDump,
+    firstCardNode,
     // Canonical primitives reused by editor/outline.js and editor/cardSchemas.js.
     lower,
     keywordLower,
@@ -691,6 +708,7 @@ const RendScrollParser = (() => {
     cardTypeList,
     matchDirective,
     validTextSize,
+    validSize,
     canDock,
     dockAllows,
     parseChecks,

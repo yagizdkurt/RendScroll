@@ -165,13 +165,7 @@ const Editor = (() => {
   // First parsed card node in a block's markdown, so name extraction relies on the
   // parser's classification/title rules instead of restating heading regexes.
   function firstCardOfBlock(block) {
-    const doc = RendScrollParser.parseRendScroll(String(block || ""));
-    for (const section of doc.sections) {
-      for (const b of section.blocks) {
-        if (b.kind === "card") return b;
-      }
-    }
-    return null;
+    return RendScrollParser.firstCardNode(RendScrollParser.parseRendScroll(String(block || "")));
   }
 
   function itemNameFromBlock(block) {

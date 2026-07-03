@@ -257,6 +257,12 @@ test("picture: img, caption, --pic-width, Side", () => {
   assert.ok(/--pic-width:\s*50%/.test(card.getAttribute("style") || ""), "expected --pic-width: 50%");
 });
 
+test("picture: out-of-range Size is ignored (validSize clamp)", () => {
+  // 200 is outside the shared 5–100 range, so no --pic-width is set.
+  const card = win.__T.renderCard("picture", "### Picture: Castle\nImage: castle.png\nSize: 200\n");
+  assert.ok(!/--pic-width/.test(card.getAttribute("style") || ""), "out-of-range Size should not set --pic-width");
+});
+
 test("audio: player, caption, Side", () => {
   const card = win.__T.renderCard("audio", "### Audio: Tavern\nFile: tavern\nSide: R\n");
   assert.ok(card.classList.contains("audio-card"), "expected .audio-card");

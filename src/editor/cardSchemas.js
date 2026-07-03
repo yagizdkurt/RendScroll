@@ -152,12 +152,7 @@ const EditorSchemas = (() => {
   // card's directives/body/checks are resolved by the canonical parser identically
   // to the reader.
   function firstCardNode(blockText) {
-    const doc = RSP.parseRendScroll(blockText);
-    let node = null;
-    (doc.sections || []).forEach((s) => (s.blocks || []).forEach((b) => {
-      if (!node && b.kind === "card") node = b;
-    }));
-    return node;
+    return RSP.firstCardNode(RSP.parseRendScroll(blockText));
   }
 
   // Universal directives + column/stuck come off the AST node, exactly as the

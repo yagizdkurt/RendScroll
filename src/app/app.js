@@ -127,16 +127,8 @@ function cardRawSource(doc, card) {
   return doc.raw.slice(card.range.startOffset, card.range.endOffset);
 }
 
-// First card AST node in a parsed document (used to hand builders the structured
-// model for a single card's source). Returns null when the source has no card.
-function firstCardNode(doc) {
-  for (const section of doc.sections) {
-    for (const block of section.blocks) {
-      if (block.kind === "card") return block;
-    }
-  }
-  return null;
-}
+// First card AST node in a parsed document is provided by the parser
+// (RendScrollParser.firstCardNode) — the single owner of that walk.
 
 function itemSourceResolver(name) {
   if (typeof RefLibrary === "undefined") return null;
@@ -183,7 +175,7 @@ function renderCardFromSource(type, src) {
   const builder = cardBuilder(type);
   // No builder (e.g. echo): render the whole block straight through marked.
   if (!builder) return { cardEl: null, els: markedToElements(normalizeClosedMarkdown(renderSrc)) };
-  const card = firstCardNode(RendScrollParser.parseRendScroll(renderSrc));
+  const card = RendScrollParser.firstCardNode(RendScrollParser.parseRendScroll(renderSrc));
   const head = markedToElements(renderSrc.split(/\r?\n/)[0] || "")[0] || null;
   const cardEl = builder(card, head, []);
   if (cardEl) stampClosed(cardEl, card);

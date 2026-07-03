@@ -61,6 +61,29 @@ test("matchDirective is exported and carries name on malformed results", () => {
   assert.equal(RendScrollParser.matchDirective("Type: Junk"), null);
 });
 
+test("validSize is the exported canonical 5-100 check", () => {
+  assert.equal(typeof RendScrollParser.validSize, "function");
+  assert.equal(RendScrollParser.validSize("5"), true);
+  assert.equal(RendScrollParser.validSize("100"), true);
+  assert.equal(RendScrollParser.validSize("50"), true);
+  assert.equal(RendScrollParser.validSize("4"), false);
+  assert.equal(RendScrollParser.validSize("101"), false);
+  assert.equal(RendScrollParser.validSize("wide"), false);
+  assert.equal(RendScrollParser.validSize(""), false);
+});
+
+test("firstCardNode returns the first card block (or null)", () => {
+  assert.equal(typeof RendScrollParser.firstCardNode, "function");
+  const doc = RendScrollParser.parseRendScroll("# Scene\nintro prose\n### Item: Sword\nType: Weapon\n");
+  const node = RendScrollParser.firstCardNode(doc);
+  assert.ok(node, "expected a card node");
+  assert.equal(node.type, "item");
+  assert.equal(node.title, "Sword");
+
+  const none = RendScrollParser.firstCardNode(RendScrollParser.parseRendScroll("# Scene\njust prose\n"));
+  assert.equal(none, null);
+});
+
 test("empty Text Size:/Size: is malformed (kept as unknown, not body)", () => {
   const card = firstCard("### STD: Notice\nText Size:\nSize:\n> visible\n");
   assert.deepEqual(directiveNames(card), []);
