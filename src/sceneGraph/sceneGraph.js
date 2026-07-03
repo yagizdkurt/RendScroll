@@ -23,8 +23,10 @@ const SceneGraphPanel = (() => {
   const ZOOM_MIN = 0.3;
   const ZOOM_MAX = 2.5;
   const WIDTH_KEY = "rendscroll-scenegraph-width";
-  const EDGE_LABEL_GLYPH_W = 12.8;
-  const EDGE_LABEL_BG_H = 36;
+  const EDGE_LABEL_GLYPH_W = 6.4;
+  const EDGE_LABEL_BG_H = 20;
+  const NODE_TITLE_LINE_H = 17;   // px between the two title tspans
+  const NODE_TITLE_MAX_CHARS = 16; // fits NODE_W minus badge at the 14px title size
 
   const M = typeof SceneGraphModel !== "undefined" ? SceneGraphModel : null;
 
@@ -34,6 +36,7 @@ const SceneGraphPanel = (() => {
   let world = null;          // <g class="rsg-world"> carrying the pan/zoom transform
   let statusEl = null;
   let detailsEl = null;
+  let emptyEl = null;        // centered overlay shown when the map has nothing to draw
   let edgeMenu = null;
 
   let graph = null;          // manual graph (graph.json content), null until loaded
@@ -301,6 +304,7 @@ const SceneGraphPanel = (() => {
       pendingConnect.band.remove();
     }
     pendingConnect = null;
+    if (svg) svg.classList.remove("is-connecting");
   }
 
   function nodeIntersectsBox(node, box) {
@@ -312,6 +316,32 @@ const SceneGraphPanel = (() => {
 
   function truncateTitle(text, max) {
     return text.length > max ? text.slice(0, max - 1) + "…" : text;
+  }
+
+  // Word-wrap a node title onto at most two lines of ~maxChars each,
+  // ellipsizing what doesn't fit. Character counts, not text metrics —
+  // jsdom has no layout and the rebuild loop shouldn't measure anyway.
+  function wrapTitle(text, maxChars) {
+    const words = String(text).trim().split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = "";
+    let overflow = false;
+    for (const word of words) {
+      const joined = current ? current + " " + word : word;
+      if (joined.length <= maxChars || !current) {
+        current = joined;
+      } else if (lines.length < 1) {
+        lines.push(current);
+        current = word;
+      } else {
+        overflow = true;
+        break;
+      }
+    }
+    if (current) lines.push(current);
+    if (!lines.length) lines.push("");
+    if (overflow) lines[lines.length - 1] += "…";
+    return lines.map((line) => truncateTitle(line, maxChars));
   }
 
   function edgeIdentity(edge) {
@@ -355,10 +385,10 @@ const SceneGraphPanel = (() => {
         text.textContent = (edge.locked ? "⤳ " : "") + label;
         // Legibility backing sized from an estimated glyph width (measuring
         // needs layout, which jsdom lacks and a rebuild loop doesn't want).
-        const w = (label.length + (edge.locked ? 2 : 0)) * EDGE_LABEL_GLYPH_W + 18;
+        const w = (label.length + (edge.locked ? 2 : 0)) * EDGE_LABEL_GLYPH_W + 16;
         g.appendChild(svgEl("rect", {
-          x: geo.labelX - w / 2, y: geo.labelY - 34, width: w, height: EDGE_LABEL_BG_H,
-          rx: 4, "class": "rsg-edge-label-bg",
+          x: geo.labelX - w / 2, y: geo.labelY - 24, width: w, height: EDGE_LABEL_BG_H,
+          rx: EDGE_LABEL_BG_H / 2, "class": "rsg-edge-label-bg",
         }));
         g.appendChild(text);
       }
@@ -378,12 +408,45 @@ const SceneGraphPanel = (() => {
       });
       g.setAttribute("data-scene", node.scene);
 
+      // "You are here" ring under the card, only on the current scene.
+      if (current && node.scene === current) {
+        g.appendChild(svgEl("rect", {
+          "class": "rsg-node-ring", x: -4, y: -4,
+          width: NODE_W + 8, height: NODE_H + 8, rx: 13,
+        }));
+      }
+
       g.appendChild(svgEl("rect", {
-        "class": "rsg-node-box", width: NODE_W, height: NODE_H, rx: 8,
+        "class": "rsg-node-box", width: NODE_W, height: NODE_H, rx: 10,
       }));
 
-      const title = svgEl("text", { x: 12, y: 34, "class": "rsg-node-title" });
-      title.textContent = truncateTitle(sceneLabel(node.scene), 20);
+      // Wax-seal number badge overhanging the left edge (scenes without a
+      // numeric filename prefix have no badge and the title starts flush).
+      const label = sceneLabel(node.scene);
+      const numbered = /^(\d+)\.\s*(.*)$/.exec(label);
+      const titleX = numbered ? 30 : 12;
+      if (numbered) {
+        g.appendChild(svgEl("circle", {
+          "class": "rsg-node-badge", cx: 2, cy: NODE_H / 2, r: 12,
+        }));
+        const num = svgEl("text", {
+          "class": "rsg-node-badge-num", x: 2, y: NODE_H / 2 + 4,
+          "text-anchor": "middle",
+        });
+        num.textContent = numbered[1];
+        g.appendChild(num);
+      }
+
+      const lines = wrapTitle(numbered ? numbered[2] : label, NODE_TITLE_MAX_CHARS);
+      const title = svgEl("text", { "class": "rsg-node-title" });
+      const baseY = lines.length > 1
+        ? NODE_H / 2 - 4          // two lines centered around the middle
+        : NODE_H / 2 + 5;         // single line: baseline just below center
+      lines.forEach((line, i) => {
+        const span = svgEl("tspan", { x: titleX, y: baseY + i * NODE_TITLE_LINE_H });
+        span.textContent = line;
+        title.appendChild(span);
+      });
       g.appendChild(title);
 
       // Connect port: drag from here to another node to draw an edge.
@@ -395,6 +458,18 @@ const SceneGraphPanel = (() => {
 
       world.appendChild(g);
     });
+
+    if (emptyEl) {
+      if (!graph.nodes.length) {
+        emptyEl.textContent = "No scenes in this campaign yet — add scene files to scenes/ and they will appear here.";
+        emptyEl.classList.add("is-visible");
+      } else if (!displayEdges.length) {
+        emptyEl.textContent = "Drag from a node's ○ port to another scene to draw the first link.";
+        emptyEl.classList.add("is-visible");
+      } else {
+        emptyEl.classList.remove("is-visible");
+      }
+    }
 
     applyViewTransform();
     renderStatus();
@@ -525,6 +600,7 @@ const SceneGraphPanel = (() => {
     });
     world.appendChild(band);
     pendingConnect = { from: scene, band };
+    svg.classList.add("is-connecting");
 
     if (typeof clientX === "number" && typeof clientY === "number") updatePendingConnect(clientX, clientY);
     else {
@@ -645,6 +721,33 @@ const SceneGraphPanel = (() => {
     return row;
   }
 
+  // Default details content: edge-type legend + shortcut chips.
+  function buildDefaultHint() {
+    const hint = el("div", "rsg-detail-hint");
+    const legend = el("div", "rsg-legend");
+    [["rsg-legend-swatch-manual", "manual link"],
+     ["rsg-legend-swatch-locked", "Transition-card link"]].forEach(([cls, text]) => {
+      const item = el("span", "rsg-legend-item");
+      item.appendChild(el("span", "rsg-legend-swatch " + cls));
+      item.appendChild(el("span", null, text));
+      legend.appendChild(item);
+    });
+    hint.appendChild(legend);
+    const keys = el("div", "rsg-keys");
+    [["Shift+Drag", "select multiple"],
+     ["Right-click", "node / link menu"],
+     ["Double-click", "open scene"],
+     ["Del", "remove link"],
+     ["Scroll", "zoom"]].forEach(([key, text]) => {
+      const item = el("span", "rsg-key-item");
+      item.appendChild(el("kbd", "rsg-kbd", key));
+      item.appendChild(el("span", null, " " + text));
+      keys.appendChild(item);
+    });
+    hint.appendChild(keys);
+    return hint;
+  }
+
   function renderDetails() {
     if (!detailsEl) return;
     detailsEl.innerHTML = "";
@@ -653,8 +756,7 @@ const SceneGraphPanel = (() => {
       detailsError = "";
     }
     if (!selected) {
-      detailsEl.appendChild(el("div", "rsg-detail-hint",
-        "Shift + Drag for multiple selection · Right click to create transition · double-click a node to open it."));
+      detailsEl.appendChild(buildDefaultHint());
       return;
     }
 
@@ -955,18 +1057,24 @@ const SceneGraphPanel = (() => {
     }
   }
 
-  function onWheel(e) {
-    e.preventDefault();
-    const rect = svg.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  // Scale by factor keeping the canvas point at (mx,my) fixed.
+  function zoomAt(factor, mx, my) {
     const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, view.k * factor));
-    // Keep the point under the cursor fixed while scaling.
     view.tx = mx - ((mx - view.tx) / view.k) * k;
     view.ty = my - ((my - view.ty) / view.k) * k;
     view.k = k;
     applyViewTransform();
+  }
+
+  function zoomCenter(factor) {
+    const rect = svg.getBoundingClientRect();
+    zoomAt(factor, (rect.width || 600) / 2, (rect.height || 400) / 2);
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - rect.left, e.clientY - rect.top);
   }
 
   function fitView() {
@@ -1022,11 +1130,6 @@ const SceneGraphPanel = (() => {
     header.appendChild(el("div", "rsg-title", "Scene Map"));
     statusEl = el("div", "rsg-status");
     header.appendChild(statusEl);
-    const fit = el("button", "rsg-header-btn", "Fit");
-    fit.type = "button";
-    fit.title = "Frame all scenes";
-    fit.addEventListener("click", fitView);
-    header.appendChild(fit);
     const close = el("button", "rsg-header-btn", "✕");
     close.type = "button";
     close.setAttribute("aria-label", "Close the scene map");
@@ -1039,14 +1142,37 @@ const SceneGraphPanel = (() => {
     const defs = svgEl("defs");
     const marker = svgEl("marker", {
       id: "rsg-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5,
-      markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse",
+      markerWidth: 8, markerHeight: 8, orient: "auto-start-reverse",
     });
     marker.appendChild(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", "class": "rsg-arrowhead" }));
     defs.appendChild(marker);
+    // Node card fill: a vertical gradient whose stop colors are themed via CSS
+    // classes so the light theme restyles it without touching the SVG.
+    const grad = svgEl("linearGradient", { id: "rsg-node-grad", x1: 0, y1: 0, x2: 0, y2: 1 });
+    grad.appendChild(svgEl("stop", { offset: "0%", "class": "rsg-node-grad-a" }));
+    grad.appendChild(svgEl("stop", { offset: "100%", "class": "rsg-node-grad-b" }));
+    defs.appendChild(grad);
     svg.appendChild(defs);
     world = svgEl("g", { "class": "rsg-world" });
     svg.appendChild(world);
     canvas.appendChild(svg);
+
+    emptyEl = el("div", "rsg-empty");
+    canvas.appendChild(emptyEl);
+
+    // On-canvas zoom cluster (bottom-right): +, −, Fit.
+    const zoomCtl = el("div", "rsg-zoomctl print-hide");
+    [["+", "Zoom in", () => zoomCenter(1.25)],
+     ["−", "Zoom out", () => zoomCenter(1 / 1.25)],
+     ["Fit", "Frame all scenes", fitView]].forEach(([text, tip, onClick]) => {
+      const btn = el("button", "rsg-zoom-btn", text);
+      btn.type = "button";
+      btn.title = tip;
+      btn.setAttribute("aria-label", tip);
+      btn.addEventListener("click", onClick);
+      zoomCtl.appendChild(btn);
+    });
+    canvas.appendChild(zoomCtl);
     panel.appendChild(canvas);
 
     detailsEl = el("div", "rsg-details");

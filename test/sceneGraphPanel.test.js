@@ -367,6 +367,53 @@ test("double-click a node navigates through guardedLoad with the full path", asy
   assert.strictEqual(win.__loaded, "campaigns/demo/scenes/2_baron.md");
 });
 
+test("nodes render a number badge, wrapped title, and a ring on the current scene", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+
+  const current = panel.querySelector(".rsg-node.is-current");
+  assert.ok(current.querySelector(".rsg-node-ring"), "current scene carries the you-are-here ring");
+  assert.strictEqual(panel.querySelectorAll(".rsg-node-ring").length, 1, "only the current scene has a ring");
+
+  const badge = current.querySelector(".rsg-node-badge");
+  assert.ok(badge, "numbered scene shows a badge circle");
+  assert.strictEqual(current.querySelector(".rsg-node-badge-num").textContent, "1");
+
+  const title = current.querySelector(".rsg-node-title");
+  const spans = title.querySelectorAll("tspan");
+  assert.ok(spans.length >= 1, "title rendered as tspan lines");
+  assert.strictEqual(spans[0].textContent, "Intro");
+});
+
+test("zoom cluster mounts on the canvas and the + button scales the view", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const buttons = panel.querySelectorAll(".rsg-zoomctl .rsg-zoom-btn");
+  assert.strictEqual(buttons.length, 3, "expected +, − and Fit");
+
+  const scaleOf = () => {
+    const transform = panel.querySelector(".rsg-world").getAttribute("transform");
+    return Number(/scale\(([-\d.]+)\)/.exec(transform)[1]);
+  };
+  const before = scaleOf();
+  buttons[0].click(); // +
+  assert.ok(scaleOf() > before, "zoom in should increase the world scale");
+  buttons[1].click(); // − back down
+  assert.ok(Math.abs(scaleOf() - before) < 1e-9, "zoom out should undo the zoom in");
+});
+
+test("empty details strip shows the legend and shortcut chips", async () => {
+  await win.SceneGraphPanel.open();
+  win.SceneGraphPanel._selectNodes([]); // clear selection -> default hint
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  assert.strictEqual(panel.querySelectorAll(".rsg-legend-swatch").length, 2, "manual + locked swatches");
+  assert.ok(panel.querySelectorAll(".rsg-kbd").length >= 4, "shortcut chips rendered");
+  // Edges exist in this campaign, so the empty-state overlay stays hidden.
+  const empty = panel.querySelector(".rsg-empty");
+  assert.ok(empty, "empty-state overlay exists");
+  assert.strictEqual(empty.classList.contains("is-visible"), false);
+});
+
 test("campaign:activated with null clears the map", async () => {
   win.document.dispatchEvent(new win.CustomEvent("campaign:activated", { detail: { name: null } }));
   await sleep(20);

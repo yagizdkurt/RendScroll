@@ -1,5 +1,7 @@
 /* Scene Progression Map panel (src/sceneGraph/sceneGraph.js).
-   Right-side dock below the debug panel's z-index so dev tools stack above it. */
+   Right-side dock below the debug panel's z-index so dev tools stack above it.
+   Every node/edge/selection color reads a --rsg-* variable defined in both the
+   dark defaults and the light override — no hardcoded state colors below. */
 
 #rs-scenegraph-panel{
   --rsg-panel-bg:var(--chrome-panel, #241f1b);
@@ -8,9 +10,18 @@
   --rsg-panel-muted:#bfae8b;
   --rsg-panel-band:rgba(255,235,200,.08);
   --rsg-canvas-bg:#1e1a17;
-  --rsg-canvas-dot:rgba(201,173,106,.16);
-  --rsg-node-bg:#302821;
+  --rsg-canvas-dot:rgba(201,173,106,.12);
+  --rsg-vignette:rgba(0,0,0,.32);
+  --rsg-node-grad-a:#3a3128;
+  --rsg-node-grad-b:#2b241d;
   --rsg-node-text:#f3ead2;
+  --rsg-node-shadow:rgba(0,0,0,.4);
+  --rsg-node-glow:rgba(201,173,106,.55);
+  --rsg-ring:#d8b96a;
+  --rsg-ring-glow:rgba(216,185,106,.65);
+  --rsg-accent:#d8b96a;
+  --rsg-badge-bg:#6d1f12;
+  --rsg-badge-text:#f6ead2;
   --rsg-edge:#c2a25f;
   --rsg-label-bg:rgba(36,31,27,.92);
   --rsg-label-border:rgba(201,173,106,.35);
@@ -37,8 +48,17 @@ body[data-opt-theme="light"] #rs-scenegraph-panel{
   --rsg-panel-band:rgba(210,195,160,.45);
   --rsg-canvas-bg:#ece2c8;
   --rsg-canvas-dot:rgba(120,90,40,.14);
-  --rsg-node-bg:#f6efdb;
+  --rsg-vignette:rgba(110,80,40,.18);
+  --rsg-node-grad-a:#faf3e0;
+  --rsg-node-grad-b:#efe3c6;
   --rsg-node-text:#2b2116;
+  --rsg-node-shadow:rgba(80,55,20,.28);
+  --rsg-node-glow:rgba(146,38,16,.35);
+  --rsg-ring:#9c7e3c;
+  --rsg-ring-glow:rgba(156,126,60,.55);
+  --rsg-accent:#922610;
+  --rsg-badge-bg:#8b2413;
+  --rsg-badge-text:#fdf1dc;
   --rsg-edge:#7a6134;
   --rsg-label-bg:rgba(246,239,219,.92);
   --rsg-label-border:rgba(120,90,40,.25);
@@ -98,15 +118,17 @@ body[data-opt-theme="light"] .rsg-header-btn{color:var(--maroon); background:rgb
 body[data-opt-theme="light"] .rsg-title,
 body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
 
-/* Canvas */
+/* Canvas: aged-map feel — vignette over a fine dot grid over the base color. */
 .rsg-canvas{
+  position:relative;
   flex:1 1 auto;
   min-height:0;
   overflow:hidden;
-  background:
-    radial-gradient(var(--rsg-canvas-dot) 1px, transparent 1px),
-    var(--rsg-canvas-bg);
-  background-size:22px 22px;
+  background-color:var(--rsg-canvas-bg);
+  background-image:
+    radial-gradient(ellipse at center, transparent 55%, var(--rsg-vignette) 100%),
+    radial-gradient(var(--rsg-canvas-dot) 1px, transparent 1px);
+  background-size:100% 100%, 24px 24px;
 }
 .rsg-svg{
   width:100%;
@@ -116,25 +138,91 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   touch-action:none;
   user-select:none;
 }
+.rsg-svg.is-connecting{cursor:crosshair;}
 
-/* Nodes */
+/* Empty-state overlay (render() fills the text and toggles .is-visible). */
+.rsg-empty{
+  position:absolute;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:2rem 2.5rem;
+  pointer-events:none;
+  color:var(--rsg-panel-muted);
+  font-style:italic;
+  font-size:1.05rem;
+}
+.rsg-empty.is-visible{display:flex;}
+
+/* On-canvas zoom cluster. */
+.rsg-zoomctl{
+  position:absolute;
+  right:12px;
+  bottom:12px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.rsg-zoom-btn{
+  min-width:2.1rem;
+  min-height:2.1rem;
+  padding:.15rem .4rem;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-weight:700;
+  font-size:1rem;
+  line-height:1;
+  color:var(--rsg-panel-strong);
+  background:var(--rsg-label-bg);
+  border:1px solid var(--chrome-border, var(--gold-deep));
+  border-radius:6px;
+  cursor:pointer;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
+}
+.rsg-zoom-btn:hover{filter:brightness(1.1);}
+body[data-opt-theme="light"] .rsg-zoom-btn{color:var(--maroon);}
+
+/* Nodes: parchment cards with a soft shadow and a wax-seal number badge. */
 .rsg-node{cursor:pointer;}
 .rsg-node-box{
-  fill:var(--rsg-node-bg);
+  fill:url(#rsg-node-grad);
   stroke:var(--chrome-border, var(--gold-deep));
   stroke-width:1.5;
+  filter:drop-shadow(0 2px 4px var(--rsg-node-shadow));
+  transition:filter .12s ease;
+}
+.rsg-node:hover .rsg-node-box{
+  filter:drop-shadow(0 2px 4px var(--rsg-node-shadow)) brightness(1.08);
 }
 .rsg-node.is-selected .rsg-node-box{
   stroke:var(--maroon);
   stroke-width:2.5;
+  filter:drop-shadow(0 0 5px var(--rsg-node-glow));
 }
-.rsg-node.is-selected .rsg-node-box{
-  filter:drop-shadow(0 0 5px rgba(201,173,106,.55));
+.rsg-node-grad-a{stop-color:var(--rsg-node-grad-a);}
+.rsg-node-grad-b{stop-color:var(--rsg-node-grad-b);}
+/* "You are here" ring around the current scene's card. */
+.rsg-node-ring{
+  fill:none;
+  stroke:var(--rsg-ring);
+  stroke-width:2;
+  filter:drop-shadow(0 0 5px var(--rsg-ring-glow));
+  pointer-events:none;
 }
-.rsg-node.is-current .rsg-node-box{
-  stroke:#b8860b;
-  stroke-width:3;
-  filter:drop-shadow(0 0 4px rgba(184,134,11,.7));
+.rsg-node-badge{
+  fill:var(--rsg-badge-bg);
+  stroke:var(--gold);
+  stroke-width:1.5;
+  filter:drop-shadow(0 1px 2px var(--rsg-node-shadow));
+  pointer-events:none;
+}
+.rsg-node-badge-num{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:12px;
+  font-weight:800;
+  fill:var(--rsg-badge-text);
+  pointer-events:none;
 }
 .rsg-node-title{
   font-family:'Alegreya Sans SC',sans-serif;
@@ -143,12 +231,14 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   fill:var(--rsg-node-text);
   pointer-events:none;
 }
+/* Connect port: faintly visible at rest so edge creation is discoverable. */
 .rsg-port{
-  fill:var(--rsg-node-bg);
+  fill:var(--rsg-node-grad-b);
   stroke:var(--maroon);
   stroke-width:1.5;
-  opacity:0;
+  opacity:.35;
   cursor:crosshair;
+  transition:opacity .12s ease;
 }
 .rsg-node:hover .rsg-port{opacity:1;}
 
@@ -160,7 +250,8 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
 }
 .rsg-edge-line{
   stroke:var(--rsg-edge);
-  stroke-width:1.8;
+  stroke-width:2;
+  stroke-linecap:round;
   pointer-events:none;
 }
 .rsg-edge.is-locked .rsg-edge-line{
@@ -168,14 +259,14 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   stroke-width:2;
 }
 .rsg-edge.is-selected .rsg-edge-line{
-  stroke:#b8860b;
+  stroke:var(--rsg-accent);
   stroke-width:3;
 }
 .rsg-arrowhead{fill:var(--rsg-edge);}
 .rsg-edge.is-locked .rsg-arrowhead{fill:var(--maroon);}
 .rsg-edge-label{
   font-family:'EB Garamond',serif;
-  font-size:24px;
+  font-size:13px;
   font-style:italic;
   fill:var(--rsg-panel-text);
   pointer-events:none;
@@ -199,6 +290,10 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   stroke:var(--gold);
   stroke-width:2.6;
   stroke-dasharray:8 5;
+  animation:rsg-march .8s linear infinite;
+}
+@keyframes rsg-march{
+  to{stroke-dashoffset:-26;}
 }
 .rsg-marquee{
   fill:rgba(201,173,106,.16);
@@ -215,8 +310,8 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   overflow-y:auto;
   border-top:1px solid var(--chrome-border, var(--gold-deep));
   background:var(--rsg-panel-band);
-  padding:.75rem .9rem;
-  font-size:1.1rem;
+  padding:.7rem .9rem;
+  font-size:1rem;
 }
 .rsg-detail-title{
   font-family:'Alegreya Sans SC',sans-serif;
@@ -226,10 +321,51 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   font-size:1.12rem;
 }
 .rsg-detail-hint{
+  display:flex;
+  flex-direction:column;
+  gap:.45rem;
   font-style:normal;
   color:var(--rsg-panel-muted);
-  font-size:1.5rem;
+  font-size:.92rem;
 }
+.rsg-legend{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:.3rem 1.1rem;
+}
+.rsg-legend-item{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+}
+.rsg-legend-swatch{
+  display:inline-block;
+  width:22px;
+  height:0;
+  border-top:2px solid;
+  border-radius:1px;
+}
+.rsg-legend-swatch-manual{border-color:var(--rsg-edge);}
+.rsg-legend-swatch-locked{border-color:var(--maroon);}
+.rsg-keys{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.35rem .9rem;
+}
+.rsg-key-item{white-space:nowrap;}
+.rsg-kbd{
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.78rem;
+  font-weight:700;
+  padding:.05rem .35rem;
+  border:1px solid var(--rsg-label-border);
+  border-bottom-width:2px;
+  border-radius:4px;
+  background:var(--rsg-panel-band);
+  color:var(--rsg-panel-strong);
+}
+body[data-opt-theme="light"] .rsg-kbd{color:var(--maroon);}
 .rsg-detail-error{
   color:#8b1a1a;
   font-weight:600;
@@ -294,7 +430,7 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   padding:.35rem .5rem;
   border:1px solid var(--chrome-border, var(--gold-deep));
   border-radius:4px;
-  background:var(--rsg-node-bg);
+  background:var(--rsg-node-grad-b);
   color:var(--rsg-node-text);
 }
 
