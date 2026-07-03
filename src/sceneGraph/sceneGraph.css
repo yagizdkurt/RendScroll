@@ -326,6 +326,9 @@ body[data-opt-theme="light"] .rsg-detail-title{color:var(--maroon);}
   box-shadow:0 1px 0 rgba(255,255,255,.16) inset, 0 2px 7px rgba(0,0,0,.28);
   cursor:pointer;
 }
+.rsg-node-menu .rsg-edge-menu-btn + .rsg-edge-menu-btn{
+  margin-top:.35rem;
+}
 .rsg-edge-menu-btn:hover:not(:disabled){
   background:#a5231f;
   border-color:#f0c18f;

@@ -174,6 +174,78 @@ test("shift-drag selects multiple scene nodes and moves them together", async ()
   );
 });
 
+test("right-click on a selected multi-node group shows Arrange", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  win.SceneGraphPanel._selectNodes(["scenes/1_intro.md", "scenes/2_baron.md"]);
+  const intro = panel.querySelector('[data-scene="scenes/1_intro.md"]');
+
+  intro.dispatchEvent(new win.MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 120, clientY: 120,
+  }));
+
+  const arrange = win.document.querySelector(".rsg-node-menu-arrange");
+  assert.ok(arrange, "expected arrange menu action");
+  assert.strictEqual(arrange.textContent, "Arrange");
+  assert.strictEqual(arrange.disabled, false);
+  assert.ok(win.document.querySelector(".rsg-node-menu-add"), "add transition should stay available");
+  win.document.body.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+});
+
+test("clicking Arrange repositions selected scenes and autosaves", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const graph = win.SceneGraphPanel._graph();
+  Object.assign(graph.nodes.find((n) => n.scene === "scenes/1_intro.md"), { x: 500, y: 500 });
+  Object.assign(graph.nodes.find((n) => n.scene === "scenes/2_baron.md"), { x: 300, y: 100 });
+  Object.assign(graph.nodes.find((n) => n.scene === "scenes/3_ambush.md"), { x: 100, y: 700 });
+  win.SceneGraphPanel._selectNodes(["scenes/1_intro.md", "scenes/2_baron.md", "scenes/3_ambush.md"]);
+  const intro = panel.querySelector('[data-scene="scenes/1_intro.md"]');
+  const before = fetchLog.length;
+
+  intro.dispatchEvent(new win.MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 130, clientY: 130,
+  }));
+  win.document.querySelector(".rsg-node-menu-arrange").click();
+  await sleep(30);
+
+  const arrangedNodes = JSON.parse(JSON.stringify(
+    graph.nodes.map((n) => ({ scene: n.scene, x: n.x, y: n.y }))
+  ));
+  assert.deepStrictEqual(arrangedNodes, [
+    { scene: "scenes/1_intro.md", x: 100, y: 100 },
+    { scene: "scenes/2_baron.md", x: 100, y: 430 },
+    { scene: "scenes/3_ambush.md", x: 100, y: 265 },
+  ]);
+  assert.strictEqual(win.document.querySelector(".rsg-edge-menu"), null);
+  assert.ok(fetchLog.length > before, "arrange should autosave changed positions");
+  const savedNodes = JSON.parse(JSON.stringify(
+    fetchLog[fetchLog.length - 1].nodes.map((n) => ({ scene: n.scene, x: n.x, y: n.y }))
+  ));
+  assert.deepStrictEqual(savedNodes, [
+    { scene: "scenes/1_intro.md", x: 100, y: 100 },
+    { scene: "scenes/2_baron.md", x: 100, y: 430 },
+    { scene: "scenes/3_ambush.md", x: 100, y: 265 },
+  ]);
+});
+
+test("right-clicking an unselected node clears to single-node menu without Arrange", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  win.SceneGraphPanel._selectNodes(["scenes/1_intro.md", "scenes/2_baron.md"]);
+  const ambush = panel.querySelector('[data-scene="scenes/3_ambush.md"]');
+
+  ambush.dispatchEvent(new win.MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 140, clientY: 140,
+  }));
+
+  assert.strictEqual(win.document.querySelector(".rsg-node-menu-arrange"), null);
+  assert.ok(win.document.querySelector(".rsg-node-menu-add"), "single-node menu should still allow transition creation");
+  assert.strictEqual(panel.querySelectorAll(".rsg-node.is-selected").length, 1);
+  assert.strictEqual(panel.querySelector(".rsg-node.is-selected").getAttribute("data-scene"), "scenes/3_ambush.md");
+  win.document.body.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+});
+
 test("right-click on a transition-card edge shows disabled delete guidance", async () => {
   await win.SceneGraphPanel.open();
   const panel = win.document.getElementById("rs-scenegraph-panel");

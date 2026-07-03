@@ -27,6 +27,11 @@ const SceneGraphModel = (() => {
   const GRID_Y0 = 40;
   const GRID_DX = 200;
   const GRID_DY = 110;
+  const ARRANGE_NODE_W = 160;
+  const ARRANGE_NODE_H = 56;
+  const ARRANGE_SPACING_MULTIPLIER = 1.5;
+  const ARRANGE_GAP_X = GRID_DX * ARRANGE_SPACING_MULTIPLIER - ARRANGE_NODE_W;
+  const ARRANGE_GAP_Y = GRID_DY * ARRANGE_SPACING_MULTIPLIER - ARRANGE_NODE_H;
 
   function emptyGraph() {
     return { version: GRAPH_VERSION, nodes: [], edges: [] };
@@ -226,6 +231,180 @@ const SceneGraphModel = (() => {
     return true;
   }
 
+  function hasPath(from, to, adjacency) {
+    const stack = [from];
+    const seen = new Set();
+    while (stack.length) {
+      const scene = stack.pop();
+      if (scene === to) return true;
+      if (seen.has(scene)) continue;
+      seen.add(scene);
+      (adjacency.get(scene) || []).forEach((next) => stack.push(next));
+    }
+    return false;
+  }
+
+  function arrangeSelectedNodes(graph, selectedScenes, displayEdges, options) {
+    const opts = options || {};
+    const nodeW = typeof opts.nodeWidth === "number" ? opts.nodeWidth : ARRANGE_NODE_W;
+    const nodeH = typeof opts.nodeHeight === "number" ? opts.nodeHeight : ARRANGE_NODE_H;
+    const stepX = nodeW + (typeof opts.gapX === "number" ? opts.gapX : ARRANGE_GAP_X);
+    const stepY = nodeH + (typeof opts.gapY === "number" ? opts.gapY : ARRANGE_GAP_Y);
+
+    const requested = new Set((selectedScenes || []).map(normalizeSlashes));
+    const selectedNodes = graph.nodes.filter((n) => requested.has(n.scene));
+    if (selectedNodes.length < 2) {
+      return { changed: false, arranged: 0, ignoredCycles: 0 };
+    }
+
+    const order = new Map();
+    graph.nodes.forEach((n, i) => order.set(n.scene, i));
+    const selectedSet = new Set(selectedNodes.map((n) => n.scene));
+    const anchorX = Math.min(...selectedNodes.map((n) => n.x));
+    const anchorY = Math.min(...selectedNodes.map((n) => n.y));
+
+    const seenEdges = new Set();
+    const candidateEdges = (displayEdges || [])
+      .filter((e) => e && selectedSet.has(e.from) && selectedSet.has(e.to) && e.from !== e.to)
+      .sort((a, b) =>
+        (order.get(a.from) - order.get(b.from)) ||
+        (order.get(a.to) - order.get(b.to)) ||
+        a.from.localeCompare(b.from) ||
+        a.to.localeCompare(b.to))
+      .filter((e) => {
+        const key = edgeKey(e.from, e.to);
+        if (seenEdges.has(key)) return false;
+        seenEdges.add(key);
+        return true;
+      });
+
+    const adjacency = new Map();
+    const parents = new Map();
+    let ignoredCycles = 0;
+    candidateEdges.forEach((edge) => {
+      if (hasPath(edge.to, edge.from, adjacency)) {
+        ignoredCycles++;
+        return;
+      }
+      if (!adjacency.has(edge.from)) adjacency.set(edge.from, []);
+      adjacency.get(edge.from).push(edge.to);
+      if (!parents.has(edge.to)) parents.set(edge.to, []);
+      parents.get(edge.to).push(edge.from);
+    });
+
+    const connected = new Set();
+    adjacency.forEach((children, parent) => {
+      if (children.length) connected.add(parent);
+      children.forEach((child) => connected.add(child));
+    });
+
+    const positions = new Map();
+    const connectedOrder = selectedNodes
+      .map((n) => n.scene)
+      .filter((scene) => connected.has(scene));
+
+    if (connectedOrder.length) {
+      const indegree = new Map();
+      connectedOrder.forEach((scene) => indegree.set(scene, 0));
+      adjacency.forEach((children) => {
+        children.forEach((child) => indegree.set(child, (indegree.get(child) || 0) + 1));
+      });
+
+      const queue = connectedOrder.filter((scene) => (indegree.get(scene) || 0) === 0);
+      const depth = new Map();
+      connectedOrder.forEach((scene) => depth.set(scene, 0));
+      for (let i = 0; i < queue.length; i++) {
+        const scene = queue[i];
+        (adjacency.get(scene) || []).forEach((child) => {
+          depth.set(child, Math.max(depth.get(child) || 0, (depth.get(scene) || 0) + 1));
+          indegree.set(child, (indegree.get(child) || 0) - 1);
+          if (indegree.get(child) === 0) queue.push(child);
+        });
+      }
+
+      const rows = new Map();
+      connectedOrder.forEach((scene) => {
+        const d = depth.get(scene) || 0;
+        if (!rows.has(d)) rows.set(d, []);
+        rows.get(d).push(scene);
+      });
+
+      Array.from(rows.keys()).sort((a, b) => a - b).forEach((rowDepth) => {
+        const row = rows.get(rowDepth);
+        const groups = [];
+        const byParentSet = new Map();
+        row.forEach((scene) => {
+          const ps = (parents.get(scene) || []).slice().sort((a, b) => order.get(a) - order.get(b));
+          const key = ps.join("|");
+          if (!byParentSet.has(key)) byParentSet.set(key, { parents: ps, scenes: [] });
+          byParentSet.get(key).scenes.push(scene);
+        });
+        byParentSet.forEach((group) => {
+          group.scenes.sort((a, b) => order.get(a) - order.get(b));
+          let desiredCenter = nodeW / 2 + groups.length * stepX;
+          if (group.parents.length) {
+            const centers = group.parents
+              .map((p) => positions.get(p))
+              .filter(Boolean)
+              .map((p) => p.x + nodeW / 2);
+            if (centers.length) {
+              desiredCenter = centers.reduce((sum, x) => sum + x, 0) / centers.length;
+            }
+          }
+          groups.push({
+            scenes: group.scenes,
+            desiredFirstCenter: desiredCenter - ((group.scenes.length - 1) * stepX) / 2,
+          });
+        });
+        groups.sort((a, b) =>
+          a.desiredFirstCenter - b.desiredFirstCenter ||
+          order.get(a.scenes[0]) - order.get(b.scenes[0]));
+
+        let nextCenter = -Infinity;
+        groups.forEach((group) => {
+          const firstCenter = Math.max(group.desiredFirstCenter, nextCenter);
+          group.scenes.forEach((scene, i) => {
+            const center = firstCenter + i * stepX;
+            positions.set(scene, {
+              x: Math.round(center - nodeW / 2),
+              y: Math.round(rowDepth * stepY),
+            });
+          });
+          nextCenter = firstCenter + group.scenes.length * stepX;
+        });
+      });
+    }
+
+    const unconnected = selectedNodes
+      .map((n) => n.scene)
+      .filter((scene) => !connected.has(scene));
+    const maxConnectedDepth = connectedOrder.length
+      ? Math.max(...Array.from(positions.values()).map((p) => Math.round(p.y / stepY)))
+      : -1;
+    const unconnectedDepth = maxConnectedDepth + 1;
+    unconnected.forEach((scene, i) => {
+      positions.set(scene, {
+        x: Math.round(i * stepX),
+        y: Math.round(unconnectedDepth * stepY),
+      });
+    });
+
+    const minLocalX = Math.min(...Array.from(positions.values()).map((p) => p.x));
+    const minLocalY = Math.min(...Array.from(positions.values()).map((p) => p.y));
+    let changed = false;
+    selectedNodes.forEach((node) => {
+      const pos = positions.get(node.scene);
+      if (!pos) return;
+      const nextX = Math.round(anchorX + pos.x - minLocalX);
+      const nextY = Math.round(anchorY + pos.y - minLocalY);
+      if (node.x !== nextX || node.y !== nextY) changed = true;
+      node.x = nextX;
+      node.y = nextY;
+    });
+
+    return { changed, arranged: selectedNodes.length, ignoredCycles };
+  }
+
   /* Merge Transition-card ("derived") edges over the manual ones for display.
      Derived edges win: a manual edge with the same from|to is hidden (but left
      untouched in graph.json — the card may be deleted later and the manual
@@ -270,6 +449,7 @@ const SceneGraphModel = (() => {
     removeEdge,
     setEdgeLabel,
     setNodePosition,
+    arrangeSelectedNodes,
     mergeDerivedEdges,
   };
 })();

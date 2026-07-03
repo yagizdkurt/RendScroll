@@ -174,3 +174,120 @@ test("mergeDerivedEdges: derived edges are locked and hide manual duplicates", (
   // graph.json content untouched by display merging.
   assert.strictEqual(graph.edges.length, 2);
 });
+
+test("arrangeSelectedNodes: simple chain arranges downward from current selection anchor", () => {
+  const graph = {
+    version: 1,
+    nodes: [
+      { scene: "scenes/a.md", x: 500, y: 500 },
+      { scene: "scenes/b.md", x: 900, y: 100 },
+      { scene: "scenes/c.md", x: 100, y: 700 },
+    ],
+    edges: [],
+  };
+  const res = M.arrangeSelectedNodes(graph, ["scenes/a.md", "scenes/b.md", "scenes/c.md"], [
+    { from: "scenes/a.md", to: "scenes/b.md" },
+    { from: "scenes/b.md", to: "scenes/c.md" },
+  ]);
+
+  assert.deepStrictEqual(res, { changed: true, arranged: 3, ignoredCycles: 0 });
+  assert.deepStrictEqual(graph.nodes, [
+    { scene: "scenes/a.md", x: 100, y: 100 },
+    { scene: "scenes/b.md", x: 100, y: 265 },
+    { scene: "scenes/c.md", x: 100, y: 430 },
+  ]);
+});
+
+test("arrangeSelectedNodes: one parent with multiple children centers children below it", () => {
+  const graph = {
+    version: 1,
+    nodes: [
+      { scene: "scenes/a.md", x: 10, y: 20 },
+      { scene: "scenes/b.md", x: 250, y: 90 },
+      { scene: "scenes/c.md", x: 500, y: 120 },
+    ],
+    edges: [],
+  };
+  M.arrangeSelectedNodes(graph, ["scenes/a.md", "scenes/b.md", "scenes/c.md"], [
+    { from: "scenes/a.md", to: "scenes/b.md" },
+    { from: "scenes/a.md", to: "scenes/c.md" },
+  ]);
+
+  assert.deepStrictEqual(graph.nodes, [
+    { scene: "scenes/a.md", x: 160, y: 20 },
+    { scene: "scenes/b.md", x: 10, y: 185 },
+    { scene: "scenes/c.md", x: 310, y: 185 },
+  ]);
+  const parentCenter = graph.nodes[0].x + 80;
+  const childCenter = (graph.nodes[1].x + 80 + graph.nodes[2].x + 80) / 2;
+  assert.strictEqual(parentCenter, childCenter);
+});
+
+test("arrangeSelectedNodes: shared child centers below two parents", () => {
+  const graph = {
+    version: 1,
+    nodes: [
+      { scene: "scenes/a.md", x: 80, y: 80 },
+      { scene: "scenes/b.md", x: 430, y: 95 },
+      { scene: "scenes/c.md", x: 900, y: 300 },
+    ],
+    edges: [],
+  };
+  M.arrangeSelectedNodes(graph, ["scenes/a.md", "scenes/b.md", "scenes/c.md"], [
+    { from: "scenes/a.md", to: "scenes/c.md" },
+    { from: "scenes/b.md", to: "scenes/c.md" },
+  ]);
+
+  assert.deepStrictEqual(graph.nodes, [
+    { scene: "scenes/a.md", x: 80, y: 80 },
+    { scene: "scenes/b.md", x: 380, y: 80 },
+    { scene: "scenes/c.md", x: 230, y: 245 },
+  ]);
+});
+
+test("arrangeSelectedNodes: unconnected selected scenes move below connected scenes", () => {
+  const graph = {
+    version: 1,
+    nodes: [
+      { scene: "scenes/a.md", x: 300, y: 300 },
+      { scene: "scenes/b.md", x: 500, y: 500 },
+      { scene: "scenes/c.md", x: 100, y: 100 },
+      { scene: "scenes/d.md", x: 700, y: 900 },
+    ],
+    edges: [],
+  };
+  M.arrangeSelectedNodes(graph, ["scenes/a.md", "scenes/b.md", "scenes/c.md", "scenes/d.md"], [
+    { from: "scenes/a.md", to: "scenes/b.md" },
+  ]);
+
+  assert.deepStrictEqual(graph.nodes, [
+    { scene: "scenes/a.md", x: 100, y: 100 },
+    { scene: "scenes/b.md", x: 100, y: 265 },
+    { scene: "scenes/c.md", x: 100, y: 430 },
+    { scene: "scenes/d.md", x: 400, y: 430 },
+  ]);
+});
+
+test("arrangeSelectedNodes: cycles are ignored deterministically without throwing", () => {
+  const graph = {
+    version: 1,
+    nodes: [
+      { scene: "scenes/a.md", x: 0, y: 0 },
+      { scene: "scenes/b.md", x: 200, y: 0 },
+      { scene: "scenes/c.md", x: 400, y: 0 },
+    ],
+    edges: [],
+  };
+  const res = M.arrangeSelectedNodes(graph, ["scenes/a.md", "scenes/b.md", "scenes/c.md"], [
+    { from: "scenes/a.md", to: "scenes/b.md" },
+    { from: "scenes/b.md", to: "scenes/c.md" },
+    { from: "scenes/c.md", to: "scenes/a.md" },
+  ]);
+
+  assert.strictEqual(res.ignoredCycles, 1);
+  assert.deepStrictEqual(graph.nodes, [
+    { scene: "scenes/a.md", x: 0, y: 0 },
+    { scene: "scenes/b.md", x: 0, y: 165 },
+    { scene: "scenes/c.md", x: 0, y: 330 },
+  ]);
+});

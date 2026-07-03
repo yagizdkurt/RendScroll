@@ -560,16 +560,51 @@ const SceneGraphPanel = (() => {
     return true;
   }
 
+  function arrangeSelectedScenes(scenes) {
+    if (readOnly) return;
+    const res = M.arrangeSelectedNodes(graph, scenes, displayEdges, {
+      nodeWidth: NODE_W,
+      nodeHeight: NODE_H,
+    });
+    if (!res.arranged) return;
+    selectedScenes = new Set(scenes);
+    selected = { kind: "nodes", scenes: Array.from(selectedScenes) };
+    if (res.ignoredCycles) {
+      setStatusNote("Arranged " + res.arranged + " scenes; ignored " +
+        res.ignoredCycles + " cycle link" + (res.ignoredCycles === 1 ? "" : "s") + ".");
+    } else {
+      setStatusNote("Arranged " + res.arranged + " scenes.");
+    }
+    if (res.changed) markDirty();
+    renderDetails();
+    render();
+  }
+
   function openNodeMenu(scene, clientX, clientY) {
     closeEdgeMenu();
     cancelPendingConnect();
-    selectedScenes.clear();
-    selected = { kind: "node", scene };
+    const menuScenes = selectedScenes.has(scene) && selectedScenes.size > 1
+      ? Array.from(selectedScenes)
+      : [scene];
+    selectedScenes = menuScenes.length > 1 ? new Set(menuScenes) : new Set();
+    selected = menuScenes.length > 1
+      ? { kind: "nodes", scenes: menuScenes.slice() }
+      : { kind: "node", scene };
     renderDetails();
     render();
 
     edgeMenu = el("div", "rsg-edge-menu rsg-node-menu print-hide");
     edgeMenu.addEventListener("click", (e) => e.stopPropagation());
+    if (menuScenes.length > 1) {
+      const arrange = el("button", "rsg-edge-menu-btn rsg-node-menu-arrange", "Arrange");
+      arrange.type = "button";
+      arrange.disabled = readOnly;
+      arrange.addEventListener("click", () => {
+        closeEdgeMenu();
+        arrangeSelectedScenes(menuScenes);
+      });
+      edgeMenu.appendChild(arrange);
+    }
     const action = el("button", "rsg-edge-menu-btn rsg-node-menu-add", "Add transition");
     action.type = "button";
     action.disabled = readOnly;
@@ -1083,6 +1118,7 @@ const SceneGraphPanel = (() => {
     // test hooks — not used by app code
     _setSaveDelay(ms) { saveDelayMs = ms; },
     _graph() { return graph; },
+    _selectNodes(scenes) { selectNodes(scenes); },
   };
 
   document.addEventListener("scene:loaded", async (e) => {
