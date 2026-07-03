@@ -287,7 +287,7 @@ const Editor = (() => {
     const libModel = EditorOutline.parse(entry.source);
     const libCard = libModel.events.flatMap((e) => e.cards)[0];
     if (!libCard) { toast("Library file has no card", true); return; }
-    const path = def.folder + "/" + name + ".md";
+    const path = entry.path;
     EditorForm.openEdit(libCard, libModel, async (block) => {
       try {
         await EditorSave.save(path, ensureTrailingNewline(block));
