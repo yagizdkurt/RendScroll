@@ -21,6 +21,8 @@
   let activeTab = "diagnostics";
   let renderToken = 0;
   let exitDialog = null;
+  let versionEl = null;
+  let versionRequested = false;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -57,6 +59,24 @@
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
+  }
+
+  function stringField(data, key) {
+    const value = data && data[key];
+    return typeof value === "string" && value.trim() ? value.trim() : "";
+  }
+
+  function setVersionLabel(version) {
+    if (!versionEl) return;
+    versionEl.textContent = version ? "v" + version : "version unknown";
+  }
+
+  function loadVersionLabel() {
+    if (versionRequested) return;
+    versionRequested = true;
+    fetchJSON("/__update_status")
+      .then((status) => setVersionLabel(stringField(status, "current_version")))
+      .catch(() => setVersionLabel(""));
   }
 
   function parseDoc() {
@@ -386,6 +406,9 @@
 
     const header = el("div", "rsd-header");
     header.appendChild(el("span", "rsd-title", "🐞 RendScroll Debug"));
+    versionEl = el("span", "rsd-version", "");
+    versionEl.setAttribute("aria-label", "RendScroll version");
+    header.appendChild(versionEl);
     const close = el("button", "rsd-close");
     close.type = "button";
     close.textContent = "✕";
@@ -409,6 +432,7 @@
 
     document.body.appendChild(panel);
     tabEls[activeTab].classList.add("is-active");
+    loadVersionLabel();
   }
 
   function mountButton() {

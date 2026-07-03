@@ -146,7 +146,7 @@
 .rsd-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 10px 14px;
   background: linear-gradient(180deg, #2a211b, #211a14);
   border-bottom: 1px solid #3a2f24;
@@ -156,6 +156,15 @@
   font-size: 17px;
   color: var(--gold, #c9ad6a);
   letter-spacing: 0.03em;
+  min-width: 0;
+}
+.rsd-version {
+  margin-left: auto;
+  color: #9c8d6f;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
 }
 .rsd-close {
   border: none;
