@@ -29,9 +29,9 @@ That's it — you're at the table.
 
 ---
 
-## 🆕 Whats new (1.3)
+## 🆕 Whats new (1.4 Map and Flow Update)
 
-- Now you can select assets via file browser so that you dont write "RendScrol" instead of "RendScroll" and mess up images.
+- Added a map renderer where you can choose when or where to transition from location 1 to location 2.
 
 ---
 

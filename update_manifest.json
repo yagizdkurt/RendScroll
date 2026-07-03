@@ -1,8 +1,8 @@
 {
-  "latest": "1.3.0",
+  "latest": "1.4.0",
   "minimum_supported_version": "1.0.0",
   "url": "https://github.com/yagizdkurt/RendScroll",
   "download_url": "https://codeload.github.com/yagizdkurt/RendScroll/zip/refs/heads/main",
-  "title": "1.3.0 Asset Browser Update",
-  "changes": " Added asset browsing in images and audio from editor."
+  "title": "1.4.0 Map and Flow Update",
+  "changes": "Added scene flow functionality, you can now define the order of scenes and how they transition from one to another via MAP tab."
 }
