@@ -367,6 +367,36 @@ test("double-click a node navigates through guardedLoad with the full path", asy
   assert.strictEqual(win.__loaded, "campaigns/demo/scenes/2_baron.md");
 });
 
+test("two quick node clicks navigate even though the first click re-renders selection", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const svg = panel.querySelector(".rsg-svg");
+  const graph = win.SceneGraphPanel._graph();
+  const nodeData = graph.nodes.find((n) => n.scene === "scenes/2_baron.md");
+  const pt = clientPoint(panel, nodeData.x + 40, nodeData.y + 30);
+
+  win.__loaded = null;
+  let node = panel.querySelector('[data-scene="scenes/2_baron.md"]');
+  node.dispatchEvent(new win.MouseEvent("pointerdown", Object.assign({
+    bubbles: true, button: 0,
+  }, pt)));
+  svg.dispatchEvent(new win.MouseEvent("pointerup", Object.assign({
+    bubbles: true, button: 0,
+  }, pt)));
+
+  assert.strictEqual(win.__loaded, null, "first click only selects the node");
+
+  node = panel.querySelector('[data-scene="scenes/2_baron.md"]');
+  node.dispatchEvent(new win.MouseEvent("pointerdown", Object.assign({
+    bubbles: true, button: 0,
+  }, pt)));
+  svg.dispatchEvent(new win.MouseEvent("pointerup", Object.assign({
+    bubbles: true, button: 0,
+  }, pt)));
+
+  assert.strictEqual(win.__loaded, "campaigns/demo/scenes/2_baron.md");
+});
+
 test("nodes render a number badge, wrapped title, and a ring on the current scene", async () => {
   await win.SceneGraphPanel.open();
   const panel = win.document.getElementById("rs-scenegraph-panel");

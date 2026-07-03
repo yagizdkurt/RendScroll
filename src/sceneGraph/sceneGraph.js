@@ -52,6 +52,7 @@ const SceneGraphPanel = (() => {
   let view = { tx: 20, ty: 20, k: 1 };
   let gesture = null;        // active pointer gesture (pan/node/port)
   let pendingConnect = null; // {from, band} after Add transition until target click
+  let lastNodeClick = null;  // native dblclick can be lost when click selection re-renders the node
 
   let dirty = false;
   let saveTimer = null;
@@ -832,6 +833,30 @@ const SceneGraphPanel = (() => {
     return null;
   }
 
+  function nowMs() {
+    return (typeof performance !== "undefined" && performance.now)
+      ? performance.now()
+      : Date.now();
+  }
+
+  function isSecondNodeClick(scene, clientX, clientY) {
+    if (!lastNodeClick || lastNodeClick.scene !== scene) return false;
+    const dt = nowMs() - lastNodeClick.time;
+    const dist = Math.hypot(clientX - lastNodeClick.clientX, clientY - lastNodeClick.clientY);
+    return dt <= 500 && dist <= 8;
+  }
+
+  function rememberNodeClick(scene, clientX, clientY) {
+    lastNodeClick = { scene, clientX, clientY, time: nowMs() };
+  }
+
+  function openSceneNode(scene) {
+    const full = M.toFullPath(scene, prefix);
+    if (typeof RendScrollApp !== "undefined" && RendScrollApp.guardedLoad) {
+      RendScrollApp.guardedLoad(full);
+    }
+  }
+
   function onPointerDown(e) {
     if (e.button !== 0) return;
     closeEdgeMenu();
@@ -980,10 +1005,12 @@ const SceneGraphPanel = (() => {
 
     if (g.type === "pan") {
       if (!g.moved) clearSelection();
+      else lastNodeClick = null;
       return;
     }
     if (g.type === "node") {
       if (g.moved) {
+        lastNodeClick = null;
         let changed = false;
         g.groupStart.forEach((startNode) => {
           const node = nodeOf(startNode.scene);
@@ -991,10 +1018,15 @@ const SceneGraphPanel = (() => {
         });
         if (changed) markDirty();
       } else {
-        if (selectedScenes.has(g.scene) && selectedScenes.size > 1) {
+        if (isSecondNodeClick(g.scene, e.clientX, e.clientY)) {
+          lastNodeClick = null;
+          openSceneNode(g.scene);
+        } else if (selectedScenes.has(g.scene) && selectedScenes.size > 1) {
+          rememberNodeClick(g.scene, e.clientX, e.clientY);
           renderDetails();
           render();
         } else {
+          rememberNodeClick(g.scene, e.clientX, e.clientY);
           selectNode(g.scene);
         }
       }
@@ -1051,10 +1083,7 @@ const SceneGraphPanel = (() => {
   function onDblClick(e) {
     const nodeG = nodeGroupFrom(e.target);
     if (!nodeG) return;
-    const full = M.toFullPath(nodeG.getAttribute("data-scene"), prefix);
-    if (typeof RendScrollApp !== "undefined" && RendScrollApp.guardedLoad) {
-      RendScrollApp.guardedLoad(full);
-    }
+    openSceneNode(nodeG.getAttribute("data-scene"));
   }
 
   // Scale by factor keeping the canvas point at (mx,my) fixed.
