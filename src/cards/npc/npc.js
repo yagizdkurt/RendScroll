@@ -114,7 +114,7 @@ function npcSectionTitle(text) {
 // shared-parse discipline (RENDERER_AST_MIGRATION.md).
 //   { kind: "stat", label, value }   value "" means the label heads a following run
 //   { kind: "personality", label }
-//   { kind: "topic", title }
+//   { kind: "topic", title, line }      line preserves "#### Title" vs "Title:"
 //   { kind: "checks", checks }
 //   { kind: "lines", lines }         a contiguous content run (blank lines kept)
 function parseNpcBody(cardNode) {
@@ -140,7 +140,7 @@ function parseNpcBody(cardNode) {
       }
       if (NPC_PERSONALITY_LABELS.has(rsLower(t))) { segs.push({ kind: "personality", label: t }); return; }
       const topic = npcTopicFromLine(t);
-      if (topic) { segs.push({ kind: "topic", title: topic }); return; }
+      if (topic) { segs.push({ kind: "topic", title: topic, line }); return; }
       pushLine(line);
     });
   });

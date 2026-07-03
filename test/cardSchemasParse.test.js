@@ -1,10 +1,10 @@
-/* Guard: for the card types whose editor form parses through the SHARED per-type
-   render parser (parse<Type>Body via schema.fromBody — item and ability), a
-   representative values object must survive a serialize -> parse round-trip. This
-   proves the editor (save path) and the reader (render path) model those types'
-   fields through the exact same code, so the two can never drift. Complements
-   cardSchemasLabels.test.js (universal-directive label drift) and cardBuilders.js
-   (render structure). See RENDERER_AST_MIGRATION.md for the discipline.
+/* Guard: editor card forms parse through explicit schema.fromBody adapters that
+   consume the same AST node and shared per-type body parsers the reader uses. A
+   representative values object must survive a serialize -> parse round-trip, so
+   the editor (save path) and reader (render path) cannot drift through a generic
+   second parser. Complements cardSchemasLabels.test.js (universal-directive label
+   drift) and cardBuilders.js (render structure). See RENDERER_AST_MIGRATION.md
+   for the discipline.
 
    It also asserts the render-side parse<Type>Body functions are exported for reuse
    by every field-bearing type (item/ability/obj/combat/npc). */
@@ -13,6 +13,8 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const EditorSchemas = require("../src/editor/cardSchemas.js");
 const CombatEnemyModel = require("../src/cards/combat/enemyModel.js");
@@ -101,12 +103,28 @@ test("manifest exports a pure parseManifestBody for reuse", () => {
   assert.equal(typeof require("../src/cards/manifest/manifest.js").parseManifestBody, "function");
 });
 
-/* The rebased field-table types (npc/obj/combat/std) now parse through the SAME
-   AST node the reader renders from (firstCardNode + fillUniversalFromNode +
-   mapFieldTable), so their editor fields must survive a serialize -> parse
-   round-trip too — the parity §1.6 asks for. */
+test("every registered schema parses through an explicit fromBody adapter", () => {
+  [
+    "narrative", "npc", "skillchecks", "obj", "combat", "item", "ability",
+    "unexpected", "std", "picture", "audio", "transition", "manifest",
+    "sourceitem", "sourceenemy",
+  ].forEach((type) => {
+    const schema = EditorSchemas.get(type);
+    assert.ok(schema, type + " schema should exist");
+    assert.equal(typeof schema.fromBody, "function", type + " must define fromBody");
+  });
+});
 
-test("npc fields round-trip through the rebased AST field-table", () => {
+test("cardSchemas has no generic mapFieldTable parser", () => {
+  const src = fs.readFileSync(path.join(__dirname, "../src/editor/cardSchemas.js"), "utf8");
+  assert.doesNotMatch(src, /\bmapFieldTable\b/);
+});
+
+/* The migrated non-item types (npc/obj/combat/std) now parse through explicit
+   fromBody adapters over the SAME AST node the reader renders from, so their
+   editor fields must survive a serialize -> parse round-trip too. */
+
+test("npc fields round-trip through parseNpcBody-backed fromBody", () => {
   const checks = EditorSchemas.parseChecks("- Investigation:\n> 12: A hidden ledger.");
   const values = {
     title: "Mara",
@@ -140,7 +158,7 @@ test("npc fields round-trip through the rebased AST field-table", () => {
   assert.equal(back.body[1].checks[0].skill, "Investigation");
 });
 
-test("obj body round-trips prose + Checks + Loot through the AST field-table", () => {
+test("obj body round-trips prose + Checks + Loot through parseObjBody-backed fromBody", () => {
   const checks = EditorSchemas.parseChecks("- Perception:\n> 10: A faint draft.");
   const values = {
     title: "Altar", image: "", bg: "shrine.png", column: "left", textSize: "",
@@ -194,6 +212,41 @@ test("std title + body + universals round-trip via the AST node", () => {
   assert.equal(back.closed, true);
   assert.match(back.body, /gates open/);
   assert.match(back.body, /Dust settles/);
+});
+
+test("picture directives round-trip through its explicit fromBody", () => {
+  const values = {
+    title: "Castle", image: "castle.png", size: "50", column: "right", closed: true,
+  };
+  const { back } = roundTrip("picture", values);
+  assert.equal(back.title, "Castle");
+  assert.equal(back.image, "castle.png");
+  assert.equal(back.size, "50");
+  assert.equal(back.column, "right");
+  assert.equal(back.closed, true);
+});
+
+test("audio directives round-trip through its explicit fromBody", () => {
+  const values = {
+    title: "Tavern", file: "tavern", column: "right", closed: true,
+  };
+  const { back } = roundTrip("audio", values);
+  assert.equal(back.title, "Tavern");
+  assert.equal(back.file, "tavern");
+  assert.equal(back.column, "right");
+  assert.equal(back.closed, true);
+});
+
+test("transition scene and body round-trip through parseTransitionBody-backed fromBody", () => {
+  const values = {
+    title: "Take the Pass", scene: "3_ambush", column: "right",
+    body: "> Travel at night.", closed: false,
+  };
+  const { back } = roundTrip("transition", values);
+  assert.equal(back.title, "Take the Pass");
+  assert.equal(back.scene, "3_ambush");
+  assert.equal(back.column, "right");
+  assert.match(back.body, /Travel at night/);
 });
 
 test("every field-bearing type exports a pure parse<Type>Body for reuse", () => {

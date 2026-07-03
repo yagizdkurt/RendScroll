@@ -46,20 +46,28 @@ const EditorSchemas = (() => {
   // helpers as globals so the required card files (which reference them as globals)
   // resolve at call time.
   const RENDER = (typeof cardBodySource !== "undefined")
-    ? { cardBodySource, cardBodyLines, cardOrderedBody, cardDirective, parseItemBody, parseAbilityBody, parseManifestBody }
+    ? {
+        cardBodySource, cardBodyLines, cardOrderedBody, cardDirective,
+        parseItemBody, parseAbilityBody, parseManifestBody,
+        parseNpcBody, parseObjBody, parseCombatBody, parseTransitionBody,
+      }
     : (() => {
         const CD = require("../cards/shared/cardDirectives.js");
         Object.assign(globalThis, CD);
+        if (typeof globalThis.RendScrollParser === "undefined") globalThis.RendScrollParser = RSP;
         if (typeof globalThis.rsLower === "undefined") globalThis.rsLower = require("../utils/text.js").rsLower;
         return Object.assign({}, CD, {
           parseItemBody: require("../cards/item/item.js").parseItemBody,
           parseAbilityBody: require("../cards/ability/ability.js").parseAbilityBody,
           parseManifestBody: require("../cards/manifest/manifest.js").parseManifestBody,
+          parseNpcBody: require("../cards/npc/npc.js").parseNpcBody,
+          parseObjBody: require("../cards/obj/obj.js").parseObjBody,
+          parseCombatBody: require("../cards/combat/combat.js").parseCombatBody,
+          parseTransitionBody: require("../cards/transition/transition.js").parseTransitionBody,
         });
       })();
 
   const lower = RSP.lower;
-  const TRUTHY = /^(t|true|yes|1)$/i;
 
   function checkSkillOptions() {
     return SCR.skillOptions();
@@ -67,9 +75,6 @@ const EditorSchemas = (() => {
 
   // Check / outcome / body parsing are owned by the canonical core — these used
   // to be a verbatim copy. Delegating keeps the editor and renderer identical.
-  const ensureColon = RSP.ensureColon;
-  const parseOutcome = RSP.parseOutcome;
-  const serializeOutcome = RSP.serializeOutcome;
   const parseChecks = RSP.parseChecks;
   const serializeChecks = RSP.serializeChecks;
   const serializeLinesWithChecks = RSP.serializeLinesWithChecks;
@@ -78,8 +83,8 @@ const EditorSchemas = (() => {
 
   // Field keys the parser resolves into universal directives/flags (Side is the
   // `column` field, emitted separately as "Side:"). serialize() emits these before
-  // the body and mapFieldTable/mapMetaToScalars read them off the node instead of
-  // the body — one source of truth for what "universal" means.
+  // the body and the per-type adapters read them off the node instead of the body
+  // — one source of truth for what "universal" means.
   const DIRECTIVE_KEYS = new Set(["image", "bg", "textSize", "closed", "stuck", "size", "file"]);
 
   function serialize(schema, values) {
@@ -206,11 +211,6 @@ const EditorSchemas = (() => {
     return leftover;
   }
 
-  // Universal directives/flags come off the AST node via fillUniversalFromNode, so
-  // the field-table mapper below never re-scans them (mirrors mapMetaToScalars
-  // skipping image/textSize). `column` is the Side line; the rest are DIRECTIVE_KEYS.
-  const UNIVERSAL_KEYS = new Set(["column", ...DIRECTIVE_KEYS]);
-
   function trimBlankEdges(lines) {
     const out = lines.slice();
     while (out.length && out[0].trim() === "") out.shift();
@@ -218,151 +218,45 @@ const EditorSchemas = (() => {
     return out;
   }
 
-  // The declarative field-table interpreter (the inverse of serialize()), reading
-  // the parsed AST NODE — the same source the reader consumes — instead of
-  // re-splitting the raw block. Universals are already filled from the node; here
-  // we peel the type-specific labelled scalars/lists/enemies out of the body's text
-  // runs and route whatever is left, interleaved with the parser's canonical
-  // Checks: groups (from cardOrderedBody), to the single catch-all field. Because
-  // directives are absent from node.body, the label table can no longer misfire on
-  // a directive line, and there is no bespoke Side:/truthiness re-parse.
-  function mapFieldTable(schema, node, values) {
-    const catchAllKinds = new Set(["lines", "checks", "linesWithChecks", "narrativeText"]);
-    const labeled = schema.fields.filter(
-      (f) => f.mdLabel && !catchAllKinds.has(f.kind) && !UNIVERSAL_KEYS.has(f.key));
-    const linesField = schema.fields.find((f) => catchAllKinds.has(f.kind));
-    // A label-less enemies field (SourceEnemy file): the bullet block sits directly
-    // under the heading, matched by shape, not by a preceding label.
-    const bareEnemies = schema.fields.find((f) => f.kind === "enemies" && !f.mdLabel);
-
-    // Leftover content as ordered segments mirroring cardOrderedBody:
-    //   { kind: "text", lines }            unmatched body lines (merged when adjacent)
-    //   { kind: "checks", label, checks }  a parsed check group in source position
-    const segments = [];
-    const pushTextLine = (line) => {
-      const last = segments[segments.length - 1];
-      if (last && last.kind === "text") last.lines.push(line);
-      else segments.push({ kind: "text", lines: [line] });
-    };
-
-    RENDER.cardOrderedBody(node).forEach((seg) => {
-      if (seg.kind === "checks") { segments.push(seg); return; }
-      const body = seg.lines;
-      for (let i = 0; i < body.length; i++) {
-        const line = body[i];
-        const t = line.trim();
-        let matched = false;
-
-        for (const f of labeled) {
-          const labs = fieldLabels(f).map((label) => lower(label));
-          const m = lower(t).match(/^([^:]+):\s*(.*)$/);
-          if (!m || !labs.includes(m[1].trim())) continue;
-
-          if (f.kind === "text" || f.kind === "select" || f.kind === "itemType" || f.kind === "damage") {
-            // recover original-case value from the raw line
-            const rv = t.match(/^[^:]+:\s*(.*)$/);
-            values[f.key] = rv ? rv[1].trim() : "";
-            matched = true;
-          } else if (f.kind === "flag") {
-            const rv = t.match(/^[^:]+:\s*(.*)$/);
-            values[f.key] = !!(rv && TRUTHY.test(rv[1].trim()));
-            matched = true;
-          } else if (f.kind === "list") {
-            // consume following "- " bullets (tolerating one blank line between).
-            const items = [];
-            let j = i + 1;
-            while (j < body.length) {
-              const bt = body[j].trim();
-              if (bt === "") { j++; continue; }
-              const bm = bt.match(/^[-*]\s+(.*)$/);
-              if (!bm) break;
-              items.push(bm[1].trim());
-              j++;
-            }
-            values[f.key] = items;
-            i = j - 1;
-            matched = true;
-          } else if (f.kind === "enemies") {
-            // consume following bullet lines (top-level enemies + indented
-            // abilities), tolerating one blank line between rows.
-            const block = [];
-            let j = i + 1;
-            while (j < body.length) {
-              const bl = body[j];
-              if (bl.trim() === "") { j++; continue; }
-              if (!/^\s*[-*]\s+/.test(bl)) break;
-              block.push(bl);
-              j++;
-            }
-            values[f.key] = CEM.parseEnemyBlock(block);
-            i = j - 1;
-            matched = true;
-          }
-          break;
-        }
-
-        // Bare enemies block (no preceding label): consume the contiguous bullets.
-        if (!matched && bareEnemies && /^[-*]\s+/.test(t)) {
-          const block = [];
-          let j = i;
-          while (j < body.length) {
-            const bl = body[j];
-            if (bl.trim() === "") { j++; continue; }
-            if (!/^\s*[-*]\s+/.test(bl)) break;
-            block.push(bl);
-            j++;
-          }
-          values[bareEnemies.key] = CEM.parseEnemyBlock(block);
-          i = j - 1;
-          matched = true;
-        }
-
-        if (!matched) pushTextLine(line);
-      }
-    });
-
-    if (linesField) fillCatchAll(linesField, segments, values);
+  function bodyText(node) {
+    return trimBlankEdges(RENDER.cardBodyLines(node)).join("\n");
   }
 
-  // Route the leftover ordered segments to the schema's single catch-all field.
-  //   linesWithChecks: preserve the parser's Checks: groups in place, mapped to the
-  //     form value shape ([{kind:"text",text}|{kind:"checksBlock",label,checks}]) —
-  //     no text->reparse round-trip, so the reader's canonical checkGroups become
-  //     the editor value directly.
-  //   checks: collect every parsed check group (the Skill Checks card).
-  //   lines / narrativeText: join the text runs; check groups are dropped, matching
-  //     the reader (std/unexpected render only body text, never checks). A stray
-  //     "Checks:" block therefore round-trips out of these types' bodies — but it
-  //     was already invisible to the reader, so this aligns the two rather than
-  //     losing anything the reader showed.
-  function fillCatchAll(field, segments, values) {
-    if (field.kind === "linesWithChecks") {
-      const out = [];
-      segments.forEach((seg) => {
-        if (seg.kind === "checks") {
-          out.push({ kind: "checksBlock", label: seg.label || "Checks", checks: seg.checks });
-        } else {
-          const text = trimBlankEdges(seg.lines).join("\n");
-          if (text) out.push({ kind: "text", text });
-        }
-      });
-      values[field.key] = out;
-      return;
+  function pushTextSegment(out, linesOrText) {
+    const lines = Array.isArray(linesOrText)
+      ? linesOrText
+      : String(linesOrText || "").split(/\r?\n/);
+    const text = trimBlankEdges(lines).join("\n");
+    if (!text) return;
+    const last = out[out.length - 1];
+    if (last && last.kind === "text") last.text += "\n" + text;
+    else out.push({ kind: "text", text });
+  }
+
+  function pushChecksSegment(out, label, checks) {
+    out.push({ kind: "checksBlock", label: label || "Checks", checks: checks || [] });
+  }
+
+  function collectCheckGroups(node) {
+    const out = [];
+    RENDER.cardOrderedBody(node).forEach((seg) => {
+      if (seg.kind === "checks") out.push(...seg.checks);
+    });
+    return out;
+  }
+
+  function consumeLeadingBullets(lines) {
+    const items = [];
+    let i = 0;
+    while (i < lines.length) {
+      const t = lines[i].trim();
+      if (t === "") { i++; continue; }
+      const bullet = t.match(/^[-*]\s+(.*)$/);
+      if (!bullet) break;
+      items.push(bullet[1].trim());
+      i++;
     }
-    if (field.kind === "checks") {
-      const all = [];
-      segments.forEach((seg) => { if (seg.kind === "checks") all.push(...seg.checks); });
-      values[field.key] = all;
-      return;
-    }
-    const textLines = [];
-    segments.forEach((seg) => { if (seg.kind === "text") textLines.push(...seg.lines); });
-    const text = trimBlankEdges(textLines).join("\n");
-    if (field.kind === "narrativeText") {
-      values[field.key] = unquoteNarrativeText(stripTextLabel(text, field.mdLabel));
-    } else {
-      values[field.key] = text;
-    }
+    return { items, rest: lines.slice(i) };
   }
 
   // Item / SourceItem: canonical ItemData.parse (via parseItemBody). Meta rows fold
@@ -398,14 +292,120 @@ const EditorSchemas = (() => {
     values.rewards = (m.rewards || []).slice();
   }
 
+  function sourceItemFromBody(node, values, api) {
+    const m = api.render.parseItemBody(node);
+    const leftover = api.mapMeta(m.metaRows);
+    values.properties = (m.properties || []).slice();
+    values.body = [].concat(m.description || [], m.extras || [], leftover)
+      .join("\n").replace(/[ \t\r\n]+$/, "");
+  }
+
+  function npcFromBody(node, values, api) {
+    const segments = [];
+    let collectPersonality = false;
+    const statKeys = {
+      race: "race",
+      age: "age",
+      occupation: "occupation",
+      alignment: "alignment",
+      hp: "hp",
+      ac: "ac",
+    };
+    api.render.parseNpcBody(node).forEach((seg) => {
+      if (seg.kind === "stat") {
+        const key = statKeys[lower(seg.label).trim()];
+        if (key) values[key] = seg.value || "";
+        collectPersonality = false;
+        return;
+      }
+      if (seg.kind === "personality") {
+        collectPersonality = true;
+        return;
+      }
+      if (seg.kind === "checks") {
+        collectPersonality = false;
+        pushChecksSegment(segments, "Checks", seg.checks);
+        return;
+      }
+      if (seg.kind === "topic") {
+        collectPersonality = false;
+        pushTextSegment(segments, seg.line || seg.title);
+        return;
+      }
+      if (seg.kind === "lines") {
+        let lines = seg.lines || [];
+        if (collectPersonality) {
+          const consumed = consumeLeadingBullets(lines);
+          values.personality = consumed.items;
+          lines = consumed.rest;
+          collectPersonality = false;
+        }
+        pushTextSegment(segments, lines);
+      }
+    });
+    values.body = segments;
+  }
+
+  function objFromBody(node, values, api) {
+    const segments = [];
+    api.render.parseObjBody(node).forEach((seg) => {
+      if (seg.kind === "checks") {
+        pushChecksSegment(segments, "Checks", seg.checks);
+      } else if (seg.kind === "lines" && seg.mode === "loot") {
+        pushTextSegment(segments, ["Loot:"].concat(seg.lines || []));
+      } else if (seg.kind === "lines") {
+        pushTextSegment(segments, seg.lines || []);
+      }
+    });
+    values.body = segments;
+  }
+
+  function combatFromBody(node, values, api) {
+    const segments = [];
+    api.render.parseCombatBody(node).forEach((seg) => {
+      if (seg.kind === "checks") {
+        pushChecksSegment(segments, seg.label || "Checks", seg.checks);
+      } else if (seg.kind === "enemies") {
+        values.enemies = (values.enemies || []).concat(CEM.parseEnemyBlock(seg.lines || []));
+      } else if (seg.kind === "section") {
+        pushTextSegment(segments, (seg.label || "").replace(/\s*:\s*$/, "") + ":");
+      } else if (seg.kind === "lines") {
+        pushTextSegment(segments, seg.lines || []);
+      }
+    });
+    values.body = segments;
+  }
+
+  function plainLinesFromBody(node, values) {
+    values.body = bodyText(node);
+  }
+
+  function skillChecksFromBody(node, values) {
+    values.checks = collectCheckGroups(node);
+  }
+
+  function sourceEnemyFromBody(node, values, api) {
+    values.enemy = CEM.parseEnemyBlock(api.render.cardBodyLines(node));
+  }
+
+  function narrativeFromBody(node, values) {
+    values.text = unquoteNarrativeText(stripTextLabel(bodyText(node), "Text"));
+  }
+
+  function transitionFromBody(node, values, api) {
+    const m = api.render.parseTransitionBody(node);
+    values.scene = m.sceneRef || "";
+    values.body = trimBlankEdges(m.descriptionLines || []).join("\n");
+  }
+
+  function noBodyFieldsFromBody() {}
+
   // --- parse (markdown block -> values) ------------------------------------
 
   // One spine for every card type: parse the block to its AST node, take the title
-  // from the heading and the universals off the node, then dispatch field mapping
-  // to either the shared per-type render parser (schema.fromBody — item/ability/
-  // manifest) or the declarative field-table interpreter (mapFieldTable — everyone
-  // else). Both read the SAME node the reader renders from, so editor/reader can't
-  // drift.
+  // from the heading and the universals off the node, then dispatch to the type's
+  // explicit fromBody adapter. Each adapter reads the SAME node the reader renders
+  // from, using the shared per-type render parser where one exists.
   function parse(schema, blockText) {
     const rawLines = blockText.split(/\r?\n/);
     const values = initValues(schema);
@@ -413,14 +413,11 @@ const EditorSchemas = (() => {
     const node = firstCardNode(blockText);
     if (node) {
       fillUniversalFromNode(schema, node, values);
-      if (typeof schema.fromBody === "function") {
-        schema.fromBody(node, values, {
-          render: RENDER,
-          mapMeta: (rows) => mapMetaToScalars(schema, rows, values),
-        });
-      } else {
-        mapFieldTable(schema, node, values);
-      }
+      if (typeof schema.fromBody !== "function") throw new Error("Schema missing fromBody: " + schema.type);
+      schema.fromBody(node, values, {
+        render: RENDER,
+        mapMeta: (rows) => mapMetaToScalars(schema, rows, values),
+      });
     }
     return values;
   }
@@ -547,7 +544,7 @@ const EditorSchemas = (() => {
     fTextSize,
     fBodyWithChecks("First dialogue / questions / known topics / dialogue topics / Checks: ...", "npc"),
     fClosed,
-  ]);
+  ], { fromBody: npcFromBody });
 
   define("item", "Item", keywordHeading("Item"), [
     fTitle,
@@ -600,7 +597,7 @@ const EditorSchemas = (() => {
     fTextSize,
     fBodyWithChecks("> description, Checks: / Loot: …", "obj"),
     fClosed,
-  ]);
+  ], { fromBody: objFromBody });
 
   define("combat", "Combat", keywordHeading("Combat"), [
     fTitle,
@@ -610,7 +607,7 @@ const EditorSchemas = (() => {
     fBodyWithChecks("> opening, Tactics: ...", "combat"),
     { key: "enemies", label: "Enemies", kind: "enemies", mdLabel: "Enemies" },
     fClosed,
-  ]);
+  ], { fromBody: combatFromBody });
 
   define("unexpected", "Unexpected", keywordHeading("Unexpected"), [
     { key: "title", label: "Title (optional)", kind: "text" },
@@ -618,7 +615,7 @@ const EditorSchemas = (() => {
     fTextSize,
     fBody("- contingency lines…"),
     fClosed,
-  ]);
+  ], { fromBody: plainLinesFromBody });
 
   define("std", "Standard (STD)", keywordHeading("STD"), [
     { key: "title", label: "Title (optional)", kind: "text" },
@@ -627,7 +624,7 @@ const EditorSchemas = (() => {
     fTextSize,
     fBody("> read-aloud / paragraphs…"),
     fClosed,
-  ]);
+  ], { fromBody: plainLinesFromBody });
 
   define("picture", "Picture", keywordHeading("Picture"), [
     { key: "title", label: "Caption (optional)", kind: "text" },
@@ -635,14 +632,14 @@ const EditorSchemas = (() => {
     { key: "size", label: "Size (% of column)", kind: "text", mdLabel: "Size", inputMode: "numeric" },
     fColumn,
     fClosed,
-  ]);
+  ], { fromBody: noBodyFieldsFromBody });
 
   define("audio", "Audio", keywordHeading("Audio"), [
     { key: "title", label: "Caption (optional)", kind: "text" },
     { key: "file", label: "Audio file", kind: "text", mdLabel: "File", required: true, assetType: "audio" },
     fColumn,
     fClosed,
-  ]);
+  ], { fromBody: noBodyFieldsFromBody });
 
   // Live scene list for the Transition target dropdown. Exposed via a property
   // getter on the field (form.js reads field.options when the form opens), so
@@ -669,7 +666,7 @@ const EditorSchemas = (() => {
     fColumn,
     fBody("> when the DM should use this transition…"),
     fClosed,
-  ]);
+  ], { fromBody: transitionFromBody });
 
   define("skillchecks", "Skill Checks", {
     heading() { return "Skill Checks"; },
@@ -679,7 +676,7 @@ const EditorSchemas = (() => {
     fColumn,
     fTextSize,
     fClosed,
-  ]);
+  ], { fromBody: skillChecksFromBody });
 
   define("sourceitem", "SourceItem", {
     heading(values) {
@@ -697,7 +694,7 @@ const EditorSchemas = (() => {
     fImage,
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, extra lines…"),
-  ]);
+  ], { fromBody: sourceItemFromBody });
 
   // A standalone library enemy: a "### SourceEnemy: Name" heading + one enemy
   // block (no "Enemies:" label). The single enemy's name is the card title.
@@ -712,7 +709,7 @@ const EditorSchemas = (() => {
   }, [
     fTitle,
     { key: "enemy", label: "Enemy stats", kind: "enemies", single: true },
-  ]);
+  ], { fromBody: sourceEnemyFromBody });
 
   define("narrative", "Narrative", {
     heading() { return "Narrative"; },
@@ -721,7 +718,7 @@ const EditorSchemas = (() => {
     fColumn,
     fTextSize,
     { key: "text", label: "Text", kind: "narrativeText", mdLabel: "Text", hint: "Read-aloud text...", required: true },
-  ]);
+  ], { fromBody: narrativeFromBody });
 
   // Scene Manifest: a compact scene-header card set at scene-creation time. It is
   // deliberately ABSENT from ORDER below, so it never appears in the insert ("add
