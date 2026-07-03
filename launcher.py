@@ -496,6 +496,8 @@ def begin_update(base_dir):
     status = update_status_snapshot()
     if status.get("state") != "update_available":
         return "no update is available"
+    if status.get("manual_update_required"):
+        return "automatic updates are not supported for this version"
     with UPDATE_PROGRESS_LOCK:
         if UPDATE_PROGRESS.get("active"):
             return "an update is already in progress"

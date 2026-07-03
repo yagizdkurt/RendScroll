@@ -136,6 +136,16 @@ class UpdateCheckerTests(unittest.TestCase):
         result = update_checker.result_from_manifest(data, current_version="1.1.1")
         self.assertEqual(result["minimum_supported"], "1.0.5")
 
+    def test_under_minimum_supported_requires_manual_update(self):
+        result = update_checker.result_from_manifest(
+            manifest(latest="1.4.1", minimum_supported="1.4.1", changes="Normal notes."),
+            current_version="1.4.0",
+        )
+
+        self.assertEqual(result["state"], update_checker.STATE_UPDATE_AVAILABLE)
+        self.assertTrue(result["manual_update_required"])
+        self.assertEqual(result["changes"], update_checker.MANUAL_UPDATE_REQUIRED_CHANGES)
+
     def test_new_optional_fields_absent_still_validates(self):
         data = manifest()
         data.pop("minimum_supported")

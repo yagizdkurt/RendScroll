@@ -14,11 +14,17 @@ import urllib.request
 from .update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIFEST_URL
 
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.2"
 STATE_DISABLED = "disabled"
 STATE_UP_TO_DATE = "up_to_date"
 STATE_UPDATE_AVAILABLE = "update_available"
 STATE_CHECK_FAILED = "check_failed"
+MANUAL_UPDATE_REQUIRED_CHANGES = (
+    'You are using older version than "minimum supported version" thus you need '
+    "to update project manually. You can do this by moving content folder out, "
+    "downloading the project again then moving it back in. Auto updates wont "
+    "work on unsupported versions."
+)
 
 _SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
@@ -116,6 +122,11 @@ def result_from_manifest(manifest, current_version=APP_VERSION):
         if source_key in data:
             result[result_key] = data[source_key]
 
+    minimum = data.get("minimum_supported")
+    if minimum and compare_versions(current_version, minimum) < 0:
+        result["manual_update_required"] = True
+        result["changes"] = MANUAL_UPDATE_REQUIRED_CHANGES
+
     return result
 
 
@@ -169,6 +180,7 @@ __all__ = [
     "STATE_DISABLED",
     "STATE_UPDATE_AVAILABLE",
     "STATE_UP_TO_DATE",
+    "MANUAL_UPDATE_REQUIRED_CHANGES",
     "UpdateCheckError",
     "check_for_updates",
     "compare_versions",

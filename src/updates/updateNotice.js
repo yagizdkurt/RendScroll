@@ -57,6 +57,7 @@ const RendScrollUpdateNotice = (() => {
     const title = stringField(status, "title");
     const changes = stringField(status, "changes");
     const url = stringField(status, "url");
+    const manualUpdateRequired = !!status.manual_update_required;
 
     const wrap = document.createElement("section");
     wrap.className = "update-notice print-hide";
@@ -92,6 +93,12 @@ const RendScrollUpdateNotice = (() => {
     actions.className = "update-notice-actions";
 
     const update = button("Update Now", "update-notice-update");
+    if (manualUpdateRequired) {
+      update.disabled = true;
+      update.title = "Manual update required";
+    } else {
+      update.addEventListener("click", () => beginUpdate(update, dismiss, progress));
+    }
     actions.appendChild(update);
 
     if (url) {
@@ -111,8 +118,6 @@ const RendScrollUpdateNotice = (() => {
       removeBanner();
     });
     actions.appendChild(dismiss);
-
-    update.addEventListener("click", () => beginUpdate(update, dismiss, progress));
 
     wrap.appendChild(content);
     wrap.appendChild(actions);

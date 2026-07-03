@@ -129,6 +129,28 @@ class LauncherDurabilityTests(unittest.TestCase):
         self.assertEqual(trashed, ".trash/20200101-000000-A-2/A.md")
         self.assertEqual(read(os.path.join(self.tmp, "content", trashed)), "new")
 
+    def test_begin_update_rejects_manual_update_required(self):
+        original_status = launcher.update_status_snapshot()
+        original_progress = launcher.update_progress_snapshot()
+
+        try:
+            launcher.set_update_status({
+                "state": "update_available",
+                "current_version": "1.4.0",
+                "latest_version": "1.4.1",
+                "manual_update_required": True,
+            })
+
+            error = launcher.begin_update(self.tmp)
+
+            self.assertEqual(error, "automatic updates are not supported for this version")
+            self.assertFalse(launcher.update_progress_snapshot()["active"])
+        finally:
+            launcher.set_update_status(original_status)
+            with launcher.UPDATE_PROGRESS_LOCK:
+                launcher.UPDATE_PROGRESS.clear()
+                launcher.UPDATE_PROGRESS.update(original_progress)
+
     def test_assets_endpoint_merges_campaign_first_and_reports_shadows(self):
         write(os.path.join(self.tmp, "content", "images", "shared.png"), "global")
         write(os.path.join(self.tmp, "content", "images", "global.jpg"), "global")
