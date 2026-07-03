@@ -144,7 +144,13 @@ class UpdateCheckerTests(unittest.TestCase):
 
         self.assertEqual(result["state"], update_checker.STATE_UPDATE_AVAILABLE)
         self.assertTrue(result["manual_update_required"])
-        self.assertEqual(result["changes"], update_checker.MANUAL_UPDATE_REQUIRED_CHANGES)
+        self.assertEqual(
+            result["changes"],
+            'You are using older version than "1.4.1" thus you need to update '
+            "project manually. You can do this by moving content folder out, "
+            "downloading the project again then moving it back in. Auto updates "
+            "wont work on unsupported versions.",
+        )
 
     def test_new_optional_fields_absent_still_validates(self):
         data = manifest()

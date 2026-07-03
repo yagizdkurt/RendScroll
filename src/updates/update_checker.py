@@ -14,13 +14,13 @@ import urllib.request
 from .update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIFEST_URL
 
 
-APP_VERSION = "1.4.2"
+APP_VERSION = "1.4.3"
 STATE_DISABLED = "disabled"
 STATE_UP_TO_DATE = "up_to_date"
 STATE_UPDATE_AVAILABLE = "update_available"
 STATE_CHECK_FAILED = "check_failed"
 MANUAL_UPDATE_REQUIRED_CHANGES = (
-    'You are using older version than "minimum supported version" thus you need '
+    'You are using older version than "{minimum_supported}" thus you need '
     "to update project manually. You can do this by moving content folder out, "
     "downloading the project again then moving it back in. Auto updates wont "
     "work on unsupported versions."
@@ -125,7 +125,9 @@ def result_from_manifest(manifest, current_version=APP_VERSION):
     minimum = data.get("minimum_supported")
     if minimum and compare_versions(current_version, minimum) < 0:
         result["manual_update_required"] = True
-        result["changes"] = MANUAL_UPDATE_REQUIRED_CHANGES
+        result["changes"] = MANUAL_UPDATE_REQUIRED_CHANGES.format(
+            minimum_supported=minimum
+        )
 
     return result
 
