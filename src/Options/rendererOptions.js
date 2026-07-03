@@ -124,6 +124,11 @@ const RendererOptions = (() => {
   let committed = { ...defaults };  // last saved / loaded state
   const working = { ...defaults };  // the live copy the modal edits
 
+  function warn(message, detail) {
+    const log = (typeof globalThis !== "undefined") ? globalThis.RSLog : null;
+    if (log && typeof log.warn === "function") log.warn("options", message, detail);
+  }
+
   function schemaDefaults() {
     const d = {};
     for (const k in SCHEMA) d[k] = SCHEMA[k].default;
@@ -156,13 +161,22 @@ const RendererOptions = (() => {
   async function fetchJSON(url) {
     try {
       const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        warn("Could not load " + url + " (HTTP " + res.status + ").");
+        return null;
+      }
       return await res.json();
-    } catch { return null; }
+    } catch (err) {
+      warn("Could not load " + url + ".", err);
+      return null;
+    }
   }
 
   function localFallback() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || null; } catch { return null; }
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || null; } catch (err) {
+      warn("Could not read local options mirror.", err);
+      return null;
+    }
   }
 
   async function init() {
@@ -178,7 +192,7 @@ const RendererOptions = (() => {
   }
 
   async function persist(state) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* quota */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) { warn("Could not update local options mirror.", err); }
     try {
       const res = await fetch(SAVE_ENDPOINT, {
         method: "POST",
@@ -190,7 +204,8 @@ const RendererOptions = (() => {
         throw new Error(payload && payload.error ? payload.error : `HTTP ${res.status}`);
       }
       return true;
-    } catch {
+    } catch (err) {
+      warn("Could not save options to disk; local mirror only.", err);
       return false; // saved to localStorage only (not launched via launcher.py)
     }
   }

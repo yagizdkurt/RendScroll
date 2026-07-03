@@ -37,6 +37,11 @@ const RefLibrary = (() => {
     ? rsLower
     : require("./utils/text.js").rsLower;
 
+  function warn(message, detail) {
+    const log = (typeof globalThis !== "undefined") ? globalThis.RSLog : null;
+    if (log && typeof log.warn === "function") log.warn("library", message, detail);
+  }
+
   function norm(name) {
     return _rsLower(String(name == null ? "" : name).trim());
   }
@@ -87,7 +92,9 @@ const RefLibrary = (() => {
         bundle.forEach((e) => put(type, e));
         return;
       }
-    } catch (_) { /* fall through to per-file */ }
+    } catch (err) {
+      warn("Bundle load failed for " + type + "; falling back to per-file fetch.", err);
+    }
 
     try {
       const list = await fetchJSON("/__library_files?type=" + encodeURIComponent(type));
@@ -96,10 +103,16 @@ const RefLibrary = (() => {
         try {
           const res = await fetch(e.path, { cache: "no-store" });
           e.source = res.ok ? await res.text() : "";
-        } catch (_) { e.source = ""; }
+          if (!res.ok) warn("Library file fetch failed for " + e.path + " (HTTP " + res.status + ").");
+        } catch (err) {
+          warn("Library file fetch failed for " + e.path + "; using empty source.", err);
+          e.source = "";
+        }
         put(type, e);
       }
-    } catch (_) { /* library folder absent / not launched via launcher.py */ }
+    } catch (err) {
+      warn("Library listing failed for " + type + ".", err);
+    }
   }
 
   // Load every registered library once. Safe to call multiple times; the cache
@@ -148,7 +161,7 @@ const RefLibrary = (() => {
       body: JSON.stringify({ type, name, content, scope: scope || "global" }),
     });
     let payload = null;
-    try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+    try { payload = await res.json(); } catch (err) { warn("Non-JSON create response for " + type + " \"" + name + "\".", err); }
     if (!res.ok || !payload || !payload.ok || !payload.entry) {
       const detail = payload && payload.error ? payload.error : "HTTP " + res.status;
       throw new Error("Item create failed: " + detail);
@@ -180,7 +193,9 @@ const RefLibrary = (() => {
         origin: existing ? existing.origin : "global",
         shadows: existing ? existing.shadows : [],
       });
-    } catch (_) { /* leave stale entry */ }
+    } catch (err) {
+      warn("Refresh failed for " + type + " \"" + name + "\" from " + path + "; keeping cached content.", err);
+    }
   }
 
   // Delete a library file, then drop it from the cache. The launcher's delete
@@ -196,7 +211,7 @@ const RefLibrary = (() => {
       body: JSON.stringify({ path }),
     });
     let payload = null;
-    try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+    try { payload = await res.json(); } catch (err) { warn("Non-JSON delete response for " + type + " \"" + name + "\".", err); }
     if (!res.ok || !payload || !payload.ok) {
       const detail = payload && payload.error ? payload.error : "HTTP " + res.status;
       throw new Error("Item delete failed: " + detail);
@@ -220,7 +235,7 @@ const RefLibrary = (() => {
       body: JSON.stringify({ type, name, path, scope: toScope || "global" }),
     });
     let payload = null;
-    try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+    try { payload = await res.json(); } catch (err) { warn("Non-JSON move response for " + type + " \"" + name + "\".", err); }
     if (!res.ok || !payload || !payload.ok || !payload.entry) {
       const detail = payload && payload.error ? payload.error : "HTTP " + res.status;
       throw new Error("Item move failed: " + detail);

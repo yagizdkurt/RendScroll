@@ -43,6 +43,9 @@
   <script src="src/utils/text.js"></script>
   <script src="src/utils/dom.js"></script>
   <script src="src/utils/markdown.js"></script>
+  <!-- Shared runtime warning sink. Loaded early so startup, library, campaign,
+       and options failures can be surfaced later by the debug panel. -->
+  <script src="src/debug/rsLog.js"></script>
   <!-- RendScroll structural parser: canonical model consumed by the editor now
        and (Phase 2) the renderer. Must load before outline.js / cardSchemas.js. -->
   <script src="src/parser/rendscrollParser.js"></script>

@@ -23,6 +23,11 @@ const CampaignManager = (() => {
   let overlay = null;
   let statusEl = null;
 
+  function warn(message, detail) {
+    const log = (typeof globalThis !== "undefined") ? globalThis.RSLog : null;
+    if (log && typeof log.warn === "function") log.warn("campaign", message, detail);
+  }
+
   function configure(opts) {
     onSwitch = (opts && opts.onSwitch) || null;
   }
@@ -42,7 +47,7 @@ const CampaignManager = (() => {
   async function fetchJSON(url, opts) {
     const res = await fetch(url, Object.assign({ cache: "no-store" }, opts || {}));
     let payload = null;
-    try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+    try { payload = await res.json(); } catch (err) { warn("Non-JSON response from " + url + ".", err); }
     return { res, payload };
   }
 
@@ -50,7 +55,8 @@ const CampaignManager = (() => {
     try {
       const { payload } = await fetchJSON("/__campaigns");
       campaigns = Array.isArray(payload) ? payload : [];
-    } catch (_) {
+    } catch (err) {
+      warn("Campaign list could not be loaded.", err);
       campaigns = [];
     }
     return campaigns;
@@ -88,13 +94,13 @@ const CampaignManager = (() => {
     try { saved = localStorage.getItem(STORAGE_KEY); } catch (_) { /* ignore */ }
 
     if (saved && campaigns.some((c) => c.name === saved)) {
-      try { await select(saved); return; } catch (_) { /* stale — fall through */ }
+      try { await select(saved); return; } catch (err) { warn("Saved campaign \"" + saved + "\" could not be restored; falling back to start screen.", err); }
     }
 
     // No valid selection: clear server state and show the start screen. Never
     // silently load root files as a fake campaign.
     activeName = null;
-    try { await postSelect(null); } catch (_) { /* not launched via launcher.py */ }
+    try { await postSelect(null); } catch (err) { warn("Could not clear active campaign on the server.", err); }
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
     if (onSwitch) await onSwitch(null);
     open();
@@ -129,7 +135,7 @@ const CampaignManager = (() => {
         body: buf,
       });
       let payload = null;
-      try { payload = await res.json(); } catch (_) { /* non-JSON */ }
+      try { payload = await res.json(); } catch (err) { warn("Non-JSON import response for " + file.name + ".", err); }
       if (!res.ok || !payload || !payload.ok) {
         throw new Error((payload && payload.error) || "HTTP " + res.status);
       }

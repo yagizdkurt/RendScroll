@@ -259,6 +259,32 @@
 .rsd-ok-i { color: #94c08a; }
 .rsd-err-i { color: #f0a08e; }
 
+/* runtime log */
+.rsd-log-list { display: flex; flex-direction: column; gap: 3px; }
+.rsd-log-row {
+  display: grid;
+  grid-template-columns: 16px 74px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #221b15;
+}
+.rsd-log-area {
+  color: var(--gold, #c9ad6a);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  text-transform: uppercase;
+}
+.rsd-log-msg {
+  color: #e6cd8e;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* card map */
 .rsd-cardmap, .rsd-assets { display: flex; flex-direction: column; gap: 3px; }
 .rsd-cardrow, .rsd-asset {

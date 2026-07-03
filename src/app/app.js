@@ -329,7 +329,9 @@ function showStartScreen() {
 // active campaign at this point, so RefLibrary loads the campaign-scoped library.
 async function activateCampaign(name) {
   if (typeof RefLibrary !== "undefined") {
-    try { await RefLibrary.init(); } catch (_) { /* empty library */ }
+    try { await RefLibrary.init(); } catch (err) {
+      if (typeof RSLog !== "undefined" && RSLog.warn) RSLog.warn("library", "Reference library init failed; continuing with an empty library.", err);
+    }
   }
   refreshLibrarySidebars();
 

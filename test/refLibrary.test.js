@@ -162,6 +162,31 @@ test("library item migration helper writes SourceItem and strips instance-only f
   assert.equal(RefLibrary.itemInstanceContent("Lantern"), "### Item: Lantern\nSourceItem: Lantern\n");
 });
 
+test("refresh failure keeps stale content and records a runtime warning", async () => {
+  await stubLibrary([
+    { name: "Stale", path: "items/Stale.md", content: "### SourceItem: Stale\nOld text.\n" },
+  ]);
+
+  const warnings = [];
+  global.RSLog = {
+    warn(area, message, detail) {
+      warnings.push({ area, message, detail });
+    },
+  };
+  global.fetch = async () => {
+    throw new Error("file locked");
+  };
+
+  await RefLibrary.refresh("item", "Stale");
+
+  assert.match(RefLibrary.lookup("item", "Stale").source, /Old text/);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].area, "library");
+  assert.match(warnings[0].message, /Refresh failed/);
+  assert.match(String(warnings[0].detail && warnings[0].detail.message), /file locked/);
+  delete global.RSLog;
+});
+
 test("scene diagnostics flag broken links but ignore deprecated item blocks", async () => {
   await stubLibrary(ITEMS);
   const src = [

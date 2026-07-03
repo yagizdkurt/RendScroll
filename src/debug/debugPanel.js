@@ -9,6 +9,7 @@
 
   const TABS = [
     { id: "diagnostics", label: "Diagnostics" },
+    { id: "runtime", label: "Runtime" },
     { id: "render", label: "Render Info" },
     { id: "assets", label: "Assets" },
     { id: "ast", label: "Advanced: AST" },
@@ -53,6 +54,10 @@
     const src = currentSource();
     if (!d || !src) return null;
     return d.parseScene(src, currentPath());
+  }
+
+  function runtimeWarnings() {
+    return (typeof RSLog !== "undefined" && RSLog.entries) ? RSLog.entries() : [];
   }
 
   function issueSummary(issues) {
@@ -144,6 +149,8 @@
       return wrap;
     }
 
+    wrap.appendChild(renderRuntimeLog());
+
     wrap.appendChild(el("div", "rsd-subhead", "Current Scene"));
     const currentIssues = d.computeSceneDiagnostics(parsed.doc, { file: currentPath() });
     wrap.appendChild(renderIssueRows(currentIssues, "No diagnostics for this scene."));
@@ -173,6 +180,31 @@
         campaignWrap.appendChild(el("div", "rsd-empty rsd-error", "Campaign diagnostics failed: " + (err.message || err)));
       });
 
+    return wrap;
+  }
+
+  function renderRuntimeLog() {
+    const entries = runtimeWarnings().filter((entry) => entry.level === "warn");
+    const wrap = el("div", "rsd-section");
+    wrap.appendChild(el("div", "rsd-subhead", `Runtime Warnings (${entries.length})`));
+
+    if (!entries.length) {
+      wrap.appendChild(el("div", "rsd-ok", "No runtime warnings."));
+      return wrap;
+    }
+
+    const list = el("div", "rsd-log-list");
+    entries.slice().reverse().forEach((entry) => {
+      const row = el("div", "rsd-log-row rsd-warn");
+      row.appendChild(el("span", "rsd-icon", "!"));
+      row.appendChild(el("span", "rsd-log-area", entry.area || "app"));
+      const msg = el("span", "rsd-log-msg");
+      const time = entry.time ? String(entry.time).slice(11, 19) + " " : "";
+      msg.textContent = time + entry.message + (entry.detail ? " - " + entry.detail : "");
+      row.appendChild(msg);
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
     return wrap;
   }
 
@@ -250,6 +282,11 @@
     const parsed = parseDoc();
 
     if (!parsed) {
+      if (activeTab === "runtime") {
+        bodyEl.appendChild(renderRuntimeLog());
+        return;
+      }
+      if (activeTab === "diagnostics") bodyEl.appendChild(renderRuntimeLog());
       bodyEl.appendChild(el("div", "rsd-empty", "No scene loaded yet."));
       return;
     }
@@ -259,6 +296,7 @@
       case "ast": content = renderAst(parsed); break;
       case "render": content = renderInfo(parsed); break;
       case "assets": content = renderAssets(parsed); break;
+      case "runtime": content = renderRuntimeLog(); break;
       default: content = renderDiagnostics(parsed, token); break;
     }
     bodyEl.appendChild(content);
@@ -425,6 +463,8 @@
   window.RendScrollDebug = api;
 
   document.addEventListener("scene:loaded", () => api.refresh());
+  document.addEventListener("rslog:entry", () => api.refresh());
+  document.addEventListener("rslog:clear", () => api.refresh());
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && exitDialog) {
       closeExitDialog();
