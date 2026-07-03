@@ -44,7 +44,8 @@ const SceneGraphPanel = (() => {
   let unresolvedRefs = [];   // Transition cards whose Scene: matched no file
   let displayEdges = [];     // merged manual+derived list the SVG renders from
 
-  let selected = null;       // {kind:"node", scene} | {kind:"edge", edge}
+  let selected = null;       // {kind:"node", scene} | {kind:"edge", edge} | {kind:"nodes", scenes}
+  let selectedScenes = new Set();
   let view = { tx: 20, ty: 20, k: 1 };
   let gesture = null;        // active pointer gesture (pan/node/port)
   let pendingConnect = null; // {from, band} after Add transition until target click
@@ -302,6 +303,13 @@ const SceneGraphPanel = (() => {
     pendingConnect = null;
   }
 
+  function nodeIntersectsBox(node, box) {
+    return node.x <= box.maxX &&
+      node.x + NODE_W >= box.minX &&
+      node.y <= box.maxY &&
+      node.y + NODE_H >= box.minY;
+  }
+
   function truncateTitle(text, max) {
     return text.length > max ? text.slice(0, max - 1) + "…" : text;
   }
@@ -361,7 +369,8 @@ const SceneGraphPanel = (() => {
     const current = currentRelScene();
     graph.nodes.forEach((node) => {
       const cls = ["rsg-node"];
-      if (selected && selected.kind === "node" && selected.scene === node.scene) cls.push("is-selected");
+      if ((selected && selected.kind === "node" && selected.scene === node.scene) ||
+          selectedScenes.has(node.scene)) cls.push("is-selected");
       if (current && node.scene === current) cls.push("is-current");
       const g = svgEl("g", {
         "class": cls.join(" "),
@@ -394,17 +403,29 @@ const SceneGraphPanel = (() => {
   // --- selection / details strip -------------------------------------------------
   function clearSelection() {
     selected = null;
+    selectedScenes.clear();
     renderDetails();
     render();
   }
 
   function selectNode(scene) {
+    selectedScenes.clear();
     selected = { kind: "node", scene };
     renderDetails();
     render();
   }
 
+  function selectNodes(scenes) {
+    selectedScenes = new Set(scenes);
+    selected = selectedScenes.size
+      ? { kind: "nodes", scenes: Array.from(selectedScenes) }
+      : null;
+    renderDetails();
+    render();
+  }
+
   function selectEdge(edge) {
+    selectedScenes.clear();
     selected = { kind: "edge", edge };
     renderDetails();
     render();
@@ -490,6 +511,7 @@ const SceneGraphPanel = (() => {
     if (readOnly) return;
     closeEdgeMenu();
     cancelPendingConnect();
+    selectedScenes.clear();
     selected = { kind: "node", scene };
     renderDetails();
     render();
@@ -541,6 +563,7 @@ const SceneGraphPanel = (() => {
   function openNodeMenu(scene, clientX, clientY) {
     closeEdgeMenu();
     cancelPendingConnect();
+    selectedScenes.clear();
     selected = { kind: "node", scene };
     renderDetails();
     render();
@@ -596,7 +619,13 @@ const SceneGraphPanel = (() => {
     }
     if (!selected) {
       detailsEl.appendChild(el("div", "rsg-detail-hint",
-        "Drag nodes to arrange · drag from a node's ○ port to link scenes · double-click a node to open it."));
+        "Shift + Drag for multiple selection · Right click to create transition · double-click a node to open it."));
+      return;
+    }
+
+    if (selected.kind === "nodes") {
+      detailsEl.appendChild(el("div", "rsg-detail-title", selected.scenes.length + " scenes selected"));
+      detailsEl.appendChild(el("div", "rsg-detail-hint", "Drag any selected scene to move them together."));
       return;
     }
 
@@ -678,15 +707,37 @@ const SceneGraphPanel = (() => {
     const edgeG = edgeGroupFrom(e.target);
     const start = toWorld(e.clientX, e.clientY);
 
-    if (port && !readOnly) {
+    if (e.shiftKey) {
+      const rect = svgEl("rect", {
+        "class": "rsg-marquee",
+        x: start.x, y: start.y, width: 0, height: 0,
+      });
+      world.appendChild(rect);
+      gesture = {
+        type: "marquee",
+        moved: false,
+        rect,
+        startX: start.x,
+        startY: start.y,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+      };
+    } else if (port && !readOnly) {
       const band = svgEl("path", { "class": "rsg-rubberband", fill: "none" });
       world.appendChild(band);
       gesture = { type: "port", from: port, band, x: start.x, y: start.y };
     } else if (nodeG) {
       const scene = nodeG.getAttribute("data-scene");
       const node = nodeOf(scene);
+      const groupScenes = selectedScenes.has(scene) && selectedScenes.size > 1
+        ? Array.from(selectedScenes)
+        : [scene];
+      const groupStart = groupScenes
+        .map((s) => nodeOf(s))
+        .filter(Boolean)
+        .map((n) => ({ scene: n.scene, x: n.x, y: n.y }));
       gesture = {
-        type: "node", scene, moved: false,
+        type: "node", scene, groupStart, moved: false,
         startClientX: e.clientX, startClientY: e.clientY,
         offsetX: start.x - node.x, offsetY: start.y - node.y,
       };
@@ -747,10 +798,32 @@ const SceneGraphPanel = (() => {
       const p = toWorld(e.clientX, e.clientY);
       const node = nodeOf(gesture.scene);
       if (node) {
-        node.x = Math.round(p.x - gesture.offsetX);
-        node.y = Math.round(p.y - gesture.offsetY);
+        const nextX = Math.round(p.x - gesture.offsetX);
+        const nextY = Math.round(p.y - gesture.offsetY);
+        const moveX = nextX - gesture.groupStart.find((n) => n.scene === gesture.scene).x;
+        const moveY = nextY - gesture.groupStart.find((n) => n.scene === gesture.scene).y;
+        gesture.groupStart.forEach((startNode) => {
+          const moving = nodeOf(startNode.scene);
+          if (!moving) return;
+          moving.x = Math.round(startNode.x + moveX);
+          moving.y = Math.round(startNode.y + moveY);
+        });
         render(); // cheap at this scale; keeps edges glued to the moving node
       }
+      return;
+    }
+    if (gesture.type === "marquee") {
+      const dx = e.clientX - gesture.startClientX;
+      const dy = e.clientY - gesture.startClientY;
+      if (!gesture.moved && Math.hypot(dx, dy) < CLICK_DRAG_THRESHOLD) return;
+      gesture.moved = true;
+      const p = toWorld(e.clientX, e.clientY);
+      const x = Math.min(gesture.startX, p.x);
+      const y = Math.min(gesture.startY, p.y);
+      gesture.rect.setAttribute("x", x);
+      gesture.rect.setAttribute("y", y);
+      gesture.rect.setAttribute("width", Math.abs(p.x - gesture.startX));
+      gesture.rect.setAttribute("height", Math.abs(p.y - gesture.startY));
       return;
     }
     if (gesture.type === "port") {
@@ -774,11 +847,34 @@ const SceneGraphPanel = (() => {
     }
     if (g.type === "node") {
       if (g.moved) {
-        const node = nodeOf(g.scene);
-        if (node && M.setNodePosition(graph, g.scene, node.x, node.y)) markDirty();
+        let changed = false;
+        g.groupStart.forEach((startNode) => {
+          const node = nodeOf(startNode.scene);
+          if (node && M.setNodePosition(graph, startNode.scene, node.x, node.y)) changed = true;
+        });
+        if (changed) markDirty();
       } else {
-        selectNode(g.scene);
+        if (selectedScenes.has(g.scene) && selectedScenes.size > 1) {
+          renderDetails();
+          render();
+        } else {
+          selectNode(g.scene);
+        }
       }
+      return;
+    }
+    if (g.type === "marquee") {
+      const x = Number(g.rect.getAttribute("x")) || g.startX;
+      const y = Number(g.rect.getAttribute("y")) || g.startY;
+      const width = Number(g.rect.getAttribute("width")) || 0;
+      const height = Number(g.rect.getAttribute("height")) || 0;
+      g.rect.remove();
+      if (!g.moved || width <= 0 || height <= 0) {
+        clearSelection();
+        return;
+      }
+      const box = { minX: x, minY: y, maxX: x + width, maxY: y + height };
+      selectNodes(graph.nodes.filter((node) => nodeIntersectsBox(node, box)).map((node) => node.scene));
       return;
     }
     if (g.type === "port") {
@@ -1003,6 +1099,7 @@ const SceneGraphPanel = (() => {
     derivedByScene = new Map();
     unresolvedRefs = [];
     selected = null;
+    selectedScenes.clear();
     cancelPendingConnect();
     setStatusNote("");
     const name = e.detail && e.detail.name;

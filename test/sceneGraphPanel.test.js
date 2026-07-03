@@ -81,6 +81,16 @@ before(async () => {
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+function clientPoint(panel, x, y) {
+  const transform = panel.querySelector(".rsg-world").getAttribute("transform");
+  const match = /translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/.exec(transform);
+  assert.ok(match, "expected world transform");
+  return {
+    clientX: x * Number(match[3]) + Number(match[1]),
+    clientY: y * Number(match[3]) + Number(match[2]),
+  };
+}
+
 test("toggle button mounts into #topbar-tools", () => {
   const btn = win.document.getElementById("rs-scenegraph-toggle");
   assert.ok(btn, "expected the map toggle button");
@@ -108,6 +118,60 @@ test("open: renders one node per scene, current highlighted, derived edge locked
   await sleep(40);
   assert.ok(fetchLog.length >= 1, "sync should autosave the placed nodes");
   assert.strictEqual(fetchLog[fetchLog.length - 1].nodes.length, 3);
+});
+
+test("shift-drag selects multiple scene nodes and moves them together", async () => {
+  await win.SceneGraphPanel.open();
+  const panel = win.document.getElementById("rs-scenegraph-panel");
+  const svg = panel.querySelector(".rsg-svg");
+  const graph = win.SceneGraphPanel._graph();
+  const introBefore = { ...graph.nodes.find((n) => n.scene === "scenes/1_intro.md") };
+  const baronBefore = { ...graph.nodes.find((n) => n.scene === "scenes/2_baron.md") };
+  const ambushBefore = { ...graph.nodes.find((n) => n.scene === "scenes/3_ambush.md") };
+
+  const selectStart = clientPoint(panel, introBefore.x - 10, introBefore.y - 10);
+  const selectEnd = clientPoint(panel, baronBefore.x + 170, baronBefore.y + 70);
+  svg.dispatchEvent(new win.MouseEvent("pointerdown", Object.assign({
+    bubbles: true, button: 0, shiftKey: true,
+  }, selectStart)));
+  svg.dispatchEvent(new win.MouseEvent("pointermove", Object.assign({
+    bubbles: true, shiftKey: true,
+  }, selectEnd)));
+  svg.dispatchEvent(new win.MouseEvent("pointerup", Object.assign({
+    bubbles: true, button: 0, shiftKey: true,
+  }, selectEnd)));
+
+  assert.strictEqual(panel.querySelectorAll(".rsg-node.is-selected").length, 2);
+
+  const baronNode = panel.querySelector('[data-scene="scenes/2_baron.md"]');
+  const dragStart = clientPoint(panel, baronBefore.x + 30, baronBefore.y + 30);
+  const dragEnd = clientPoint(panel, baronBefore.x + 130, baronBefore.y + 80);
+  baronNode.dispatchEvent(new win.MouseEvent("pointerdown", Object.assign({
+    bubbles: true, button: 0,
+  }, dragStart)));
+  svg.dispatchEvent(new win.MouseEvent("pointermove", Object.assign({
+    bubbles: true,
+  }, dragEnd)));
+  svg.dispatchEvent(new win.MouseEvent("pointerup", Object.assign({
+    bubbles: true, button: 0,
+  }, dragEnd)));
+  await sleep(30);
+
+  const introAfter = graph.nodes.find((n) => n.scene === "scenes/1_intro.md");
+  const baronAfter = graph.nodes.find((n) => n.scene === "scenes/2_baron.md");
+  const ambushAfter = graph.nodes.find((n) => n.scene === "scenes/3_ambush.md");
+  assert.deepStrictEqual(
+    { x: introAfter.x - introBefore.x, y: introAfter.y - introBefore.y },
+    { x: 100, y: 50 }
+  );
+  assert.deepStrictEqual(
+    { x: baronAfter.x - baronBefore.x, y: baronAfter.y - baronBefore.y },
+    { x: 100, y: 50 }
+  );
+  assert.deepStrictEqual(
+    { x: ambushAfter.x, y: ambushAfter.y },
+    { x: ambushBefore.x, y: ambushBefore.y }
+  );
 });
 
 test("right-click on a transition-card edge shows disabled delete guidance", async () => {
