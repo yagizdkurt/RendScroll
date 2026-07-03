@@ -46,6 +46,17 @@ class LauncherDurabilityTests(unittest.TestCase):
         h._send_json = send_json
         return h
 
+    def get_handler(self, path):
+        h = object.__new__(launcher.NoCacheHTTPRequestHandler)
+        h.path = path
+        h.responses = []
+
+        def send_json(status, body):
+            h.responses.append((status, body))
+
+        h._send_json = send_json
+        return h
+
     def test_atomic_write_preserves_old_file_when_replace_fails(self):
         target = os.path.join(self.tmp, "content", "items", "Scene.md")
         write(target, "old")
@@ -117,6 +128,80 @@ class LauncherDurabilityTests(unittest.TestCase):
 
         self.assertEqual(trashed, ".trash/20200101-000000-A-2/A.md")
         self.assertEqual(read(os.path.join(self.tmp, "content", trashed)), "new")
+
+    def test_assets_endpoint_merges_campaign_first_and_reports_shadows(self):
+        write(os.path.join(self.tmp, "content", "images", "shared.png"), "global")
+        write(os.path.join(self.tmp, "content", "images", "global.jpg"), "global")
+        write(os.path.join(self.tmp, "content", "images", "notes.txt"), "ignored")
+        write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "scenes", "1.md"), "# One\n")
+        write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "images", "shared.png"), "campaign")
+        write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "images", "nested", "map.webp"), "campaign")
+        launcher.ACTIVE_CAMPAIGN = "Legacy"
+
+        h = self.get_handler("/__assets?type=images")
+        h._assets()
+
+        status, payload = h.responses[-1]
+        self.assertEqual(status, 200)
+        names = [entry["name"] for entry in payload]
+        self.assertEqual(names, ["global", "nested/map", "shared"])
+        shared = next(entry for entry in payload if entry["name"] == "shared")
+        self.assertEqual(shared["origin"], "campaign")
+        self.assertEqual(shared["path"], "campaigns/Legacy/images/shared.png")
+        self.assertEqual(shared["shadows"], ["images/shared.png"])
+        self.assertNotIn("notes", names)
+
+    def test_assets_campaign_scope_requires_existing_folder(self):
+        write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "scenes", "1.md"), "# One\n")
+        launcher.ACTIVE_CAMPAIGN = "Legacy"
+
+        h = self.get_handler("/__assets?type=audio&scope=campaign")
+        h._assets()
+
+        self.assertEqual(h.responses[-1][0], 404)
+
+    def test_pick_asset_converts_root_and_nested_values(self):
+        write(os.path.join(self.tmp, "content", "audio", "theme.mp3"), "audio")
+        write(os.path.join(self.tmp, "content", "audio", "nested", "hit.ogg"), "audio")
+
+        self.assertEqual(
+            launcher.asset_value_from_path(
+                self.tmp,
+                "audio",
+                "global",
+                os.path.join(self.tmp, "content", "audio", "theme.mp3"),
+            )["value"],
+            "theme",
+        )
+        self.assertEqual(
+            launcher.asset_value_from_path(
+                self.tmp,
+                "audio",
+                "global",
+                os.path.join(self.tmp, "content", "audio", "nested", "hit.ogg"),
+            )["value"],
+            "/audio/nested/hit.ogg",
+        )
+
+    def test_pick_asset_endpoint_uses_stubbed_picker_and_rejects_outside_root(self):
+        write(os.path.join(self.tmp, "content", "images", "portrait.png"), "image")
+        write(os.path.join(self.tmp, "outside.png"), "image")
+        original_picker = launcher.native_pick_asset_file
+
+        try:
+            launcher.native_pick_asset_file = lambda root, asset_type: os.path.join(root, "portrait.png")
+            h = self.handler("/__pick_asset", {"type": "images", "scope": "global"})
+            h._pick_asset()
+            self.assertEqual(h.responses[-1][0], 200)
+            self.assertEqual(h.responses[-1][1]["value"], "portrait")
+            self.assertEqual(h.responses[-1][1]["path"], "images/portrait.png")
+
+            launcher.native_pick_asset_file = lambda root, asset_type: os.path.join(self.tmp, "outside.png")
+            h = self.handler("/__pick_asset", {"type": "images", "scope": "global"})
+            h._pick_asset()
+            self.assertEqual(h.responses[-1][0], 403)
+        finally:
+            launcher.native_pick_asset_file = original_picker
 
 
 if __name__ == "__main__":

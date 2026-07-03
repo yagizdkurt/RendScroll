@@ -395,6 +395,20 @@ body.editor-on .editor-chapter-zone {
   background: #2a2117;
   color: #ece0c6;
 }
+.editor-asset-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.editor-asset-browse {
+  min-width: 78px;
+  white-space: nowrap;
+}
+.editor-asset-browse:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 
 /* --- item library picker --- */
 .editor-picker-modal {

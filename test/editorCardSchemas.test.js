@@ -26,6 +26,13 @@ test("card Text Size parses and serializes through schema metadata", () => {
   assert.match(EditorSchemas.serialize(schema, values), /^Text Size: 14$/m);
 });
 
+test("image and audio fields carry asset picker metadata", () => {
+  assert.equal(EditorSchemas.get("npc").fields.find((f) => f.key === "image").assetType, "images");
+  assert.equal(EditorSchemas.get("npc").fields.find((f) => f.key === "bg").assetType, "images");
+  assert.equal(EditorSchemas.get("picture").fields.find((f) => f.key === "image").assetType, "images");
+  assert.equal(EditorSchemas.get("audio").fields.find((f) => f.key === "file").assetType, "audio");
+});
+
 test("cards without Text Size do not gain one when serialized", () => {
   const schema = EditorSchemas.get("std");
   const values = EditorSchemas.parse(schema, "### STD: Notice\n> unchanged\n");

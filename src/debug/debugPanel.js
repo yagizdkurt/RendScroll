@@ -37,6 +37,10 @@
     return typeof RendScrollParser !== "undefined" ? RendScrollParser : null;
   }
 
+  function assetInventory() {
+    return typeof RendScrollAssetInventory !== "undefined" ? RendScrollAssetInventory : null;
+  }
+
   function currentSource() {
     return (window.RendScrollApp && window.RendScrollApp.currentSource()) || "";
   }
@@ -47,6 +51,12 @@
 
   function campaignEntries() {
     return (window.RendScrollApp && window.RendScrollApp.campaignEntries && window.RendScrollApp.campaignEntries()) || [];
+  }
+
+  async function fetchJSON(url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
   }
 
   function parseDoc() {
@@ -236,42 +246,100 @@
     return wrap;
   }
 
-  function renderAssets(parsed) {
-    const d = diagnostics();
-    const wrap = el("div", "rsd-section");
-    if (!d || !parsed || parsed.error) {
-      wrap.appendChild(el("div", "rsd-empty rsd-error", parsed && parsed.error ? "Parse error: " + parsed.error : "Asset diagnostics unavailable."));
-      return wrap;
-    }
-
-    const refs = d.collectAssetRefs(parsed.doc);
-    wrap.appendChild(el("div", "rsd-subhead", `Image / BG references (${refs.length})`));
-    wrap.appendChild(el("div", "rsd-note", "Browser probes are hints only; launch preflight performs authoritative local file checks."));
-
-    if (!refs.length) {
-      wrap.appendChild(el("div", "rsd-ok", "No image references in this scene."));
-      return wrap;
-    }
-
-    const canResolve = typeof cardBgUrl === "function";
+  function renderAssetRows(refs, emptyText) {
     const list = el("div", "rsd-assets");
+    if (!refs.length) {
+      list.appendChild(el("div", "rsd-ok", emptyText));
+      return list;
+    }
     refs.forEach((r) => {
-      const row = el("div", "rsd-asset");
-      const status = el("span", "rsd-asset-status", "…");
-      row.appendChild(status);
-      row.appendChild(el("span", "rsd-asset-kind rsd-tag-" + r.name, r.name));
-      row.appendChild(el("span", "rsd-line", "L" + r.line));
-      row.appendChild(el("span", "rsd-asset-val", r.value));
-      const url = canResolve ? cardBgUrl(r.value) : r.value;
-      row.appendChild(el("span", "rsd-asset-url", "→ " + url));
+      const row = el("div", "rsd-asset" + (r.missing ? " rsd-asset-missing" : ""));
+      row.appendChild(el("span", "rsd-asset-status " + (r.missing ? "rsd-err-i" : "rsd-ok-i"), r.missing ? "x" : "ok"));
+      row.appendChild(el("span", "rsd-asset-kind rsd-tag-" + r.type, r.directive));
+      row.appendChild(el("span", "rsd-line", (r.source || "(source)") + ":L" + r.line));
+      row.appendChild(el("span", "rsd-asset-val", r.raw));
+      row.appendChild(el("span", "rsd-asset-url", "-> " + r.path));
       list.appendChild(row);
-
-      const probe = new Image();
-      probe.onload = () => { status.textContent = "✓"; status.className = "rsd-asset-status rsd-ok-i"; };
-      probe.onerror = () => { status.textContent = "✗"; status.className = "rsd-asset-status rsd-err-i"; };
-      probe.src = url;
     });
-    wrap.appendChild(list);
+    return list;
+  }
+
+  function renderUnusedAssets(unused) {
+    const list = el("div", "rsd-assets");
+    if (!unused.length) {
+      list.appendChild(el("div", "rsd-ok", "No unused listed assets."));
+      return list;
+    }
+    unused.forEach((asset) => {
+      const row = el("div", "rsd-asset");
+      row.appendChild(el("span", "rsd-asset-status", "-"));
+      row.appendChild(el("span", "rsd-asset-kind", asset.origin || "asset"));
+      row.appendChild(el("span", "rsd-asset-val", asset.name || asset.path));
+      row.appendChild(el("span", "rsd-asset-url", asset.path));
+      list.appendChild(row);
+    });
+    return list;
+  }
+
+  async function computeAssetReport() {
+    const inv = assetInventory();
+    if (!inv) throw new Error("RendScrollAssetInventory unavailable");
+    const entries = campaignEntries();
+    const scenes = [];
+    for (const entry of entries) {
+      const path = entry.path || entry.file || String(entry);
+      let text = "";
+      if (path === currentPath()) {
+        text = currentSource();
+      } else if (typeof fetchMarkdown === "function") {
+        text = await fetchMarkdown(path);
+      }
+      scenes.push({ path, text });
+    }
+
+    if (typeof RefLibrary !== "undefined" && RefLibrary.init && RefLibrary.isReady && !RefLibrary.isReady()) {
+      try { await RefLibrary.init(); } catch (_) { /* report what can be resolved */ }
+    }
+
+    const [images, audio] = await Promise.all([
+      fetchJSON("/__assets?type=images"),
+      fetchJSON("/__assets?type=audio"),
+    ]);
+    return inv.analyzeAssets(scenes, typeof RefLibrary !== "undefined" ? RefLibrary : null, { images, audio });
+  }
+
+  function renderAssets(parsed, token) {
+    const inv = assetInventory();
+    const wrap = el("div", "rsd-section");
+    if (!inv) {
+      wrap.appendChild(el("div", "rsd-empty rsd-error", "Asset diagnostics unavailable."));
+      return wrap;
+    }
+
+    const entries = campaignEntries();
+    if (!entries.length) {
+      wrap.appendChild(el("div", "rsd-empty", "Campaign list unavailable."));
+      return wrap;
+    }
+
+    const loading = el("div", "rsd-loading", "Loading campaign asset inventory...");
+    wrap.appendChild(loading);
+    computeAssetReport()
+      .then((report) => {
+        if (token !== renderToken) return;
+        wrap.innerHTML = "";
+        wrap.appendChild(el("div", "rsd-subhead", `Referenced assets (${report.refs.length})`));
+        wrap.appendChild(renderAssetRows(report.refs, "No image/audio references in this campaign."));
+        wrap.appendChild(el("div", "rsd-subhead", `Missing assets (${report.missingAssets.length})`));
+        wrap.appendChild(renderAssetRows(report.missingAssets, "No missing assets."));
+        wrap.appendChild(el("div", "rsd-subhead", `Unused listed assets (${report.unused.length})`));
+        wrap.appendChild(renderUnusedAssets(report.unused));
+      })
+      .catch((err) => {
+        if (token !== renderToken) return;
+        wrap.innerHTML = "";
+        wrap.appendChild(el("div", "rsd-empty rsd-error", "Asset inventory failed: " + (err.message || err)));
+      });
     return wrap;
   }
 
@@ -286,6 +354,10 @@
         bodyEl.appendChild(renderRuntimeLog());
         return;
       }
+      if (activeTab === "assets") {
+        bodyEl.appendChild(renderAssets(null, token));
+        return;
+      }
       if (activeTab === "diagnostics") bodyEl.appendChild(renderRuntimeLog());
       bodyEl.appendChild(el("div", "rsd-empty", "No scene loaded yet."));
       return;
@@ -295,7 +367,7 @@
     switch (activeTab) {
       case "ast": content = renderAst(parsed); break;
       case "render": content = renderInfo(parsed); break;
-      case "assets": content = renderAssets(parsed); break;
+      case "assets": content = renderAssets(parsed, token); break;
       case "runtime": content = renderRuntimeLog(); break;
       default: content = renderDiagnostics(parsed, token); break;
     }

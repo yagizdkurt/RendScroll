@@ -457,8 +457,8 @@ const EditorSchemas = (() => {
   // --- shared field factories ---------------------------------------------
 
   const fTitle = { key: "title", label: "Name", kind: "text", required: true };
-  const fImage = { key: "image", label: "Image (portrait)", kind: "text", mdLabel: "Image" };
-  const fBg = { key: "bg", label: "BG (watermark)", kind: "text", mdLabel: "BG" };
+  const fImage = { key: "image", label: "Image (portrait)", kind: "text", mdLabel: "Image", assetType: "images" };
+  const fBg = { key: "bg", label: "BG (watermark)", kind: "text", mdLabel: "BG", assetType: "images" };
   const fClosed = { key: "closed", label: "Start collapsed", kind: "flag", mdLabel: "Closed" };
   const fStuck = { key: "stuck", label: "Stick to card above", kind: "flag", mdLabel: "Combine", mdAliases: ["Connect"] };
   // Column is serialized as a "Side:" body line (default left writes nothing,
@@ -631,7 +631,7 @@ const EditorSchemas = (() => {
 
   define("picture", "Picture", keywordHeading("Picture"), [
     { key: "title", label: "Caption (optional)", kind: "text" },
-    { key: "image", label: "Image", kind: "text", mdLabel: "Image", required: true },
+    { key: "image", label: "Image", kind: "text", mdLabel: "Image", required: true, assetType: "images" },
     { key: "size", label: "Size (% of column)", kind: "text", mdLabel: "Size", inputMode: "numeric" },
     fColumn,
     fClosed,
@@ -639,7 +639,7 @@ const EditorSchemas = (() => {
 
   define("audio", "Audio", keywordHeading("Audio"), [
     { key: "title", label: "Caption (optional)", kind: "text" },
-    { key: "file", label: "Audio file", kind: "text", mdLabel: "File", required: true },
+    { key: "file", label: "Audio file", kind: "text", mdLabel: "File", required: true, assetType: "audio" },
     fColumn,
     fClosed,
   ]);

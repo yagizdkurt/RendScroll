@@ -16,6 +16,10 @@
    via the CommonJS guard at the bottom; the async fetch/POST layer wraps it. */
 
 const CampaignExporter = (() => {
+  const Assets = (typeof RendScrollAssetInventory !== "undefined")
+    ? RendScrollAssetInventory
+    : require("../assets/assetInventory.js");
+
   // Normalize a path to repo-relative, forward-slashed, no leading slash.
   function normPath(p) {
     return String(p == null ? "" : p).replace(/\\/g, "/").replace(/^\/+/, "");
@@ -25,23 +29,13 @@ const CampaignExporter = (() => {
   // cardBgUrl(): bare name -> images/<name>.png; a path is kept; external
   // (scheme://) values are skipped (returns null — nothing to bundle).
   function imageRefPath(raw) {
-    let file = String(raw == null ? "" : raw).trim();
-    if (!file) return null;
-    if (!/\.[a-z0-9]+$/i.test(file)) file += ".png";
-    if (/^[a-z]+:\/\//i.test(file)) return null;
-    if (file.startsWith("/")) return normPath(file);
-    return /[\/\\]/.test(file) ? normPath(file) : "images/" + file;
+    return Assets.imageRefPath(raw);
   }
 
   // Resolve an Audio "File:" value, mirroring audioSrcUrl(): bare name ->
   // audio/<name>.mp3. External values are skipped.
   function audioRefPath(raw) {
-    let file = String(raw == null ? "" : raw).trim();
-    if (!file) return null;
-    if (!/\.[a-z0-9]+$/i.test(file)) file += ".mp3";
-    if (/^[a-z]+:\/\//i.test(file)) return null;
-    if (file.startsWith("/")) return normPath(file);
-    return /[\/\\]/.test(file) ? normPath(file) : "audio/" + file;
+    return Assets.audioRefPath(raw);
   }
 
   const IMAGE_LINE = /^\s*(?:image|bg)\s*:\s*(.+?)\s*$/i;
@@ -58,42 +52,13 @@ const CampaignExporter = (() => {
   // count as audio only inside an "### Audio:" section (matching the renderer),
   // so a stray File: elsewhere isn't mistaken for a missing sound.
   function scanAssets(text) {
-    const out = [];
-    let inAudio = false;
-    String(text == null ? "" : text).split(/\r?\n/).forEach((line) => {
-      if (HEADING.test(line)) inAudio = AUDIO_HEAD.test(line);
-      const img = line.match(IMAGE_LINE);
-      if (img) {
-        const p = imageRefPath(img[1]);
-        if (p) out.push(p);
-        return;
-      }
-      if (inAudio) {
-        const f = line.match(FILE_LINE);
-        if (f) {
-          const p = audioRefPath(f[1]);
-          if (p) out.push(p);
-        }
-      }
-    });
-    return out;
+    return Assets.scanAssets(text).map((ref) => ref.path);
   }
 
   // Collect every library reference in one text as { type, name } records.
   // type is "item", "enemy", or "any" (an inline [link=] that could be either).
   function collectRefNames(text) {
-    const src = String(text == null ? "" : text);
-    const refs = [];
-    src.split(/\r?\n/).forEach((line) => {
-      const si = line.match(SOURCE_ITEM_LINE);
-      if (si) refs.push({ type: "item", name: si[1].trim() });
-    });
-    let m;
-    for (const [re, type] of [[ENEMY_RE, "enemy"], [ITEM_RE, "item"], [LINK_RE, "any"]]) {
-      re.lastIndex = 0;
-      while ((m = re.exec(src))) refs.push({ type, name: m[1].trim() });
-    }
-    return refs;
+    return Assets.collectRefNames(text);
   }
 
   function resolveRef(refLib, type, name) {
@@ -110,38 +75,12 @@ const CampaignExporter = (() => {
   // checked here (that's a network call) — the caller filters assetCandidates.
   // -> { files: [paths], assetCandidates: [paths], missingRefs: [{type,name}] }
   function collect(scenes, refLib) {
-    const files = new Set();
-    const assetCandidates = new Set();
-    const missingRefs = [];
-    const visited = new Set();
-    const queue = [];
-
-    (scenes || []).forEach((s) => {
-      if (s && s.path) files.add(normPath(s.path));
-      queue.push(String(s && s.text || ""));
-    });
-
-    while (queue.length) {
-      const text = queue.shift();
-      scanAssets(text).forEach((p) => assetCandidates.add(p));
-
-      collectRefNames(text).forEach(({ type, name }) => {
-        if (!name) return;
-        const normName = refLib && refLib.norm ? refLib.norm(name) : name;
-        const key = type + ":" + normName;
-        if (visited.has(key)) return;
-        visited.add(key);
-        const entry = resolveRef(refLib, type, name);
-        if (entry && entry.path) {
-          files.add(normPath(entry.path));
-          queue.push(String(entry.source || ""));
-        } else {
-          missingRefs.push({ type, name });
-        }
-      });
-    }
-
-    return { files: [...files], assetCandidates: [...assetCandidates], missingRefs };
+    const result = Assets.collectPackageReferences(scenes, refLib);
+    return {
+      files: result.files,
+      assetCandidates: result.assetCandidates,
+      missingRefs: result.missingRefs,
+    };
   }
 
   // ---- Async fetch / POST layer (browser only) --------------------------

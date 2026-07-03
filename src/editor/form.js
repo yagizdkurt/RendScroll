@@ -100,6 +100,10 @@ const EditorForm = (() => {
       if (editor && editor.wrap) wrap.appendChild(editor.wrap);
       if (editor && editor.actions) wrap.appendChild(editor.actions);
       getValue = () => editor && editor.getValue ? editor.getValue() : value;
+    } else if (field.kind === "text" && field.assetType && typeof EditorAssetPicker !== "undefined") {
+      const editor = EditorAssetPicker.renderField(value, field, { el, button, moveNode });
+      wrap.appendChild(editor.wrap);
+      getValue = () => editor.getValue();
     } else if (field.kind === "text") {
       const input = el("input");
       input.type = "text";

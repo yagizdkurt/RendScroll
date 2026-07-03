@@ -56,6 +56,20 @@ SCENES_SUBDIR = "scenes"
 # so this is an identity map today; kept as the single place asset-override folders
 # are named (matching the existing cardBgUrl/audioSrcUrl helpers).
 CAMPAIGN_ASSET_DIRS = {"images": "images", "audio": "audio"}
+# File types surfaced by the editor/debug asset manager. The renderer can still
+# address any URL manually; the picker/inventory only lists local media files.
+ASSET_TYPES = {
+    "images": {
+        "folder": "images",
+        "default_ext": ".png",
+        "extensions": {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"},
+    },
+    "audio": {
+        "folder": "audio",
+        "default_ext": ".mp3",
+        "extensions": {".mp3", ".ogg", ".wav", ".m4a", ".flac"},
+    },
+}
 # The campaign selected by the client (POST /__select_campaign). Resolved per request
 # for scene/library discovery and for campaign-first asset serving. None = no campaign.
 ACTIVE_CAMPAIGN = None
@@ -693,6 +707,164 @@ def discover_library_files(base_dir, ref_type, with_content=False):
     return entries
 
 
+def _asset_sources(base_dir, asset_type, scope=None):
+    """Resolution order for asset folders. Default is campaign first, then global;
+    an explicit scope limits discovery/picking to one root."""
+    spec = ASSET_TYPES.get(asset_type)
+    if not spec:
+        return []
+    folder = spec["folder"]
+    sources = []
+    name = ACTIVE_CAMPAIGN
+
+    if scope in (None, "campaign") and name and os.path.isdir(campaign_dir_path(base_dir, name)):
+        sources.append((
+            "campaign",
+            os.path.join(campaign_dir_path(base_dir, name), folder),
+            f"{CAMPAIGNS_DIR}/{name}/{folder}",
+        ))
+    if scope in (None, "global"):
+        sources.append(("global", os.path.join(user_root(base_dir), folder), folder))
+    return sources
+
+
+def _asset_name_from_rel(rel_path):
+    stem, _ = os.path.splitext(rel_path.replace("\\", "/"))
+    return stem
+
+
+def discover_asset_files(base_dir, asset_type, scope=None):
+    """List local image/audio files, campaign-first, with same shadow metadata
+    shape as discover_library_files(). Recurses so nested asset folders can be
+    selected and inventoried."""
+    spec = ASSET_TYPES.get(asset_type)
+    if not spec:
+        return []
+
+    seen = {}  # casefolded relative asset path -> entry (first source wins)
+    for origin, root, rel_prefix in _asset_sources(base_dir, asset_type, scope):
+        try:
+            root_names = os.listdir(root)
+        except OSError:
+            continue
+        if not root_names and not os.path.isdir(root):
+            continue
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for filename in filenames:
+                if filename.startswith("."):
+                    continue
+                ext = os.path.splitext(filename)[1].lower()
+                if ext not in spec["extensions"]:
+                    continue
+                full_path = os.path.join(dirpath, filename)
+                if not os.path.isfile(full_path):
+                    continue
+                rel = os.path.relpath(full_path, root).replace("\\", "/")
+                key = rel.casefold()
+                path = f"{rel_prefix}/{rel}"
+                if key in seen:
+                    seen[key].setdefault("shadows", []).append(path)
+                    continue
+                seen[key] = {
+                    "name": _asset_name_from_rel(rel),
+                    "path": path,
+                    "origin": origin,
+                }
+
+    entries = list(seen.values())
+    entries.sort(key=lambda e: e["name"].casefold())
+    return entries
+
+
+def asset_scope_root(base_dir, asset_type, scope):
+    spec = ASSET_TYPES.get(asset_type)
+    if not spec:
+        return None
+    folder = spec["folder"]
+    if scope == "campaign":
+        if not ACTIVE_CAMPAIGN:
+            return None
+        root = os.path.join(campaign_dir_path(base_dir, ACTIVE_CAMPAIGN), folder)
+    else:
+        root = os.path.join(user_root(base_dir), folder)
+    root = os.path.realpath(root)
+    return root if os.path.isdir(root) else None
+
+
+def asset_value_from_path(base_dir, asset_type, scope, selected_path):
+    """Convert an absolute selected asset path into the value written into an
+    Image/BG/File field. Rejects paths outside the intended asset root."""
+    spec = ASSET_TYPES.get(asset_type)
+    root = asset_scope_root(base_dir, asset_type, scope)
+    if not spec or not root or not selected_path:
+        return None
+
+    selected = os.path.realpath(selected_path)
+    try:
+        if os.path.commonpath([root, selected]) != root:
+            return None
+    except ValueError:
+        return None
+    if not os.path.isfile(selected):
+        return None
+    ext = os.path.splitext(selected)[1].lower()
+    if ext not in spec["extensions"]:
+        return None
+
+    rel = os.path.relpath(selected, root).replace("\\", "/")
+    folder = spec["folder"]
+    default_ext = spec["default_ext"]
+    if "/" not in rel:
+        stem, rel_ext = os.path.splitext(rel)
+        value = stem if rel_ext.lower() == default_ext else rel
+    else:
+        value = f"/{folder}/{rel}"
+
+    if scope == "campaign" and ACTIVE_CAMPAIGN:
+        path = f"{CAMPAIGNS_DIR}/{ACTIVE_CAMPAIGN}/{folder}/{rel}"
+        origin = "campaign"
+    else:
+        path = f"{folder}/{rel}"
+        origin = "global"
+    return {"value": value, "path": path, "origin": origin}
+
+
+def native_pick_asset_file(initial_dir, asset_type):
+    """Open a platform native file picker at initial_dir. Tests stub this; errors
+    are reported by the endpoint instead of falling back to a wrong folder.
+
+    The HTTP server handles requests on worker threads; Tk is much more reliable
+    when the dialog runs in the main thread of a short child process."""
+    spec = ASSET_TYPES.get(asset_type)
+    if not spec:
+        return None
+    script = (
+        "import sys, tkinter as tk\n"
+        "from tkinter import filedialog\n"
+        "initialdir, title, patterns = sys.argv[1], sys.argv[2], sys.argv[3]\n"
+        "root = tk.Tk()\n"
+        "root.withdraw()\n"
+        "root.attributes('-topmost', True)\n"
+        "try:\n"
+        "    path = filedialog.askopenfilename(initialdir=initialdir, title=title, "
+        "filetypes=[('Supported assets', patterns), ('All files', '*.*')])\n"
+        "    sys.stdout.write(path or '')\n"
+        "finally:\n"
+        "    root.destroy()\n"
+    )
+    title = "Choose " + ("image" if asset_type == "images" else "audio")
+    patterns = " ".join("*" + ext for ext in sorted(spec["extensions"]))
+    result = subprocess.run(
+        [sys.executable, "-c", script, initial_dir, title, patterns],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "dialog process failed").strip())
+    return result.stdout.strip()
+
+
 def clean_library_name(value):
     """Sanitize a client-supplied library file name into a safe stem.
 
@@ -816,6 +988,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(200, discover_library_files(os.getcwd(), ref_type, with_content=True))
             return
 
+        if path == "/__assets":
+            self._assets()
+            return
+
         super().do_GET()
 
     def _query_param(self, key, default=None):
@@ -823,6 +999,20 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         qs = parse_qs(urlparse(self.path).query)
         values = qs.get(key)
         return values[0] if values else default
+
+    def _assets(self):
+        asset_type = self._query_param("type", "images")
+        scope = self._query_param("scope", None)
+        if asset_type not in ASSET_TYPES:
+            self._send_json(400, {"ok": False, "error": "unknown asset type"})
+            return
+        if scope not in (None, "campaign", "global"):
+            self._send_json(400, {"ok": False, "error": "unknown asset scope"})
+            return
+        if scope == "campaign" and not asset_scope_root(os.getcwd(), asset_type, "campaign"):
+            self._send_json(404, {"ok": False, "error": "campaign asset folder not found"})
+            return
+        self._send_json(200, discover_asset_files(os.getcwd(), asset_type, scope))
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
@@ -880,6 +1070,10 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._save_options()
             return
 
+        if path == "/__pick_asset":
+            self._pick_asset()
+            return
+
         if path == "/__export_package":
             self._export_package()
             return
@@ -889,6 +1083,44 @@ class NoCacheHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def _read_json_body(self):
         length = int(self.headers.get("Content-Length", 0))
         return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def _pick_asset(self):
+        try:
+            data = self._read_json_body()
+            asset_type = data.get("type", "images")
+            scope = data.get("scope", "global")
+        except (ValueError, AttributeError, TypeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"bad request: {exc}"})
+            return
+
+        if asset_type not in ASSET_TYPES:
+            self._send_json(400, {"ok": False, "error": "unknown asset type"})
+            return
+        if scope not in ("campaign", "global"):
+            self._send_json(400, {"ok": False, "error": "unknown asset scope"})
+            return
+
+        base = os.path.realpath(os.getcwd())
+        root = asset_scope_root(base, asset_type, scope)
+        if not root:
+            self._send_json(404, {"ok": False, "error": "asset folder not found"})
+            return
+
+        try:
+            selected = native_pick_asset_file(root, asset_type)
+        except Exception as exc:
+            self._send_json(500, {"ok": False, "error": "native file picker failed: " + str(exc)})
+            return
+        if not selected:
+            self._send_json(200, {"ok": False, "cancelled": True})
+            return
+
+        picked = asset_value_from_path(base, asset_type, scope, selected)
+        if not picked:
+            self._send_json(403, {"ok": False, "error": "selected file is outside the asset folder"})
+            return
+        picked["ok"] = True
+        self._send_json(200, picked)
 
     def _select_campaign(self):
         """Set the active campaign (the client persists the choice in localStorage
