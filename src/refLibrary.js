@@ -31,9 +31,14 @@ const RefLibrary = (() => {
   let duplicates = [];
   let ready = false;
 
+  // Reach the canonical lowercaser (browser global; require fallback for Node tests)
+  // so this never restates the rule inline.
+  const _rsLower = (typeof rsLower !== "undefined")
+    ? rsLower
+    : require("./utils/text.js").rsLower;
+
   function norm(name) {
-    // Lowercase, matching the card builders' rsLower().
-    return String(name == null ? "" : name).trim().toLowerCase();
+    return _rsLower(String(name == null ? "" : name).trim());
   }
 
   function typeMap(type) {

@@ -8,15 +8,6 @@ const RendScrollDiagnostics = (() => {
     return typeof RendScrollParser !== "undefined" ? RendScrollParser : null;
   }
 
-  // The canonical directive set + keyword normalizer live in the parser; consume
-  // them so this never drifts (it previously omitted textsize/size/file).
-  function directiveNames() {
-    const p = parser();
-    return p && p.directiveNames
-      ? p.directiveNames
-      : new Set(["side", "image", "bg", "closed", "textsize", "size", "file", "connect", "combine"]);
-  }
-
   function skillRules() {
     return typeof RendScrollSkillChecks !== "undefined" ? RendScrollSkillChecks : null;
   }
@@ -44,39 +35,20 @@ const RendScrollDiagnostics = (() => {
     }
   }
 
-  // Mirror the parser's directive-name normalization: keyword-lowercase then
-  // strip separators, so "Text Size" / "text_size" both fold to "textsize".
-  function directiveName(label) {
-    const p = parser();
-    const kw = p && p.keywordLower
-      ? p.keywordLower(label)
-      : String(label || "").toLowerCase();
-    return kw.replace(/[\s_-]+/g, "");
-  }
-
+  // Thin adapter over the parser's canonical matchDirective so directive parsing
+  // never drifts. Returns the diagnostics shape ({ name, value, malformed, reason,
+  // raw }) the callers below expect.
   function directiveLine(raw) {
     const t = String(raw || "").trim();
     if (!t) return null;
-    const names = directiveNames();
-
-    const withColon = t.match(/^([^:]+):\s*(.*)$/);
-    if (withColon) {
-      const name = directiveName(withColon[1].trim());
-      if (!names.has(name)) return null;
-      return {
-        name,
-        value: withColon[2].trim(),
-        malformed: withColon[2].trim() === "",
-        reason: "directive missing value",
-        raw: t,
-      };
+    const p = parser();
+    if (!p || !p.matchDirective) return null;
+    const d = p.matchDirective(t);
+    if (!d) return null;
+    if (d.kind === "malformed") {
+      return { name: d.name, value: "", malformed: true, reason: d.reason, raw: t };
     }
-
-    const first = directiveName(t.split(/\s+/)[0] || "");
-    if (names.has(first)) {
-      return { name: first, value: "", malformed: true, reason: "directive missing colon", raw: t };
-    }
-    return null;
+    return { name: d.name, value: d.value, malformed: false, reason: "", raw: t };
   }
 
   function addMalformedDirectiveDiagnostics(doc, file, issues) {

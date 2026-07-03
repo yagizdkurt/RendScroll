@@ -1010,16 +1010,6 @@ body[data-opt-pagebg="custom"] .page{
 
 .page a{color:var(--maroon);}
 
-/* Emphasized "Label:" lines. */
-.page p.field-label{
-  font-family:'Alegreya Sans SC',sans-serif;
-  font-weight:800;
-  letter-spacing:.02em;
-  color:var(--maroon);
-  margin:.9rem 0 .15rem;
-  text-align:left;
-}
-
 /* ---------- Lists ---------- */
 .page ul,.page ol{
   margin:.5rem 0 .8rem;

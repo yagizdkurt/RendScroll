@@ -117,6 +117,21 @@ test("every classifiable card type (except echo) registers a builder", () => {
   assert.strictEqual(typeof T.cards.builder("sourceenemy"), "function");
 });
 
+test("app.js ACCENT_BY_TYPE keys are all real parser card types", () => {
+  // Heading accents are stamped from card.type (app.js renderCardBlock), so the
+  // presentation map must not drift from the parser's classification. Read the map
+  // out of app.js source (app.js itself isn't loaded in this harness) and check its
+  // keys against the parser's type list, so a renamed/typo'd type fails loudly here.
+  const appSrc = fs.readFileSync(path.join(ROOT, "src/app/app.js"), "utf8");
+  const block = appSrc.match(/const ACCENT_BY_TYPE\s*=\s*\{([\s\S]*?)\}/);
+  assert.ok(block, "ACCENT_BY_TYPE map not found in app.js");
+  const keys = Array.from(block[1].matchAll(/(\w+)\s*:/g)).map((m) => m[1]);
+  assert.ok(keys.length > 0, "ACCENT_BY_TYPE has no entries");
+  const types = new Set(Array.from(win.__T.parser.cardTypeList()));
+  const unknown = keys.filter((k) => !types.has(k));
+  assert.strictEqual(unknown.length, 0, "ACCENT_BY_TYPE keys not in parser types: " + unknown.join(", "));
+});
+
 test("narrative: builds a narrative-card and routes Side: R to the right column", () => {
   const card = win.__T.renderCard("narrative", "### Narrative\nSide: R\nText:\n> Read aloud line.\n");
   assert.ok(card, "no card produced");

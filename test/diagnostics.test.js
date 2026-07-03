@@ -43,6 +43,23 @@ test("diagnostics accepts save checks and lockpicking as standard checks", () =>
   assert.deepEqual(issues.filter((issue) => issue.code === "non-standard-check"), []);
 });
 
+test("diagnostics flags empty asset paths and malformed directives (via matchDirective)", () => {
+  const parsed = RendScrollDiagnostics.parseScene([
+    "### Item: Sword",
+    "Image:",
+    "Side",
+    "Type: Junk",
+    "",
+  ].join("\n"), "scene.md");
+
+  const issues = RendScrollDiagnostics.computeSceneDiagnostics(parsed.doc, { file: "scene.md" });
+
+  assert.ok(issues.some((i) => i.code === "empty-asset-path" && i.message === "empty image path"),
+    "empty Image: should be an empty-asset-path error");
+  assert.ok(issues.some((i) => i.code === "malformed-directive" && /Side/.test(i.message)),
+    "bare 'Side' (no colon) should warn as a malformed directive");
+});
+
 test("diagnostics warns about legacy standalone narrative blockquotes", () => {
   const parsed = RendScrollDiagnostics.parseScene([
     "# Scene",

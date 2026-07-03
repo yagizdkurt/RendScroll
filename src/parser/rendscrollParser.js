@@ -365,6 +365,13 @@ const RendScrollParser = (() => {
     return { startLine, endLine, startOffset: offs[s], endOffset: offs[e] };
   }
 
+  // Canonical "Text Size:" value check (8–32). The ONE place this range lives;
+  // app.js consumes it so the renderer never restates the rule.
+  function validTextSize(value) {
+    const s = String(value);
+    return /^\d+(?:\.\d+)?$/.test(s) && Number(s) >= 8 && Number(s) <= 32;
+  }
+
   // Classify one trimmed body line. Returns a directive descriptor, a malformed
   // marker (a known directive word written wrong — kept, never dropped), or null.
   function matchDirective(t) {
@@ -373,24 +380,24 @@ const RendScrollParser = (() => {
       const name = keywordLower(m[1].trim()).replace(/[\s_-]+/g, "");
       const value = m[2].trim();
       if (DIRECTIVE_NAMES.has(name)) {
-        if (name === "textsize") {
-          const size = Number(value);
-          if (!/^\d+(?:\.\d+)?$/.test(value) || size < 8 || size > 32) return null;
-        }
+        // Missing value is malformed regardless of type; check it before the
+        // numeric range tests so an empty "Text Size:"/"Size:" is flagged (and
+        // carries its name) rather than silently falling through as body text.
+        if (value === "") return { kind: "malformed", name, reason: "directive missing value" };
+        if (name === "textsize" && !validTextSize(value)) return null;
         // "Size:" on a Picture card is a column-width percentage (5–100). A
         // non-numeric value (e.g. prose "Size: Large") falls through to body.
         if (name === "size") {
           const pct = Number(value);
           if (!/^\d+(?:\.\d+)?$/.test(value) || pct < 5 || pct > 100) return null;
         }
-        if (value === "") return { kind: "malformed", reason: "directive missing value" };
         return { kind: "directive", name, rawLabel: m[1].trim(), value };
       }
       return null;
     }
     // No colon at all: a bare known directive word (e.g. "Side R") is malformed.
     const first = keywordLower(t.split(/\s+/)[0] || "");
-    if (DIRECTIVE_NAMES.has(first)) return { kind: "malformed", reason: "directive missing colon" };
+    if (DIRECTIVE_NAMES.has(first)) return { kind: "malformed", name: first, reason: "directive missing colon" };
     return null;
   }
 
@@ -682,6 +689,8 @@ const RendScrollParser = (() => {
     cardType,
     cardTitle,
     cardTypeList,
+    matchDirective,
+    validTextSize,
     canDock,
     dockAllows,
     parseChecks,

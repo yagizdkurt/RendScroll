@@ -25,12 +25,16 @@ let campaignEntries = [];
 let currentView = "scene";
 let currentLibraryName = null;
 
-/* Known label lines from the template that should stand out. */
-const FIELD_LABELS = new Set([
-  "personality:", "first dialogue:", "if asked:", "what they know:", "what they don't know:",
-  "stat:", "tactics:", "general:", "corpses:", "dog:", "chests:",
-  "goal:", "summary:", "cultist:", "cult hunter:",
-]);
+/* Card type -> heading accent class. The parser owns classification (card.type);
+   this map is the renderer's presentation choice for each type. Only level-3 card
+   types are listed, matching the `h3.*-section` rules in base.css. */
+const ACCENT_BY_TYPE = {
+  skillchecks: "skill-section",
+  npc: "npc-section",
+  combat: "combat-section",
+  unexpected: "contingency-section",
+  echo: "echo-section",
+};
 
 function createTopScrollImage() {
   const wrap = document.createElement("div");
@@ -45,28 +49,27 @@ function createTopScrollImage() {
   return wrap;
 }
 
-/* Base styling shared by every scene (not tied to one feature). */
+/* Base styling shared by every scene (not tied to one feature). Heading accents
+   are stamped per-card from the parsed card.type (see stampAccentClass), not
+   re-sniffed from DOM text here. */
 function enhanceBaseStyling(root) {
   // Read-aloud boxes.
   root.querySelectorAll("blockquote").forEach((bq) => bq.classList.add("read-aloud"));
+}
 
-  // Section headings get an accent based on their text.
-  root.querySelectorAll("h2, h3").forEach((h) => {
-    const t = rsLower(h.textContent);
-    if (t.includes("skill check")) h.classList.add("skill-section");
-    else if (t.includes("npc")) h.classList.add("npc-section");
-    else if (t.includes("combat")) h.classList.add("combat-section");
-    else if (t.includes("unexpected")) h.classList.add("contingency-section");
-    else if (t.includes("echo")) h.classList.add("echo-section");
-  });
-
-  // Short "Label:" paragraphs become emphasized field labels.
-  root.querySelectorAll("p").forEach((p) => {
-    const t = p.textContent.trim();
-    const isKnown = FIELD_LABELS.has(rsLower(t));
-    const looksLikeLabel = t.endsWith(":") && t.length <= 24 && !t.includes(" ");
-    if (isKnown || looksLikeLabel) p.classList.add("field-label");
-  });
+// Stamp a card's heading accent from its parser type. Finds the first heading in
+// the produced nodes (the builder's card subtree, or the raw block elements for a
+// builderless type like echo) and adds ACCENT_BY_TYPE[type].
+function stampAccentClass(nodes, type) {
+  const cls = ACCENT_BY_TYPE[type];
+  if (!cls) return;
+  for (const n of nodes) {
+    if (!n) continue;
+    const h = (n.tagName && /^H[1-6]$/.test(n.tagName))
+      ? n
+      : (n.querySelector ? n.querySelector("h1, h2, h3, h4, h5, h6") : null);
+    if (h) { h.classList.add(cls); return; }
+  }
 }
 
 /* Render a scene from raw markdown via the RendScroll parser model.
@@ -92,14 +95,9 @@ function cardBuilder(type) {
 const CARD_TEXT_SIZE_DEFAULT_PX = 18.24; // current .page p default: 1.14rem at 16px
 const CARD_TEXT_SIZE_RE = /^\s*text\s*size\s*:\s*(\d+(?:\.\d+)?)\s*$/i;
 
-function validCardTextSize(value) {
-  const n = Number(value);
-  return /^\d+(?:\.\d+)?$/.test(String(value || "")) && n >= 8 && n <= 32;
-}
-
 function cardTextSize(card) {
   const d = card.directives.find((x) => x.name === "textsize");
-  return d && validCardTextSize(d.value) ? Number(d.value) : null;
+  return d && RendScrollParser.validTextSize(d.value) ? Number(d.value) : null;
 }
 
 function stripCardTextSize(src) {
@@ -107,7 +105,7 @@ function stripCardTextSize(src) {
     .split(/\r?\n/)
     .filter((line) => {
       const m = line.match(CARD_TEXT_SIZE_RE);
-      return !(m && validCardTextSize(m[1]));
+      return !(m && RendScrollParser.validTextSize(m[1]));
     })
     .join("\n");
 }
@@ -201,7 +199,8 @@ function stampRefName(el, name) {
 // nodes) into a card; a missing builder or a null result leaves the raw nodes.
 function renderCardBlock(doc, card) {
   const { cardEl, els } = renderCardFromSource(card.type, cardRawSource(doc, card));
-  if (!cardEl) return els;
+  if (!cardEl) { stampAccentClass(els, card.type); return els; }
+  stampAccentClass([cardEl], card.type);
   applyCardTextSize(cardEl, cardTextSize(card));
   stampRefName(cardEl, card.title);
   // Source line range of this card in the scene. layout only MOVES nodes, so the

@@ -162,9 +162,21 @@ const Editor = (() => {
     }));
   }
 
+  // First parsed card node in a block's markdown, so name extraction relies on the
+  // parser's classification/title rules instead of restating heading regexes.
+  function firstCardOfBlock(block) {
+    const doc = RendScrollParser.parseRendScroll(String(block || ""));
+    for (const section of doc.sections) {
+      for (const b of section.blocks) {
+        if (b.kind === "card") return b;
+      }
+    }
+    return null;
+  }
+
   function itemNameFromBlock(block) {
-    const m = String(block).match(/^###\s+(?:source\s*item|sourceitem|item)\s*:\s*(.+?)\s*$/im);
-    return m ? m[1].trim() : "";
+    const c = firstCardOfBlock(block);
+    return c && (c.type === "item" || c.type === "sourceitem") ? String(c.title || "").trim() : "";
   }
 
   // New item from the create form -> write /Items/Name.md as SourceItem, then
@@ -202,8 +214,8 @@ const Editor = (() => {
   }
 
   function enemyNameFromBlock(block) {
-    const m = String(block).match(/^###\s+(?:source\s*enemy|sourceenemy)\s*:\s*(.+?)\s*$/im);
-    return m ? m[1].trim() : "";
+    const c = firstCardOfBlock(block);
+    return c && c.type === "sourceenemy" ? String(c.title || "").trim() : "";
   }
 
   // Create a new enemy library file from the SourceEnemy form. Used by the combat
