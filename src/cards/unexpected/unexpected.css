@@ -9,17 +9,6 @@
   border-left:6px solid #8a6d2f;
   border-radius:4px;
 }
-/* Faint question-mark watermark: centered in the block, contained so it never overflows the block/column. */
-.page .unexpected-card::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:url("../../STDImages/question.png") no-repeat center / contain;
-  opacity:.35;
-  mix-blend-mode:multiply;
-  pointer-events:none;
-  z-index:0;
-}
 .page .unexpected-card > *{position:relative; z-index:1;}
 .page .unexpected-card > :first-child{margin-top:0;}
 .page .unexpected-card > :last-child{margin-bottom:0;}

@@ -6,7 +6,7 @@
 
      ### Object: Name
      > Free description / DM narration (read-aloud)
-     BG: door.png            (optional; default watermark = chest.png)
+     BG: door.png            (optional watermark)
      Checks:
      - Investigation:
      > 10: ...

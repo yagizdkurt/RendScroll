@@ -11,17 +11,6 @@
   border-radius:4px;
   box-shadow:inset 0 0 16px rgba(120,40,30,.12), 0 4px 12px rgba(80,20,15,.10);
 }
-/* Faint combat watermark: centered in the block, contained so it never overflows the block/column. */
-.page .combat-card::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:url("../../STDImages/combat.png") no-repeat center / contain;
-  opacity:.30;
-  mix-blend-mode:multiply;
-  pointer-events:none;
-  z-index:0;
-}
 .page .combat-card > *{position:relative; z-index:1;}
 .page .combat-card > :first-child{margin-top:0;}
 .page .combat-card > :last-child{margin-bottom:0;}
