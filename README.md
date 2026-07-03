@@ -13,7 +13,7 @@
 
 <br />
 
-![RendScroll — a rendered scene](src/STDImages/showpic.png)
+
 
 *Plain notes go in. An old, gold-edged book comes out — ready for the table.*
 
