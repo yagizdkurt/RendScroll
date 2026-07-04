@@ -12,18 +12,6 @@
   font-size:.92rem;
 }
 
-.page .manifest-title{
-  font-family:'Alegreya Sans SC',sans-serif;
-  font-weight:800;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  color:var(--maroon);
-  font-size:.92rem;
-  margin:0 0 .45rem;
-  padding-bottom:.25rem;
-  border-bottom:1px solid var(--rule);
-}
-
 /* Compact "Label: value" scalar rows (Duration / Summary). */
 .page .manifest-rows{
   display:flex;
@@ -48,13 +36,46 @@
 .page .manifest-label::after{content:":";}
 .page .manifest-value{color:inherit;}
 
-/* Labelled bullet lists (Goals / Key NPCs / Rewards). */
-.page .manifest-list{margin:.3rem 0 0;}
-.page .manifest-list:first-of-type{margin-top:.1rem;}
-.page .manifest-list .manifest-label{display:block;margin-bottom:.1rem;}
+/* Panel row for Goals / Key NPCs / Rewards. */
+.page .scene-meta-panels{
+  display:grid;
+  grid-template-columns:1.1fr 1fr 1fr;
+  gap:3rem;
+  margin:.65rem 0 0;
+}
+
+/* Labelled bullet panels (Goals / Key NPCs / Rewards). */
+.page .scene-meta-panel{
+  min-height:130px;
+  padding:.8rem .9rem;
+}
+.page .manifest-list{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:.2rem .7rem;
+  margin:0;
+  line-height:1.35;
+}
+.page .manifest-list .manifest-label{
+  display:block;
+  margin:0;
+  line-height:1.35;
+  white-space:nowrap;
+}
 .page .manifest-list ul{
   margin:0;
   padding-left:1.15rem;
+  flex:1 1 11rem;
+  min-width:0;
   line-height:1.35;
 }
 .page .manifest-list li{margin:.05rem 0;}
+.page .manifest-list li:first-child{margin-top:0;}
+
+@media (max-width:760px){
+  .page .scene-meta-panels{
+    grid-template-columns:1fr;
+    gap:.75rem;
+  }
+}

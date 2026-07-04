@@ -1,7 +1,7 @@
 /* Scene Manifest renderer.
    A compact "at a glance" card that heads a scene: approximate Duration, a one-line
    Summary, and short bullet lists of Goals / Key NPCs / Rewards. Authored as a bare
-   "### Manifest" heading (no colon, no title — the display title is fixed). It is
+   "### Manifest" heading (no colon, no visible title). It is
    written at the TOP of a scene file, so the flat-DOM/layout pass naturally places it
    in the full-width .page-header band at the very top (see cards/shared/layout.js).
 
@@ -106,11 +106,6 @@ function buildManifestCard(cardNode, head, nodes) {
   card.className = "manifest-card";
   if (cardIsRight(cardNode)) card.classList.add("card-right");
 
-  const title = document.createElement("div");
-  title.className = "manifest-title";
-  title.textContent = "Scene Manifest";
-  card.appendChild(title);
-
   const data = parseManifestBody(cardNode);
 
   const rows = MANIFEST_SCALARS
@@ -123,10 +118,15 @@ function buildManifestCard(cardNode, head, nodes) {
     card.appendChild(wrap);
   }
 
+  const panels = document.createElement("div");
+  panels.className = "scene-meta-panels";
   MANIFEST_LISTS.forEach((f) => {
     const block = manifestList(f.label, data[f.key]);
-    if (block) card.appendChild(block);
+    if (!block) return;
+    block.classList.add("scene-meta-panel");
+    panels.appendChild(block);
   });
+  if (panels.children.length) card.appendChild(panels);
 
   return card;
 }

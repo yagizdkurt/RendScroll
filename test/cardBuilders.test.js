@@ -313,17 +313,20 @@ test("std: title + portrait + body", () => {
   assert.match(card.textContent, /Arrival/);
 });
 
-test("manifest: title, Duration/Summary rows, Goals/Key NPCs/Rewards lists", () => {
+test("manifest: no visible title, Duration/Summary rows, Goals/Key NPCs/Rewards lists", () => {
   const card = win.__T.renderCard(
     "manifest",
     "### Manifest\nDuration: 20 min\nSummary: A tense parley.\nGoals:\n- Broker peace\n- Learn the secret\nKey NPCs:\n- Envoy Mara\nRewards:\n- 100 gold\n"
   );
   assert.ok(card, "no card produced");
   assert.ok(card.classList.contains("manifest-card"), "expected .manifest-card");
-  assert.ok(card.querySelector(".manifest-title"), "expected a .manifest-title");
+  assert.equal(card.querySelector(".manifest-title"), null, "manifest title should not render visibly");
   assert.strictEqual(card.querySelectorAll(".manifest-row").length, 2, "expected Duration + Summary rows");
   assert.match(card.textContent, /20 min/);
   assert.match(card.textContent, /A tense parley\./);
+  const panels = card.querySelector(".scene-meta-panels");
+  assert.ok(panels, "expected a scene meta panel row");
+  assert.strictEqual(panels.querySelectorAll(".scene-meta-panel").length, 3, "expected 3 scene meta panels");
   const lists = card.querySelectorAll(".manifest-list");
   assert.strictEqual(lists.length, 3, "expected Goals + Key NPCs + Rewards lists");
   assert.strictEqual(card.querySelector(".manifest-list ul").querySelectorAll("li").length, 2, "expected 2 goals");
@@ -336,6 +339,7 @@ test("manifest: empty fields are omitted (Duration only)", () => {
   assert.ok(card.classList.contains("manifest-card"), "expected .manifest-card");
   assert.strictEqual(card.querySelectorAll(".manifest-row").length, 1, "only Duration row");
   assert.strictEqual(card.querySelectorAll(".manifest-list").length, 0, "no empty lists");
+  assert.strictEqual(card.querySelector(".scene-meta-panels"), null, "no empty panel row");
 });
 
 test("unexpected: title + body, Side", () => {
