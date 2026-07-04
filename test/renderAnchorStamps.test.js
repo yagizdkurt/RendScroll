@@ -22,6 +22,7 @@ const ROOT = path.join(__dirname, "..");
 // layout pass and app.js itself, so the real renderPage() runs end-to-end.
 const SCRIPTS = [
   "src/vendor/marked.min.js",
+  "src/utils/safeStorage.js",
   "src/utils/text.js",
   "src/utils/dom.js",
   "src/utils/markdown.js",

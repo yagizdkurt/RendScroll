@@ -46,7 +46,8 @@ function addScript(win, file) {
   win.document.body.appendChild(el);
 }
 
-function makeWindow(pageHtml) {
+function makeWindow(pageHtml, opts) {
+  const engine = opts && opts.engine; // fake BrowserEnv engine; omit = no BrowserEnv
   const virtualConsole = new VirtualConsole();
   virtualConsole.on("jsdomError", (err) => {
     if (!/Could not parse CSS stylesheet/.test(String(err && err.message))) {
@@ -64,7 +65,12 @@ function makeWindow(pageHtml) {
   );
   const win = dom.window;
   win.print = function () {};
+  if (engine) win.BrowserEnv = { engine: () => engine };
   CARD_SCRIPTS.forEach((file) => addScript(win, file));
+  if (engine) {
+    addScript(win, "src/printer/printer.firefox.js");
+    addScript(win, "src/printer/printer.webkit.js");
+  }
   addScript(win, "src/printer/printer.js");
   win.document.dispatchEvent(new win.Event("DOMContentLoaded", { bubbles: true }));
   return win;
@@ -148,6 +154,37 @@ test("beforeprint groups events and afterprint restores the layout DOM", () => {
   assert.equal(grid.querySelectorAll(":scope > .print-event").length, 0);
   assert.equal(grid.children[1].id, "main-a");
   assert.equal(grid.children[3].id, "aside-a");
+});
+
+test("chromium engine keeps the dynamic CSS identical to the no-BrowserEnv default", () => {
+  const plain = makeWindow("<div class=\"page-header\"><h1>Scene Title</h1></div>");
+  const chromium = makeWindow(
+    "<div class=\"page-header\"><h1>Scene Title</h1></div>", { engine: "chromium" });
+  assert.equal(styleText(chromium), styleText(plain));
+  assert.equal(chromium.document.querySelector(".printer-engine-warning"), null);
+  assert.equal(plain.document.querySelector(".printer-engine-warning"), null);
+});
+
+test("firefox engine strips @page margin boxes but keeps size, zoom, and breaks", () => {
+  const win = makeWindow(
+    "<div class=\"page-header\"><h1>Scene Title</h1></div>", { engine: "firefox" });
+  const css = styleText(win);
+  assert.ok(!css.includes("@top-center"), "firefox CSS should drop @top-center");
+  assert.ok(!css.includes("@bottom-center"), "firefox CSS should drop @bottom-center");
+  assert.ok(css.includes("@page{ size:A4 portrait; margin:14mm 10mm 12mm;"));
+  assert.ok(css.includes("#page{ zoom:0.5; }"));
+  assert.ok(css.includes("{break-inside:avoid;page-break-inside:avoid;}"));
+});
+
+test("non-chromium engines show an explicit export warning", () => {
+  ["firefox", "webkit", "other"].forEach((engine) => {
+    const win = makeWindow(
+      "<div class=\"page-header\"><h1>Scene Title</h1></div>", { engine });
+    const notice = win.document.querySelector(".printer-engine-warning");
+    assert.ok(notice, "expected warning for engine: " + engine);
+    assert.ok(/tuned for Chrome\/Edge/.test(notice.textContent));
+    assert.ok(notice.classList.contains("warn"));
+  });
 });
 
 test("dynamic break selector uses registered card classes", () => {
