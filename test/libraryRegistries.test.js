@@ -1,7 +1,7 @@
-/* Cross-language guard: RefLibrary's REF_TYPES (JS) and launcher.py's LIBRARY_DIRS
-   (Python) both name the on-disk folder for each reference kind, and they must
-   agree exactly — RefLibrary fetches from those folders, the launcher writes to
-   them. Nothing else holds them in sync, so this asserts they do. */
+/* Cross-language guard: RefLibrary's REF_TYPES (JS) and src/server/paths.py's
+   LIBRARY_DIRS (Python) both name the on-disk folder for each reference kind, and
+   they must agree exactly — RefLibrary fetches from those folders, the server
+   writes to them. Nothing else holds them in sync, so this asserts they do. */
 
 const { test } = require("node:test");
 const assert = require("node:assert");
@@ -17,11 +17,12 @@ function jsFolders() {
   return out;
 }
 
-// kind -> folder, parsed out of the `LIBRARY_DIRS = {...}` literal in launcher.py.
+// kind -> folder, parsed out of the `LIBRARY_DIRS = {...}` literal in
+// src/server/paths.py.
 function pyFolders() {
-  const src = fs.readFileSync(path.join(__dirname, "..", "launcher.py"), "utf8");
+  const src = fs.readFileSync(path.join(__dirname, "..", "src", "server", "paths.py"), "utf8");
   const m = src.match(/LIBRARY_DIRS\s*=\s*\{([^}]*)\}/);
-  assert.ok(m, "LIBRARY_DIRS literal not found in launcher.py");
+  assert.ok(m, "LIBRARY_DIRS literal not found in src/server/paths.py");
   const out = {};
   const pairRe = /["']([^"']+)["']\s*:\s*["']([^"']+)["']/g;
   let pair;
@@ -33,6 +34,6 @@ test("REF_TYPES (JS) and LIBRARY_DIRS (Python) name the same kinds and folders",
   assert.deepStrictEqual(
     pyFolders(),
     jsFolders(),
-    "RefLibrary.REF_TYPES folders and launcher.py LIBRARY_DIRS must match exactly"
+    "RefLibrary.REF_TYPES folders and src/server/paths.py LIBRARY_DIRS must match exactly"
   );
 });

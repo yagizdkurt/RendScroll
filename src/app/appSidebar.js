@@ -58,7 +58,7 @@ function showNavError(message) {
 }
 
 async function loadCampaignEntries() {
-  const res = await fetch("/__campaign_files", { cache: "no-store" });
+  const res = await fetch(ServerApi.withCampaign("/__campaign_files"), { cache: "no-store" });
   if (!res.ok) throw new Error("campaign discovery failed");
   const data = await res.json();
   if (!Array.isArray(data)) throw new Error("bad discovery response");
@@ -72,7 +72,7 @@ async function createCampaignFile(title, manifest) {
   const res = await fetch("/__create_campaign_file", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(ServerApi.withCampaignBody(body)),
   });
 
   let payload = null;

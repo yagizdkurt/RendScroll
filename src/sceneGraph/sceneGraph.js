@@ -126,7 +126,9 @@ const SceneGraphPanel = (() => {
     return fetch("/__save_scene_graph", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(graph),
+      // The campaign field is transport metadata; the server strips it before
+      // writing graph.json.
+      body: JSON.stringify(ServerApi.withCampaignBody(graph)),
       keepalive: !!keepalive,
     }).then((res) => {
       if (!res.ok) throw new Error("HTTP " + res.status);
@@ -143,7 +145,7 @@ const SceneGraphPanel = (() => {
     let raw = null;
     let serverWarning = "";
     try {
-      const res = await fetch("/__scene_graph", { cache: "no-store" });
+      const res = await fetch(ServerApi.withCampaign("/__scene_graph"), { cache: "no-store" });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "HTTP " + res.status);
       raw = data.graph;

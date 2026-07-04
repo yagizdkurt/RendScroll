@@ -17,6 +17,7 @@ const ROOT = path.join(__dirname, "..");
 const SCRIPTS = [
   "src/utils/safeStorage.js",
   "src/utils/text.js",
+  "src/utils/serverApi.js",
   "src/parser/rendscrollParser.js",
   "src/cards/shared/cardDirectives.js",
   "src/cards/transition/transition.js",

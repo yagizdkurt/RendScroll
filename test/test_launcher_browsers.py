@@ -6,6 +6,7 @@ import unittest
 from unittest import mock
 
 import launcher
+from src.server import paths
 
 
 class BrowserCandidateTests(unittest.TestCase):
@@ -93,7 +94,7 @@ class ReadBrowserChoiceTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def write_options(self, payload, raw=None):
-        target = os.path.join(launcher.user_root(self.tmp), launcher.OPTIONS_CURRENT_FILE)
+        target = os.path.join(paths.user_root(self.tmp), paths.OPTIONS_CURRENT_FILE)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as fh:
             fh.write(raw if raw is not None else json.dumps(payload))

@@ -322,8 +322,8 @@
     }
 
     const [images, audio] = await Promise.all([
-      fetchJSON("/__assets?type=images"),
-      fetchJSON("/__assets?type=audio"),
+      fetchJSON(ServerApi.withCampaign("/__assets?type=images")),
+      fetchJSON(ServerApi.withCampaign("/__assets?type=audio")),
     ]);
     return inv.analyzeAssets(scenes, typeof RefLibrary !== "undefined" ? RefLibrary : null, { images, audio });
   }

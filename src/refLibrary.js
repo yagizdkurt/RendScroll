@@ -82,12 +82,24 @@ const RefLibrary = (() => {
     return res.json();
   }
 
+  // Campaign-stamping helpers, guarded so this file keeps working under node
+  // tests where serverApi.js is not loaded (no campaign -> no-op there too).
+  function apiUrl(url) {
+    const api = typeof globalThis !== "undefined" ? globalThis.ServerApi : null;
+    return api ? api.withCampaign(url) : url;
+  }
+
+  function apiBody(obj) {
+    const api = typeof globalThis !== "undefined" ? globalThis.ServerApi : null;
+    return api ? api.withCampaignBody(obj) : obj;
+  }
+
   async function loadType(type) {
     const def = REF_TYPES[type];
     if (!def) return;
     // Prefer the one-request bundle; fall back to listing + per-file fetch.
     try {
-      const bundle = await fetchJSON("/__library_bundle?type=" + encodeURIComponent(type));
+      const bundle = await fetchJSON(apiUrl("/__library_bundle?type=" + encodeURIComponent(type)));
       if (Array.isArray(bundle)) {
         bundle.forEach((e) => put(type, e));
         return;
@@ -97,7 +109,7 @@ const RefLibrary = (() => {
     }
 
     try {
-      const list = await fetchJSON("/__library_files?type=" + encodeURIComponent(type));
+      const list = await fetchJSON(apiUrl("/__library_files?type=" + encodeURIComponent(type)));
       if (!Array.isArray(list)) return;
       for (const e of list) {
         try {
@@ -158,7 +170,7 @@ const RefLibrary = (() => {
     const res = await fetch("/__create_library_file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, name, content, scope: scope || "global" }),
+      body: JSON.stringify(apiBody({ type, name, content, scope: scope || "global" })),
     });
     let payload = null;
     try { payload = await res.json(); } catch (err) { warn("Non-JSON create response for " + type + " \"" + name + "\".", err); }
@@ -232,7 +244,7 @@ const RefLibrary = (() => {
     const res = await fetch("/__move_library_file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, name, path, scope: toScope || "global" }),
+      body: JSON.stringify(apiBody({ type, name, path, scope: toScope || "global" })),
     });
     let payload = null;
     try { payload = await res.json(); } catch (err) { warn("Non-JSON move response for " + type + " \"" + name + "\".", err); }

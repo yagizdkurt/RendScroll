@@ -20,7 +20,9 @@ const EditorAssetPicker = (() => {
 
   async function campaignScopeAvailable(type) {
     try {
-      const res = await fetch("/__assets?type=" + encodeURIComponent(type) + "&scope=campaign", { cache: "no-store" });
+      const res = await fetch(
+        ServerApi.withCampaign("/__assets?type=" + encodeURIComponent(type) + "&scope=campaign"),
+        { cache: "no-store" });
       campaignAvailability[type] = res.ok;
     } catch (err) {
       campaignAvailability[type] = false;
@@ -81,7 +83,7 @@ const EditorAssetPicker = (() => {
     const res = await fetch("/__pick_asset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, scope }),
+      body: JSON.stringify(ServerApi.withCampaignBody({ type, scope })),
     });
     let payload = null;
     try { payload = await res.json(); } catch (_) { /* non-JSON */ }

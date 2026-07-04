@@ -107,8 +107,20 @@ const CampaignExporter = (() => {
     return res.json();
   }
 
+  // Campaign-stamping helpers, guarded so this file keeps working under node
+  // tests where serverApi.js is not loaded (no campaign -> no-op there too).
+  function apiUrl(url) {
+    const api = typeof globalThis !== "undefined" ? globalThis.ServerApi : null;
+    return api ? api.withCampaign(url) : url;
+  }
+
+  function apiBody(obj) {
+    const api = typeof globalThis !== "undefined" ? globalThis.ServerApi : null;
+    return api ? api.withCampaignBody(obj) : obj;
+  }
+
   async function loadScenes() {
-    const entries = await fetchJSON("/__campaign_files");
+    const entries = await fetchJSON(apiUrl("/__campaign_files"));
     const scenes = [];
     for (const e of entries) {
       let text = "";
@@ -155,7 +167,7 @@ const CampaignExporter = (() => {
     const res = await fetch("/__export_package", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, label, files: [...fileSet] }),
+      body: JSON.stringify(apiBody({ name, label, files: [...fileSet] })),
     });
     let payload = null;
     try { payload = await res.json(); } catch (_) { /* non-JSON */ }

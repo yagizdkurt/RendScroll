@@ -1,11 +1,29 @@
-import io
+"""Durability tests for the server's write paths and endpoint functions.
+
+Endpoints are plain functions (src/server/endpoints_*) called with an explicit
+Ctx(base_dir, campaign) — no HTTP handler or chdir needed. Patches of os.replace
+and time.strftime hit the real modules (process-global); each test restores them
+in a finally block, and unittest runs serially, so this is safe.
+"""
+
 import json
 import os
 import shutil
 import tempfile
+import time
 import unittest
 
-import launcher
+from src.server import (
+    endpoints_assets,
+    endpoints_campaigns,
+    endpoints_files,
+    endpoints_options,
+    endpoints_updates,
+    discovery,
+    paths,
+    state,
+)
+from src.server.routes import Ctx
 
 
 def write(path, content=""):
@@ -22,64 +40,39 @@ def read(path):
 class LauncherDurabilityTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="rs-durability-")
-        self.cwd = os.getcwd()
-        self.active_campaign = launcher.ACTIVE_CAMPAIGN
-        os.chdir(self.tmp)
-        launcher.ACTIVE_CAMPAIGN = None
+        self.saved_campaign = state.get_active_campaign()
+        state.set_active_campaign(None)
 
     def tearDown(self):
-        launcher.ACTIVE_CAMPAIGN = self.active_campaign
-        os.chdir(self.cwd)
+        state.set_active_campaign(self.saved_campaign)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def handler(self, path, payload):
-        h = object.__new__(launcher.NoCacheHTTPRequestHandler)
-        raw = json.dumps(payload).encode("utf-8")
-        h.path = path
-        h.headers = {"Content-Length": str(len(raw))}
-        h.rfile = io.BytesIO(raw)
-        h.responses = []
-
-        def send_json(status, body):
-            h.responses.append((status, body))
-
-        h._send_json = send_json
-        return h
-
-    def get_handler(self, path):
-        h = object.__new__(launcher.NoCacheHTTPRequestHandler)
-        h.path = path
-        h.responses = []
-
-        def send_json(status, body):
-            h.responses.append((status, body))
-
-        h._send_json = send_json
-        return h
+    def ctx(self, campaign=None):
+        return Ctx(base_dir=self.tmp, campaign=campaign)
 
     def test_atomic_write_preserves_old_file_when_replace_fails(self):
         target = os.path.join(self.tmp, "content", "items", "Scene.md")
         write(target, "old")
-        original_replace = launcher.os.replace
+        original_replace = os.replace
 
         def fail_replace(src, dst):
             raise OSError("replace failed")
 
         try:
-            launcher.os.replace = fail_replace
+            os.replace = fail_replace
             with self.assertRaises(OSError):
-                launcher.atomic_write_text(target, "new")
+                paths.atomic_write_text(target, "new")
         finally:
-            launcher.os.replace = original_replace
+            os.replace = original_replace
 
         self.assertEqual(read(target), "old")
         self.assertFalse(os.path.exists(target + ".tmp"))
 
     def test_save_options_writes_valid_json(self):
-        h = self.handler("/__save_options", {"theme": "dark", "size": 14})
-        h._save_options()
+        status, payload = endpoints_options.save_options(
+            self.ctx(), {}, {"theme": "dark", "size": 14})
 
-        self.assertEqual(h.responses[-1][0], 200)
+        self.assertEqual(status, 200)
         target = os.path.join(self.tmp, "content", "options.current.json")
         self.assertEqual(json.loads(read(target)), {"theme": "dark", "size": 14})
 
@@ -87,10 +80,9 @@ class LauncherDurabilityTests(unittest.TestCase):
         target = os.path.join(self.tmp, "content", "items", "Fresh.md")
         write(target, "### Item: Fresh\n")
 
-        h = self.handler("/__delete_campaign_file", {"path": "items/Fresh.md"})
-        h._delete_campaign_file()
+        status, payload = endpoints_files.delete_campaign_file(
+            self.ctx(), {}, {"path": "items/Fresh.md"})
 
-        status, payload = h.responses[-1]
         self.assertEqual(status, 200)
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["trashed"].startswith(".trash/"))
@@ -101,15 +93,14 @@ class LauncherDurabilityTests(unittest.TestCase):
         campaign = os.path.join(self.tmp, "content", "campaigns", "Legacy")
         write(os.path.join(campaign, "scenes", "1.md"), "# One\n")
         write(os.path.join(campaign, "campaign.json"), "{}\n")
-        launcher.ACTIVE_CAMPAIGN = "Legacy"
+        state.set_active_campaign("Legacy")
 
-        h = self.handler("/__delete_campaign", {"name": "Legacy"})
-        h._delete_campaign()
+        status, payload = endpoints_campaigns.delete_campaign(
+            self.ctx(), {}, {"name": "Legacy"})
 
-        status, payload = h.responses[-1]
         self.assertEqual(status, 200)
         self.assertTrue(payload["ok"])
-        self.assertIsNone(launcher.ACTIVE_CAMPAIGN)
+        self.assertIsNone(state.get_active_campaign())
         self.assertFalse(os.path.exists(campaign))
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, "content", payload["trashed"])))
         self.assertTrue(os.path.isfile(os.path.join(self.tmp, "content", payload["trashed"], "scenes", "1.md")))
@@ -118,38 +109,38 @@ class LauncherDurabilityTests(unittest.TestCase):
         target = os.path.join(self.tmp, "content", "items", "A.md")
         write(target, "new")
         write(os.path.join(self.tmp, "content", ".trash", "20200101-000000-A", "A.md"), "old")
-        original_strftime = launcher.time.strftime
+        original_strftime = time.strftime
 
         try:
-            launcher.time.strftime = lambda fmt, when=None: "20200101-000000"
-            trashed = launcher.trash_user_path(self.tmp, target, "A")
+            time.strftime = lambda fmt, when=None: "20200101-000000"
+            trashed = paths.trash_user_path(self.tmp, target, "A")
         finally:
-            launcher.time.strftime = original_strftime
+            time.strftime = original_strftime
 
         self.assertEqual(trashed, ".trash/20200101-000000-A-2/A.md")
         self.assertEqual(read(os.path.join(self.tmp, "content", trashed)), "new")
 
     def test_begin_update_rejects_manual_update_required(self):
-        original_status = launcher.update_status_snapshot()
-        original_progress = launcher.update_progress_snapshot()
+        original_status = state.update_status_snapshot()
+        original_progress = state.update_progress_snapshot()
 
         try:
-            launcher.set_update_status({
+            state.set_update_status({
                 "state": "update_available",
                 "current_version": "1.4.0",
                 "latest_version": "1.4.1",
                 "manual_update_required": True,
             })
 
-            error = launcher.begin_update(self.tmp)
+            error = endpoints_updates.begin_update(self.tmp)
 
             self.assertEqual(error, "automatic updates are not supported for this version")
-            self.assertFalse(launcher.update_progress_snapshot()["active"])
+            self.assertFalse(state.update_progress_snapshot()["active"])
         finally:
-            launcher.set_update_status(original_status)
-            with launcher.UPDATE_PROGRESS_LOCK:
-                launcher.UPDATE_PROGRESS.clear()
-                launcher.UPDATE_PROGRESS.update(original_progress)
+            state.set_update_status(original_status)
+            with state.UPDATE_PROGRESS_LOCK:
+                state.UPDATE_PROGRESS.clear()
+                state.UPDATE_PROGRESS.update(original_progress)
 
     def test_assets_endpoint_merges_campaign_first_and_reports_shadows(self):
         write(os.path.join(self.tmp, "content", "images", "shared.png"), "global")
@@ -158,12 +149,10 @@ class LauncherDurabilityTests(unittest.TestCase):
         write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "scenes", "1.md"), "# One\n")
         write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "images", "shared.png"), "campaign")
         write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "images", "nested", "map.webp"), "campaign")
-        launcher.ACTIVE_CAMPAIGN = "Legacy"
 
-        h = self.get_handler("/__assets?type=images")
-        h._assets()
+        status, payload = endpoints_assets.list_assets(
+            self.ctx("Legacy"), {"type": "images"}, None)
 
-        status, payload = h.responses[-1]
         self.assertEqual(status, 200)
         names = [entry["name"] for entry in payload]
         self.assertEqual(names, ["global", "nested/map", "shared"])
@@ -175,32 +164,33 @@ class LauncherDurabilityTests(unittest.TestCase):
 
     def test_assets_campaign_scope_requires_existing_folder(self):
         write(os.path.join(self.tmp, "content", "campaigns", "Legacy", "scenes", "1.md"), "# One\n")
-        launcher.ACTIVE_CAMPAIGN = "Legacy"
 
-        h = self.get_handler("/__assets?type=audio&scope=campaign")
-        h._assets()
+        status, _ = endpoints_assets.list_assets(
+            self.ctx("Legacy"), {"type": "audio", "scope": "campaign"}, None)
 
-        self.assertEqual(h.responses[-1][0], 404)
+        self.assertEqual(status, 404)
 
     def test_pick_asset_converts_root_and_nested_values(self):
         write(os.path.join(self.tmp, "content", "audio", "theme.mp3"), "audio")
         write(os.path.join(self.tmp, "content", "audio", "nested", "hit.ogg"), "audio")
 
         self.assertEqual(
-            launcher.asset_value_from_path(
+            discovery.asset_value_from_path(
                 self.tmp,
                 "audio",
                 "global",
                 os.path.join(self.tmp, "content", "audio", "theme.mp3"),
+                campaign=None,
             )["value"],
             "theme",
         )
         self.assertEqual(
-            launcher.asset_value_from_path(
+            discovery.asset_value_from_path(
                 self.tmp,
                 "audio",
                 "global",
                 os.path.join(self.tmp, "content", "audio", "nested", "hit.ogg"),
+                campaign=None,
             )["value"],
             "/audio/nested/hit.ogg",
         )
@@ -208,22 +198,24 @@ class LauncherDurabilityTests(unittest.TestCase):
     def test_pick_asset_endpoint_uses_stubbed_picker_and_rejects_outside_root(self):
         write(os.path.join(self.tmp, "content", "images", "portrait.png"), "image")
         write(os.path.join(self.tmp, "outside.png"), "image")
-        original_picker = launcher.native_pick_asset_file
+        original_picker = endpoints_assets.native_pick_asset_file
 
         try:
-            launcher.native_pick_asset_file = lambda root, asset_type: os.path.join(root, "portrait.png")
-            h = self.handler("/__pick_asset", {"type": "images", "scope": "global"})
-            h._pick_asset()
-            self.assertEqual(h.responses[-1][0], 200)
-            self.assertEqual(h.responses[-1][1]["value"], "portrait")
-            self.assertEqual(h.responses[-1][1]["path"], "images/portrait.png")
+            endpoints_assets.native_pick_asset_file = (
+                lambda root, asset_type: os.path.join(root, "portrait.png"))
+            status, payload = endpoints_assets.pick_asset(
+                self.ctx(), {}, {"type": "images", "scope": "global"})
+            self.assertEqual(status, 200)
+            self.assertEqual(payload["value"], "portrait")
+            self.assertEqual(payload["path"], "images/portrait.png")
 
-            launcher.native_pick_asset_file = lambda root, asset_type: os.path.join(self.tmp, "outside.png")
-            h = self.handler("/__pick_asset", {"type": "images", "scope": "global"})
-            h._pick_asset()
-            self.assertEqual(h.responses[-1][0], 403)
+            endpoints_assets.native_pick_asset_file = (
+                lambda root, asset_type: os.path.join(self.tmp, "outside.png"))
+            status, _ = endpoints_assets.pick_asset(
+                self.ctx(), {}, {"type": "images", "scope": "global"})
+            self.assertEqual(status, 403)
         finally:
-            launcher.native_pick_asset_file = original_picker
+            endpoints_assets.native_pick_asset_file = original_picker
 
 
 if __name__ == "__main__":

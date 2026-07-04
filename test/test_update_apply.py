@@ -3,6 +3,7 @@ import unittest
 from unittest import mock
 
 import launcher
+from src.server import term
 from src.updates import update_apply
 
 
@@ -30,13 +31,13 @@ class ConfigureConsoleTests(unittest.TestCase):
     def test_survives_missing_stdout(self):
         """Regression: with no std handles (detached/headless launch) sys.stdout
         is None; configure_console must degrade to no color, not crash."""
-        original = launcher.COLOR_ENABLED
+        original = term.COLOR_ENABLED
         try:
             with mock.patch.object(sys, "stdout", None):
                 launcher.configure_console()
-            self.assertFalse(launcher.COLOR_ENABLED)
+            self.assertFalse(term.COLOR_ENABLED)
         finally:
-            launcher.COLOR_ENABLED = original
+            term.set_color_enabled(original)
 
 
 if __name__ == "__main__":

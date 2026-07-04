@@ -21,10 +21,13 @@ import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Single user-space root; every user folder lives under it (see launcher.USER_DATA_DIR).
-USER_DATA_DIR = "content"
-CAMPAIGNS_DIR = "campaigns"
-SCENES_SUBDIR = "scenes"
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)  # standalone `python src/lint.py` runs with src/ as sys.path[0]
+
+# Single user-space root; every user folder lives under it (canonical names in
+# src/server/paths.py — constants only, so lint keeps zero launch-time deps).
+from src.server.paths import CAMPAIGNS_DIR, SCENES_SUBDIR, USER_DATA_DIR  # noqa: E402
+
 CAMPAIGN_LABEL = "(campaign)"
 
 os.system("")  # enable ANSI color handling in cmd/conhost
