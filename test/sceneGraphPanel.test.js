@@ -15,6 +15,7 @@ const ROOT = path.join(__dirname, "..");
 // Subset of index.html's order that the panel needs: parser (for the transition
 // scan), the transition card's pure helpers, then model + panel.
 const SCRIPTS = [
+  "src/utils/safeStorage.js",
   "src/utils/text.js",
   "src/parser/rendscrollParser.js",
   "src/cards/shared/cardDirectives.js",
