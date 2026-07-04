@@ -1132,7 +1132,7 @@ const SceneGraphPanel = (() => {
     panel.id = "rs-scenegraph-panel";
     panel.setAttribute("aria-label", "Scene progression map");
 
-    const savedWidth = parseInt(localStorage.getItem(WIDTH_KEY) || "", 10);
+    const savedWidth = parseInt(SafeStorage.getItem(WIDTH_KEY) || "", 10);
     if (savedWidth) panel.style.width = savedWidth + "px";
 
     // Left-edge resize handle.
@@ -1148,7 +1148,7 @@ const SceneGraphPanel = (() => {
       const up = () => {
         document.removeEventListener("pointermove", move);
         document.removeEventListener("pointerup", up);
-        localStorage.setItem(WIDTH_KEY, String(Math.round(panel.getBoundingClientRect().width)));
+        SafeStorage.setItem(WIDTH_KEY, String(Math.round(panel.getBoundingClientRect().width)));
       };
       document.addEventListener("pointermove", move);
       document.addEventListener("pointerup", up);

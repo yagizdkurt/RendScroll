@@ -1817,17 +1817,36 @@ def start_server():
     raise RuntimeError(f"Could not bind to ports {PORT_START}-{PORT_END}: {last_error}")
 
 
-def chrome_candidates():
+def _windows_program_candidates(env_names, subpath):
     paths = []
-    for env_name in ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData"):
+    for env_name in env_names:
         base = os.environ.get(env_name)
         if base:
-            paths.append(os.path.join(base, "Google", "Chrome", "Application", "chrome.exe"))
+            paths.append(os.path.join(base, *subpath))
     return paths
 
 
-def configure_chrome_preferences(profile_dir):
-    """Seed the temporary Chrome profile with app-specific defaults."""
+def chrome_candidates():
+    return _windows_program_candidates(
+        ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData"),
+        ("Google", "Chrome", "Application", "chrome.exe"))
+
+
+def edge_candidates():
+    return _windows_program_candidates(
+        ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData"),
+        ("Microsoft", "Edge", "Application", "msedge.exe"))
+
+
+def firefox_candidates():
+    return _windows_program_candidates(
+        ("ProgramFiles", "ProgramFiles(x86)"),
+        ("Mozilla Firefox", "firefox.exe"))
+
+
+def configure_chromium_preferences(profile_dir):
+    """Seed a temporary Chromium-family profile (Chrome, Edge) with
+    app-specific defaults — both browsers use the same Preferences format."""
     default_dir = os.path.join(profile_dir, "Default")
     os.makedirs(default_dir, exist_ok=True)
 
@@ -1880,32 +1899,115 @@ def get_primary_screen_size():
     return width, height
 
 
-def open_browser(url):
-    for chrome_path in chrome_candidates():
-        if os.path.exists(chrome_path):
-            profile_dir = tempfile.mkdtemp(prefix="rendscroll-chrome-")
-            configure_chrome_preferences(profile_dir)
-            chrome_args = [
-                chrome_path,
-                f"--app={url}",
-                f"--user-data-dir={profile_dir}",
-                "--no-first-run",
-                "--disable-first-run-ui",
-                "--disable-translate",
-                "--disable-features=Translate",
-                "--lang=tr",
-                "--start-fullscreen",
-                "--window-position=0,0",
-            ]
-            screen_size = get_primary_screen_size()
-            if screen_size:
-                chrome_args.append(f"--window-size={screen_size[0]},{screen_size[1]}")
+def chromium_launch_args(exe_path, url, profile_dir, screen_size):
+    args = [
+        exe_path,
+        f"--app={url}",
+        f"--user-data-dir={profile_dir}",
+        "--no-first-run",
+        "--disable-first-run-ui",
+        "--disable-translate",
+        "--disable-features=Translate",
+        "--lang=tr",
+        "--start-fullscreen",
+        "--window-position=0,0",
+    ]
+    if screen_size:
+        args.append(f"--window-size={screen_size[0]},{screen_size[1]}")
+    return args
 
-            process = subprocess.Popen(chrome_args)
-            return process, profile_dir, "chrome"
+
+def firefox_launch_args(exe_path, url, profile_dir, screen_size):
+    # Firefox has no Chromium-style --app mode; it opens a normal window with
+    # a throwaway profile. -no-remote keeps it a separate, trackable process
+    # even when another Firefox instance is already running.
+    return [exe_path, "-profile", profile_dir, "-no-remote", "-new-window", url]
+
+
+# Managed browsers: launched as a tracked child process with an isolated
+# temporary profile so closing the window stops the server. Anything else
+# (or none installed) falls back to the untracked system default browser.
+BROWSER_SPECS = {
+    "chrome": {
+        "display_name": "Google Chrome",
+        "candidates": chrome_candidates,
+        "launch_args": chromium_launch_args,
+        "configure_profile": configure_chromium_preferences,
+        "profile_prefix": "rendscroll-chrome-",
+    },
+    "edge": {
+        "display_name": "Microsoft Edge",
+        "candidates": edge_candidates,
+        "launch_args": chromium_launch_args,
+        "configure_profile": configure_chromium_preferences,
+        "profile_prefix": "rendscroll-edge-",
+    },
+    "firefox": {
+        "display_name": "Mozilla Firefox",
+        "candidates": firefox_candidates,
+        "launch_args": firefox_launch_args,
+        "configure_profile": None,
+        "profile_prefix": "rendscroll-firefox-",
+    },
+}
+
+BROWSER_AUTO_ORDER = ["chrome", "edge", "firefox"]
+
+BROWSER_CHOICES = ("auto", "default") + tuple(BROWSER_SPECS)
+
+
+def find_browser_executable(spec_id):
+    for path in BROWSER_SPECS[spec_id]["candidates"]():
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def read_browser_choice(base_dir):
+    """The Options UI persists a `browser` key in content/options.current.json
+    (written via /__save_options); it applies on the next launch. Missing file,
+    unreadable JSON, or an unknown value all mean auto-detect."""
+    path = os.path.join(user_root(base_dir), OPTIONS_CURRENT_FILE)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return "auto"
+    choice = data.get("browser") if isinstance(data, dict) else None
+    return choice if choice in BROWSER_CHOICES else "auto"
+
+
+def launch_managed_browser(spec_id, exe_path, url):
+    spec = BROWSER_SPECS[spec_id]
+    profile_dir = tempfile.mkdtemp(prefix=spec["profile_prefix"])
+    if spec["configure_profile"]:
+        spec["configure_profile"](profile_dir)
+    args = spec["launch_args"](exe_path, url, profile_dir, get_primary_screen_size())
+    process = subprocess.Popen(args)
+    return process, profile_dir
+
+
+def open_browser(url, choice="auto"):
+    """Open RendScroll in the requested browser.
+    Returns (process, profile_dir, display_name); process/profile_dir are None
+    for the untracked default-browser fallback."""
+    if choice in BROWSER_SPECS:
+        exe_path = find_browser_executable(choice)
+        if exe_path:
+            process, profile_dir = launch_managed_browser(choice, exe_path, url)
+            return process, profile_dir, BROWSER_SPECS[choice]["display_name"]
+        print_indented(
+            f"{BROWSER_SPECS[choice]['display_name']} was not found; "
+            "falling back to the default browser.", YELLOW)
+    elif choice != "default":  # "auto" (or anything unexpected)
+        for spec_id in BROWSER_AUTO_ORDER:
+            exe_path = find_browser_executable(spec_id)
+            if exe_path:
+                process, profile_dir = launch_managed_browser(spec_id, exe_path, url)
+                return process, profile_dir, BROWSER_SPECS[spec_id]["display_name"]
 
     webbrowser.open(url)
-    return None, None, "default"
+    return None, None, "default browser"
 
 
 def pause_before_exit():
@@ -1933,7 +2035,7 @@ def pause_goodbye():
         pass
 
 
-def cleanup_chrome_profile(profile_dir):
+def cleanup_browser_profile(profile_dir):
     if not profile_dir:
         return
     shutil.rmtree(profile_dir, ignore_errors=True)
@@ -1960,9 +2062,9 @@ def main():
         return 1
 
     server = None
-    chrome_process = None
-    chrome_profile_dir = None
-    chrome_closed = False
+    browser_process = None
+    browser_profile_dir = None
+    browser_closed = False
     try:
         print_section(2, "Starting local server")
         server, port = start_server()
@@ -1972,36 +2074,37 @@ def main():
         print_indented("URL: " + paint(url, CYAN))
         print()
 
-        print_section(3, "Opening RendScroll in Chrome")
-        chrome_process, chrome_profile_dir, browser_kind = open_browser(url)
-        if browser_kind == "chrome":
-            print_indented("Chrome app window opened.", GREEN)
+        print_section(3, "Opening RendScroll")
+        browser_choice = read_browser_choice(os.getcwd())
+        browser_process, browser_profile_dir, browser_name = open_browser(url, browser_choice)
+        if browser_process is not None:
+            print_indented(f"{browser_name} window opened.", GREEN)
         else:
-            print_indented("Chrome not found; opened default browser.", YELLOW)
+            print_indented("Opened the default browser.", YELLOW)
             print_indented("Default browser windows cannot be tracked. Use Ctrl+C to stop.", YELLOW)
 
         print()
         print("RendScroll is running.")
-        if chrome_process is None:
+        if browser_process is None:
             print("Close this console window or press Ctrl+C to stop the server.")
         else:
-            print("Close the Chrome window or press Ctrl+C to stop.")
+            print("Close the browser window or press Ctrl+C to stop.")
         print_divider()
 
         while True:
             if EXIT_REQUESTED.is_set():
                 print("Exit requested from RendScroll.")
-                if chrome_process is not None and chrome_process.poll() is None:
-                    chrome_process.terminate()
+                if browser_process is not None and browser_process.poll() is None:
+                    browser_process.terminate()
                     try:
-                        chrome_process.wait(timeout=5)
+                        browser_process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
-                        chrome_process.kill()
-                chrome_closed = chrome_process is not None
+                        browser_process.kill()
+                browser_closed = browser_process is not None
                 break
-            if chrome_process is not None and chrome_process.poll() is not None:
-                chrome_closed = True
-                print("Chrome window closed.")
+            if browser_process is not None and browser_process.poll() is not None:
+                browser_closed = True
+                print("Browser window closed.")
                 break
             time.sleep(1)
     except KeyboardInterrupt:
@@ -2012,9 +2115,9 @@ def main():
         return 1
     finally:
         shutdown_server(server)
-        cleanup_chrome_profile(chrome_profile_dir)
+        cleanup_browser_profile(browser_profile_dir)
 
-    if chrome_closed and not UPDATE_HANDOFF.is_set():
+    if browser_closed and not UPDATE_HANDOFF.is_set():
         pause_goodbye()
 
     return 0

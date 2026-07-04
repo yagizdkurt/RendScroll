@@ -1,0 +1,22 @@
+/* WebKit / other-engine print deltas — minimal support, not parity.
+
+   Same pattern as printer.firefox.css: printer.css stays the untouched
+   Chromium printer; Safari ("webkit") and unrecognized engines ("other")
+   get their small adjustments here, scoped by the data-print-engine
+   attribute stamped by src/utils/browserEnv.js. */
+
+@media print{
+  html[data-print-engine="webkit"] .page,
+  html[data-print-engine="webkit"] .page *,
+  html[data-print-engine="other"] .page,
+  html[data-print-engine="other"] .page *{
+    -webkit-print-color-adjust:exact !important;
+    print-color-adjust:exact !important;
+  }
+
+  html[data-print-engine="webkit"] #page .print-event,
+  html[data-print-engine="other"] #page .print-event{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+}

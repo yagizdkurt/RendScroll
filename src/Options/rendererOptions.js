@@ -117,6 +117,18 @@ const RendererOptions = (() => {
       section: "Application", type: "toggle", default: true,
       label: "Check for Updates",
     },
+    // Read by launcher.py (read_browser_choice) on the next start; no CSS hook.
+    browser: {
+      section: "Application", type: "choice", default: "auto",
+      label: "Launch Browser (next start)",
+      choices: [
+        { value: "auto", label: "Auto" },
+        { value: "chrome", label: "Google Chrome" },
+        { value: "edge", label: "Microsoft Edge" },
+        { value: "firefox", label: "Firefox" },
+        { value: "default", label: "Default browser" },
+      ],
+    },
   };
 
   // ---- State -------------------------------------------------------------

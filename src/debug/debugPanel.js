@@ -455,7 +455,7 @@
       exit.id = "rs-exit-app";
       exit.type = "button";
       exit.setAttribute("aria-label", "Exit RendScroll");
-      exit.title = "Close the RendScroll Chrome app";
+      exit.title = "Exit RendScroll";
       exit.addEventListener("click", openExitDialog);
       host.appendChild(exit);
     }
@@ -487,10 +487,30 @@
     try {
       fetch("/__rendscroll_exit", { method: "POST", keepalive: true })
         .catch(() => {})
-        .finally(() => window.close());
+        .finally(() => {
+          window.close();
+          // Untracked launches (default-browser fallback, plain tabs) block
+          // window.close() for pages the script didn't open. The server is
+          // stopping either way — tell the user instead of leaving a dead page.
+          setTimeout(showStoppedNotice, 400);
+        });
     } catch (err) {
       window.close();
+      setTimeout(showStoppedNotice, 400);
     }
+  }
+
+  function showStoppedNotice() {
+    if (window.closed || document.getElementById("rs-stopped-notice")) return;
+    closeExitDialog();
+    const notice = el("div", "rsd-exit-backdrop print-hide");
+    notice.id = "rs-stopped-notice";
+    const box = el("div", "rsd-exit-dialog");
+    box.setAttribute("role", "alertdialog");
+    box.appendChild(el("div", "rsd-exit-title", "RendScroll has stopped"));
+    box.appendChild(el("div", "rsd-exit-message", "The local server is shut down. You can close this tab."));
+    notice.appendChild(box);
+    document.body.appendChild(notice);
   }
 
   function openExitDialog() {

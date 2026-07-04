@@ -92,15 +92,6 @@ body{
   transition:width 200ms ease, flex-basis 200ms ease, padding 200ms ease;
 }
 
-.sidebar-brand{
-  display:block;
-  width:100%;
-  height:auto;
-  margin:0 0 1rem;
-  border-radius:3px;
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.55));
-}
-
 /* ---------- Main area (top bar + reader, right of the sidebar) ---------- */
 #main-area{
   flex:1 1 auto;
@@ -316,10 +307,6 @@ body.sidebar-collapsed #sidebar{
   flex-basis:var(--sidebar-width-collapsed);
   padding:26px 8px;
   overflow-x:hidden;
-}
-
-body.sidebar-collapsed .sidebar-brand{
-  display:none;
 }
 
 body.sidebar-collapsed #library-nav,

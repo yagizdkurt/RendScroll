@@ -1,0 +1,21 @@
+/* Firefox (Gecko) print deltas — minimal support, not parity.
+
+   printer.css is the Chromium printer (the default, fully supported engine)
+   and is never edited for other engines. Firefox-only adjustments live here,
+   scoped under the data-print-engine attribute stamped by
+   src/utils/browserEnv.js. Dynamic-CSS deltas live in printer.firefox.js. */
+
+@media print{
+  /* Full visual fidelity via the standard property (Gecko ignores the
+     -webkit- prefixed form used alongside it in printer.css). */
+  html[data-print-engine="firefox"] .page,
+  html[data-print-engine="firefox"] .page *{
+    print-color-adjust:exact !important;
+  }
+
+  /* Legacy break aliases: Gecko honors the standard break-inside, restated
+     here defensively for the card/event containers printer.css relies on. */
+  html[data-print-engine="firefox"] #page .print-event{
+    break-inside:avoid;
+  }
+}

@@ -10,7 +10,7 @@ function setSidebarCollapsed(collapsed) {
   document.body.classList.toggle("sidebar-collapsed", collapsed);
   sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
   sidebarToggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
-  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  SafeStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
 }
 
 // Make each sidebar section (Campaign / Items / Enemies) collapse its list when

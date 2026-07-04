@@ -357,7 +357,7 @@ async function activateCampaign(name) {
 }
 
 async function init() {
-  setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+  setSidebarCollapsed(SafeStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   sidebarToggle.addEventListener("click", () =>
     setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"))
   );

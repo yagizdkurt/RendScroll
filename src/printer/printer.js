@@ -122,6 +122,20 @@
     return FALLBACK_CARD_SELECTOR;
   }
 
+  // Chromium is the default, fully supported printer. Other engines get the
+  // Chromium dynamic CSS passed through their PrinterEngineOverrides entry
+  // (printer.firefox.js / printer.webkit.js) plus an explicit popover warning.
+  function printEngine() {
+    if (
+      typeof BrowserEnv !== "undefined" &&
+      BrowserEnv &&
+      typeof BrowserEnv.engine === "function"
+    ) {
+      return BrowserEnv.engine();
+    }
+    return "chromium";
+  }
+
   function applySettings() {
     const cardSelector = printCardSelector();
     const oneColumn =
@@ -134,7 +148,7 @@
           "#page .page-grid>.col-main,#page .page-grid>.col-aside{display:block;min-width:0;}"
         : "";
 
-    ensureDynamicStyle().textContent =
+    let css =
       "@media print{" +
       "@page{ size:A4 " +
       settings.orientation +
@@ -151,6 +165,17 @@
       "{break-inside:avoid;page-break-inside:avoid;}" +
       oneColumn +
       "}";
+
+    const engine = printEngine();
+    if (engine !== "chromium") {
+      const overrides =
+        (typeof window !== "undefined" && window.PrinterEngineOverrides) || {};
+      if (typeof overrides[engine] === "function") {
+        css = overrides[engine](css, settings);
+      }
+    }
+
+    ensureDynamicStyle().textContent = css;
   }
 
   function mountSegmentedChoice(label, pairs, value, onChange) {
@@ -255,13 +280,23 @@
     zoomRow.appendChild(zoom);
     group.appendChild(zoomRow);
 
+    // --- Non-Chromium engine warning ---
+    if (printEngine() !== "chromium") {
+      const notice = document.createElement("div");
+      notice.className = "printer-export-status warn printer-engine-warning";
+      notice.textContent =
+        "PDF export is tuned for Chrome/Edge. Output in this browser may " +
+        "differ (zoom, headers/footers, pagination).";
+      group.appendChild(notice);
+    }
+
     // --- Export PDF button ---
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "printer-export-btn";
     btn.textContent = "⎙ Export PDF";
-    // The launcher pre-seeds Chrome with clean PDF defaults; this fallback title
-    // helps when the page is opened in a normal browser profile.
+    // The launcher pre-seeds Chromium-family browsers with clean PDF defaults;
+    // this fallback title helps when the page is opened in a normal profile.
     btn.title = "Print to PDF - disable 'Headers and footers' for a clean export";
     btn.addEventListener("click", function () {
       window.print();

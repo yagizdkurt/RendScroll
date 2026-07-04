@@ -10,5 +10,6 @@
   "uiTheme": "dark",
   "pageBackground": "parchment",
   "pageBackgroundImage": "",
-  "check_for_updates": true
+  "check_for_updates": true,
+  "browser": "auto"
 }
