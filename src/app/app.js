@@ -10,8 +10,6 @@
    Card rendering lives in cards/<type>/*.js.
    ============================================================ */
 
-const TOP_SCROLL_IMAGE = "src/STDImages/RendScroll1.png";
-
 const nav = document.getElementById("nav");
 const libraryNav = document.getElementById("library-nav");
 const enemiesNav = document.getElementById("enemies-nav");
@@ -35,19 +33,6 @@ const ACCENT_BY_TYPE = {
   unexpected: "contingency-section",
   echo: "echo-section",
 };
-
-function createTopScrollImage() {
-  const wrap = document.createElement("div");
-  wrap.className = "top-scroll-image";
-
-  const img = document.createElement("img");
-  img.src = TOP_SCROLL_IMAGE;
-  img.alt = "";
-  img.decoding = "async";
-
-  wrap.appendChild(img);
-  return wrap;
-}
 
 /* Base styling shared by every scene (not tied to one feature). Heading accents
    are stamped per-card from the parsed card.type (see stampAccentClass), not
@@ -213,7 +198,6 @@ function refMissingCard(type, name) {
 function renderPage(text) {
   const doc = RendScrollParser.parseRendScroll(text);
   page.innerHTML = "";
-  page.appendChild(createTopScrollImage());
 
   doc.sections.forEach((section) => {
     if (section.headingRange) {

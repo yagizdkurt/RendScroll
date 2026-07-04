@@ -208,13 +208,6 @@
     print-color-adjust:exact !important;
   }
 
-  /* Keep the RendScroll banner compact in exported/printed output. */
-  #page .top-scroll-image img{
-    width:50% !important;
-    max-height:9rem !important;
-    margin:0 auto !important;
-  }
-
   /* --- Expand everything: collapsed cards and heading-collapsed sections.
          These two structural classes are the document's only collapse
          mechanism (see style.css). Force their hidden content visible so the
