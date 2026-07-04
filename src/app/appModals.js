@@ -128,16 +128,60 @@ function createManifestFields(opts) {
 }
 
 function manifestValuesHaveContent(v) {
+  v = normalizeManifestValues(v);
   return !!(v.duration || v.summary || v.goals.length || v.keyNpcs.length || v.rewards.length);
+}
+
+function normalizeManifestValues(v) {
+  v = v || {};
+  const list = (value) => {
+    if (Array.isArray(value)) return value.map((s) => String(s || "").trim()).filter(Boolean);
+    return String(value || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  };
+  return {
+    duration: String(v.duration || "").trim(),
+    summary: String(v.summary || "").trim(),
+    goals: list(v.goals),
+    keyNpcs: list(v.keyNpcs),
+    rewards: list(v.rewards),
+  };
 }
 
 // Serialize manifest field values to a "### Manifest" markdown block, reusing the
 // editor's schema serializer so the on-disk format is owned in exactly one place.
 // Returns "" when every field is blank.
 function serializeManifestValues(v) {
+  v = normalizeManifestValues(v);
   if (!manifestValuesHaveContent(v) || typeof EditorSchemas === "undefined") return "";
   const schema = EditorSchemas.get("manifest");
   return schema ? EditorSchemas.serialize(schema, v) : "";
+}
+
+const EDIT_MANIFEST_DRAFT_PREFIX = "rendscroll-draft:edit-manifest:";
+
+function editManifestDraftKey(path) {
+  return EDIT_MANIFEST_DRAFT_PREFIX + String(path || "");
+}
+
+function loadEditManifestDraft(path) {
+  try {
+    const raw = localStorage.getItem(editManifestDraftKey(path));
+    return raw ? normalizeManifestValues(JSON.parse(raw)) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveEditManifestDraft(path, values) {
+  try {
+    localStorage.setItem(editManifestDraftKey(path), JSON.stringify(normalizeManifestValues(values)));
+  } catch (_) {}
+}
+
+function clearEditManifestDraft(path) {
+  try {
+    localStorage.removeItem(editManifestDraftKey(path));
+  } catch (_) {}
 }
 
 // Confirm deletion of a campaign scene / library entry. Resolves true on confirm,
@@ -315,27 +359,51 @@ async function openEditManifestDialog(entry) {
     if (!manifestCard && c.type === "manifest") manifestCard = c;
   }));
 
+  let manifestFields = null;
+  let saveDraftOnClose = true;
+  const draftValues = loadEditManifestDraft(entry.path);
+  let draftDirty = !!draftValues;
   const { modal, body, foot, close: closeModal } = makeModal({
     backdropClass: "edit-manifest-backdrop",
     modalClass: "new-page-modal",
     modalTag: "form",
-    titleText: manifestCard ? "Edit Scene Manifest" : "Add Scene Manifest",
+    titleText: draftValues ? "Edit Scene Manifest Draft" : manifestCard ? "Edit Scene Manifest" : "Add Scene Manifest",
     backdropEvent: "click",
     allowBackdropClose: () => !saveBtn.disabled,
     onKeydown: (e) => { if (e.key === "Escape" && !saveBtn.disabled) closeModal(); },
+    onClose: () => {
+      if (saveDraftOnClose && draftDirty && manifestFields) saveEditManifestDraft(entry.path, manifestFields.read());
+    },
   });
   modal.noValidate = true;
 
-  const manifestFields = createManifestFields();
+  manifestFields = createManifestFields();
   body.appendChild(manifestFields.wrap);
-  if (manifestCard) {
-    manifestFields.fill(EditorSchemas.parse(schema, EditorOutline.cardSource(model, manifestCard)));
-  }
+  if (draftValues) manifestFields.fill(draftValues);
+  else if (manifestCard) manifestFields.fill(EditorSchemas.parse(schema, EditorOutline.cardSource(model, manifestCard)));
+  manifestFields.wrap.addEventListener("input", () => {
+    draftDirty = true;
+    saveEditManifestDraft(entry.path, manifestFields.read());
+  });
 
   const error = document.createElement("div");
   error.className = "editor-field-error";
   error.setAttribute("role", "alert");
   body.appendChild(error);
+
+  if (draftValues) {
+    const discard = document.createElement("button");
+    discard.type = "button";
+    discard.className = "editor-btn danger editor-foot-left";
+    discard.textContent = "Discard";
+    discard.title = "Delete this draft and close";
+    discard.addEventListener("click", () => {
+      clearEditManifestDraft(entry.path);
+      saveDraftOnClose = false;
+      closeModal();
+    });
+    foot.appendChild(discard);
+  }
 
   const cancel = document.createElement("button");
   cancel.type = "button";
@@ -371,7 +439,12 @@ async function openEditManifestDialog(entry) {
         ? EditorOutline.replaceCard(model, manifestCard, block)
         : EditorOutline.deleteCard(model, manifestCard);
     } else {
-      if (!block) { closeModal(); return; } // nothing to add
+      if (!block) {
+        clearEditManifestDraft(entry.path);
+        saveDraftOnClose = false;
+        closeModal();
+        return;
+      } // nothing to add
       // Insert just under the "# Title" header so it renders pinned at the top.
       const header = model.events[0];
       const insertLine = header && header.headingStart >= 0 ? header.headingStart + 1 : 0;
@@ -381,6 +454,8 @@ async function openEditManifestDialog(entry) {
     setBusy(true);
     try {
       await EditorSave.save(entry.path, EditorOutline.serialize(newModel));
+      clearEditManifestDraft(entry.path);
+      saveDraftOnClose = false;
       closeModal();
       if (entry.path === currentPath) await load(entry.path);
     } catch (err) {
