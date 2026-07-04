@@ -9,7 +9,7 @@
 
 **Turn your campaign notes into a Dungeon Master's screen you actually want to run from.**
 
-**Yours, Free and Offline. It runs entirely on your machine. No accounts, no cloud, no setup ritual. Just your world, opened like a book.**
+**Yours, Free and Offline. It runs entirely on your machine. No accounts, no cloud, no ritual. Just your world.**
 
 <br />
 
@@ -25,13 +25,15 @@
 
 1. Run **`python launcher.py`**. (If you are having good time with python you should be able to open it with double clicking. If not then open console and write "python launcher.py" and it will open.)
 
-## 🆕 Whats new (1.4 Map and Flow Update)
+## 🆕 Whats new (1.5 Browsers)
 
-- Added a map renderer where you can choose when or where to transition from location 1 to location 2.
+- Added support for firefox + edge.
 
 ## ⚔️ Why it feels good
 
 - **complete DM workbench** — write, build, reuse, all from the same app.
+
+- **Scene Mapper** Never forget "where does this road go to" again.
 
 - **The page reads itself, in play order.** Scenes flow top to bottom, event by event — no flipping between sections mid-encounter to find what happens next.
 
@@ -49,7 +51,7 @@
 
 ## 🃏 Current Cards
 
-| Card | What it's for |
+| Card | Usage |
 | --- | --- |
 | **Narrative** | Narration that should be told to players |
 | **NPC** | Personalities, dialogue trees and more |
