@@ -14,6 +14,7 @@ import threading
 import time
 
 from src.server import state
+from src.server.term import YELLOW, paint
 from src.server.paths import (
     OPTIONS_CURRENT_FILE,
     OPTIONS_DEFAULTS_FILE,
@@ -46,6 +47,12 @@ def check_for_updates_enabled(base_dir):
         value = data.get("check_for_updates")
         if isinstance(value, bool):
             enabled = value
+        elif value is not None:
+            print(paint(
+                f'Ignoring invalid "check_for_updates" value {value!r} in {path} '
+                "(expected true or false)",
+                YELLOW,
+            ), flush=True)
     return enabled
 
 

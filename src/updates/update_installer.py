@@ -10,9 +10,10 @@ Responsibilities:
 - download the source zip over HTTPS,
 - extract it and strip GitHub's single wrapper directory,
 - structurally validate the extract,
-- plan which files get replaced (denylist of protected roots),
-- back up the current app files that will be overwritten, and roll back from that
-  backup on failure.
+- plan which files get replaced and which stale files get deleted (denylist of
+  protected roots; deletion is conservative — see ``plan_deletions``),
+- back up the current app files that will be overwritten or deleted, and roll
+  back from that backup on failure.
 
 Integrity is trusted to HTTPS + GitHub; there is intentionally no hash check.
 """
@@ -21,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import time
 import urllib.request
@@ -42,6 +44,11 @@ PROTECTED_ROOTS = frozenset({
 
 class UpdateInstallError(RuntimeError):
     """Raised when an install step cannot proceed safely."""
+
+
+# Kept local (not imported from update_checker) so the installer stays
+# independent of the checker module.
+_SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
 def _utc_stamp():
@@ -121,61 +128,121 @@ def validate_extract(extract_root):
             "downloaded update does not look like RendScroll "
             "(missing index.html or src/)"
         )
+
+    # The shipped manifest is the app's version source (update_checker derives
+    # APP_VERSION from it at import); an extract without a valid one would break
+    # the relaunched app, so catch it here before anything is touched.
+    manifest_path = os.path.join(extract_root, "update_manifest.json")
+    try:
+        with open(manifest_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise UpdateInstallError(
+            f"downloaded update has no readable update_manifest.json: {exc}"
+        ) from exc
+    latest = data.get("latest") if isinstance(data, dict) else None
+    if not isinstance(latest, str) or not _SEMVER_RE.match(latest.strip()):
+        raise UpdateInstallError(
+            "downloaded update's update_manifest.json has no valid latest version"
+        )
     return True
 
 
 # --------------------------------------------------------------------------- #
-# Replace planning
+# Replace + deletion planning
 # --------------------------------------------------------------------------- #
 
-def plan_replacements(extract_root, install_root):
-    """Return the list of files to copy from `extract_root` onto `install_root`.
+def _walk_rel_files(root, prune_top_dirs_not_in=None):
+    """Yield posix-style rel paths of every file under `root`, never descending
+    into protected roots. When `prune_top_dirs_not_in` is a set, top-level
+    directories absent from it are skipped entirely."""
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel_dir = os.path.relpath(dirpath, root)
+        rel_dir = "" if rel_dir == "." else rel_dir.replace("\\", "/")
 
-    Each item is a dict: {"rel", "src", "dest"} using native paths. Protected roots
-    are always skipped. Stage 2 never deletes existing app files absent from the
-    extract (add/overwrite only).
-    """
-    replacements = []
-    for dirpath, dirnames, filenames in os.walk(extract_root):
-        rel_dir = os.path.relpath(dirpath, extract_root)
-        rel_dir = "" if rel_dir == "." else rel_dir
-
-        # Prune protected directories so we never descend into them.
         kept = []
         for name in dirnames:
-            rel = name if not rel_dir else f"{rel_dir}/{name}".replace("\\", "/")
+            rel = name if not rel_dir else f"{rel_dir}/{name}"
             if is_protected(rel):
+                continue
+            if (prune_top_dirs_not_in is not None and not rel_dir
+                    and name not in prune_top_dirs_not_in):
                 continue
             kept.append(name)
         dirnames[:] = kept
 
         for name in filenames:
-            rel = name if not rel_dir else f"{rel_dir}/{name}".replace("\\", "/")
+            rel = name if not rel_dir else f"{rel_dir}/{name}"
             if is_protected(rel):
                 continue
-            replacements.append({
-                "rel": rel,
-                "src": os.path.join(extract_root, rel.replace("/", os.sep)),
-                "dest": os.path.join(install_root, rel.replace("/", os.sep)),
-            })
+            yield rel
+
+
+def plan_replacements(extract_root, install_root):
+    """Return the list of files to copy from `extract_root` onto `install_root`.
+
+    Each item is a dict: {"rel", "src", "dest"} using native paths. Protected roots
+    are always skipped. Deletion of stale files is planned separately by
+    `plan_deletions`.
+    """
+    replacements = []
+    for rel in _walk_rel_files(extract_root):
+        replacements.append({
+            "rel": rel,
+            "src": os.path.join(extract_root, rel.replace("/", os.sep)),
+            "dest": os.path.join(install_root, rel.replace("/", os.sep)),
+        })
     replacements.sort(key=lambda item: item["rel"])
     return replacements
+
+
+def plan_deletions(extract_root, install_root):
+    """Return stale install files the update should remove: present in
+    `install_root` but absent from `extract_root`. Each item is {"rel", "path"}.
+
+    Deliberately conservative:
+    - never anything under PROTECTED_ROOTS;
+    - whole top-level directories the extract does not ship are skipped
+      (user/tooling folders like node_modules, editor dirs, notes);
+    - root-level dotfiles are skipped (user/tooling config convention);
+    - only files are planned — emptied directories are pruned after deletion.
+    """
+    extract_rels = set(_walk_rel_files(extract_root))
+    extract_top_dirs = {
+        name for name in os.listdir(extract_root)
+        if os.path.isdir(os.path.join(extract_root, name))
+    }
+
+    deletions = []
+    for rel in _walk_rel_files(install_root, prune_top_dirs_not_in=extract_top_dirs):
+        if rel in extract_rels:
+            continue
+        if "/" not in rel and rel.startswith("."):
+            continue
+        deletions.append({
+            "rel": rel,
+            "path": os.path.join(install_root, rel.replace("/", os.sep)),
+        })
+    deletions.sort(key=lambda item: item["rel"])
+    return deletions
 
 
 # --------------------------------------------------------------------------- #
 # Backup + apply + rollback
 # --------------------------------------------------------------------------- #
 
-def backup_targets(replacements, backup_dir):
-    """Back up every existing destination file that a replacement will overwrite.
+def backup_targets(replacements, backup_dir, deletions=None):
+    """Back up every existing file the update will overwrite or delete.
 
     Writes ``backup_manifest.json`` recording which files were preserved
-    (``restored``) and which are brand new (``added``, deleted on rollback), then
-    verifies the backup exists. Returns the manifest dict.
+    (``restored``), which are brand new (``added``, deleted on rollback), and
+    which the update deletes (``deleted``, restored on rollback), then verifies
+    the backup exists. Returns the manifest dict.
     """
     os.makedirs(backup_dir, exist_ok=True)
     restored = []
     added = []
+    deleted = []
 
     for item in replacements:
         if os.path.exists(item["dest"]):
@@ -186,17 +253,25 @@ def backup_targets(replacements, backup_dir):
         else:
             added.append(item["rel"])
 
+    for item in deletions or []:
+        if os.path.exists(item["path"]):
+            backup_path = os.path.join(backup_dir, item["rel"].replace("/", os.sep))
+            os.makedirs(os.path.dirname(backup_path) or ".", exist_ok=True)
+            shutil.copy2(item["path"], backup_path)
+            deleted.append(item["rel"])
+
     manifest = {
         "created": _utc_stamp(),
         "restored": restored,
         "added": added,
+        "deleted": deleted,
     }
     manifest_path = os.path.join(backup_dir, "backup_manifest.json")
     with open(manifest_path, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=2)
 
     # Verify the backup landed before the caller touches any current file.
-    for rel in restored:
+    for rel in restored + deleted:
         if not os.path.exists(os.path.join(backup_dir, rel.replace("/", os.sep))):
             raise UpdateInstallError(f"backup verification failed for {rel}")
     return manifest
@@ -207,6 +282,29 @@ def apply_replacements(replacements):
     for item in replacements:
         os.makedirs(os.path.dirname(item["dest"]) or ".", exist_ok=True)
         shutil.copy2(item["src"], item["dest"])
+
+
+def apply_deletions(deletions, install_root):
+    """Delete each planned stale file, then prune the directories that emptied."""
+    for item in deletions:
+        if os.path.exists(item["path"]):
+            os.remove(item["path"])
+    _prune_empty_dirs({os.path.dirname(item["path"]) for item in deletions}, install_root)
+
+
+def _prune_empty_dirs(dir_paths, stop_root):
+    """Remove now-empty directories, walking upward, never past `stop_root`."""
+    stop = os.path.abspath(stop_root)
+    for path in dir_paths:
+        current = os.path.abspath(path)
+        while current != stop:
+            if os.path.relpath(current, stop).startswith(".."):
+                break  # outside stop_root; never prune here
+            try:
+                os.rmdir(current)
+            except OSError:
+                break  # not empty (or already gone with a non-empty parent)
+            current = os.path.dirname(current)
 
 
 def rollback(backup_dir, install_root):
@@ -222,7 +320,9 @@ def rollback(backup_dir, install_root):
     with open(manifest_path, encoding="utf-8") as fh:
         manifest = json.load(fh)
 
-    for rel in manifest.get("restored", []):
+    # `deleted` files (missing key = pre-deletion backup) are restored the same
+    # way as overwritten ones.
+    for rel in manifest.get("restored", []) + manifest.get("deleted", []):
         backup_path = os.path.join(backup_dir, rel.replace("/", os.sep))
         dest_path = os.path.join(install_root, rel.replace("/", os.sep))
         if not os.path.exists(backup_path):
@@ -230,21 +330,26 @@ def rollback(backup_dir, install_root):
         os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
         shutil.copy2(backup_path, dest_path)
 
+    added_parents = set()
     for rel in manifest.get("added", []):
         dest_path = os.path.join(install_root, rel.replace("/", os.sep))
         if os.path.exists(dest_path):
             os.remove(dest_path)
+        added_parents.add(os.path.dirname(dest_path))
+    _prune_empty_dirs(added_parents, install_root)
     return manifest
 
 
 __all__ = [
     "PROTECTED_ROOTS",
     "UpdateInstallError",
+    "apply_deletions",
     "apply_replacements",
     "backup_targets",
     "download_zip",
     "extract_zip",
     "is_protected",
+    "plan_deletions",
     "plan_replacements",
     "rollback",
     "validate_extract",

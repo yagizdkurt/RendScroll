@@ -1,5 +1,7 @@
 import json
+import os
 import socket
+import tempfile
 import unittest
 import urllib.error
 
@@ -136,6 +138,12 @@ class UpdateCheckerTests(unittest.TestCase):
         result = update_checker.result_from_manifest(data, current_version="1.1.1")
         self.assertEqual(result["minimum_supported"], "1.0.5")
 
+    def test_minimum_supported_version_wins_over_legacy_name(self):
+        data = manifest(minimum_supported="1.0.0")
+        data["minimum_supported_version"] = "1.0.5"
+        result = update_checker.result_from_manifest(data, current_version="1.1.1")
+        self.assertEqual(result["minimum_supported"], "1.0.5")
+
     def test_under_minimum_supported_requires_manual_update(self):
         result = update_checker.result_from_manifest(
             manifest(latest="1.4.1", minimum_supported="1.4.1", changes="Normal notes."),
@@ -158,6 +166,48 @@ class UpdateCheckerTests(unittest.TestCase):
         result = update_checker.result_from_manifest(data, current_version="1.1.1")
         self.assertEqual(result["state"], update_checker.STATE_UPDATE_AVAILABLE)
         self.assertNotIn("download_url", result)
+
+
+class LoadAppVersionTests(unittest.TestCase):
+    def _write_manifest(self, content):
+        fh = tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        self.addCleanup(os.remove, fh.name)
+        with fh:
+            fh.write(content)
+        return fh.name
+
+    def test_reads_latest_from_manifest(self):
+        path = self._write_manifest(json.dumps({"latest": "2.3.4"}))
+        self.assertEqual(update_checker.load_app_version(path), "2.3.4")
+
+    def test_missing_file_fails_loudly(self):
+        with self.assertRaises(update_checker.UpdateCheckError):
+            update_checker.load_app_version("/no/such/update_manifest.json")
+
+    def test_malformed_json_fails_loudly(self):
+        path = self._write_manifest("{not json")
+        with self.assertRaises(update_checker.UpdateCheckError):
+            update_checker.load_app_version(path)
+
+    def test_non_object_json_fails_loudly(self):
+        path = self._write_manifest('["latest"]')
+        with self.assertRaises(update_checker.UpdateCheckError):
+            update_checker.load_app_version(path)
+
+    def test_missing_or_invalid_latest_fails_loudly(self):
+        for content in ("{}", json.dumps({"latest": "1.5"})):
+            with self.subTest(content=content):
+                path = self._write_manifest(content)
+                with self.assertRaises(update_checker.UpdateCheckError):
+                    update_checker.load_app_version(path)
+
+    def test_app_version_matches_committed_manifest(self):
+        """APP_VERSION is single-sourced from the repo's update_manifest.json."""
+        with open(update_checker.LOCAL_MANIFEST_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+        self.assertEqual(update_checker.APP_VERSION, data["latest"])
 
 
 if __name__ == "__main__":

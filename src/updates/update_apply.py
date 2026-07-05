@@ -99,16 +99,35 @@ def _relaunch(command, cwd):
     return subprocess.Popen(command, **kwargs)
 
 
-def _wait_for_heartbeat(heartbeat_path, since, log):
-    """Return True once the relaunched launcher writes a fresh heartbeat file."""
-    deadline = time.time() + HEARTBEAT_WAIT_SECONDS
+def _wait_for_heartbeat(heartbeat_path, since, expected_version, log,
+                        timeout=HEARTBEAT_WAIT_SECONDS):
+    """Return True once the relaunched launcher writes a fresh heartbeat whose
+    version matches `expected_version`.
+
+    The heartbeat file holds one line: the running app's APP_VERSION (derived
+    from the shipped update_manifest.json), so a matching version proves the
+    *updated* code relaunched, not a half-applied old install. Empty/mismatched
+    content keeps polling (covers the writer's open-then-write race); a falsy
+    `expected_version` (job written by an older app) falls back to mtime-only."""
+    if not expected_version:
+        log.line("VALIDATE", "warn", "job has no target_version; accepting any fresh heartbeat")
+    deadline = time.time() + timeout
+    last_seen = None
     while time.time() < deadline:
         try:
             if os.path.getmtime(heartbeat_path) >= since:
-                return True
+                with open(heartbeat_path, encoding="utf-8") as fh:
+                    last_seen = fh.read().strip()
+                if not expected_version or last_seen == expected_version:
+                    return True
         except OSError:
             pass
         time.sleep(POLL_SECONDS)
+    if last_seen is not None:
+        log.line(
+            "VALIDATE", "warn",
+            f"heartbeat version {last_seen!r} does not match target {expected_version!r}",
+        )
     return False
 
 
@@ -174,12 +193,13 @@ def run(job_path):
 
     _wait_for_parent(job.get("parent_pid"), log)
 
-    # Plan is recomputed here from the extract so the job file stays small.
+    # Plans are recomputed here from the extract so the job file stays small.
     replacements = installer.plan_replacements(extract_root, install_root)
-    log.line("PLAN", "ok", f"{len(replacements)} files")
+    deletions = installer.plan_deletions(extract_root, install_root)
+    log.line("PLAN", "ok", f"{len(replacements)} files, {len(deletions)} deletions")
 
     try:
-        installer.backup_targets(replacements, backup_dir)
+        installer.backup_targets(replacements, backup_dir, deletions=deletions)
         log.line("BACKUP", "ok", f"-> {backup_dir}")
     except Exception as exc:  # noqa: BLE001
         log.line("BACKUP", "fail", str(exc))
@@ -194,8 +214,11 @@ def run(job_path):
         pass
 
     try:
+        # Copy first, delete second: a failure mid-delete still rolls back both
+        # via the backup manifest.
         installer.apply_replacements(replacements)
-        log.line("REPLACE", "ok", f"{len(replacements)} files")
+        installer.apply_deletions(deletions, install_root)
+        log.line("REPLACE", "ok", f"{len(replacements)} files, {len(deletions)} deleted")
     except Exception as exc:  # noqa: BLE001
         log.line("REPLACE", "fail", str(exc))
         _attempt_rollback(job, log, "replace")
@@ -212,8 +235,8 @@ def run(job_path):
         log.close()
         return 1
 
-    if not _wait_for_heartbeat(heartbeat_path, since, log):
-        log.line("VALIDATE", "fail", "no launch heartbeat")
+    if not _wait_for_heartbeat(heartbeat_path, since, job.get("target_version") or "", log):
+        log.line("VALIDATE", "fail", "no matching launch heartbeat")
         _attempt_rollback(job, log, "validate")
         log.close()
         return 1

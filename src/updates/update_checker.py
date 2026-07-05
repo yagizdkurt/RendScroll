@@ -7,6 +7,7 @@ modifies files, downloads application archives, or performs updates.
 from __future__ import annotations
 
 import json
+import os
 import re
 import urllib.error
 import urllib.request
@@ -14,7 +15,6 @@ import urllib.request
 from .update_config import UPDATE_CHECK_TIMEOUT_SECONDS, UPDATE_MANIFEST_URL
 
 
-APP_VERSION = "1.5.0"
 STATE_DISABLED = "disabled"
 STATE_UP_TO_DATE = "up_to_date"
 STATE_UPDATE_AVAILABLE = "update_available"
@@ -69,6 +69,45 @@ def _optional_string(manifest, key):
     return value or None
 
 
+# Repo root update_manifest.json, located relative to this file so it works
+# regardless of cwd (tests, the detached apply helper).
+LOCAL_MANIFEST_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "update_manifest.json",
+)
+
+
+def load_app_version(manifest_path=LOCAL_MANIFEST_PATH):
+    """Read the app's own version from the committed local update manifest.
+
+    update_manifest.json ships with the code (and inside every update zip), so
+    its `latest` field always describes the code that is running. It is the
+    single source of truth for APP_VERSION — never hardcode a version string.
+    A missing/broken manifest is the same integrity class as a missing
+    index.html, so this fails loudly instead of guessing a version.
+    """
+    try:
+        with open(manifest_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise UpdateCheckError(
+            f"cannot read app version from {manifest_path}: {exc}. "
+            "update_manifest.json is part of the app; re-download RendScroll."
+        ) from exc
+    if not isinstance(data, dict):
+        raise UpdateCheckError(f"{manifest_path} must contain a JSON object")
+    latest = _optional_string(data, "latest")
+    if not latest:
+        raise UpdateCheckError(f"{manifest_path} is missing a latest version string")
+    parse_semver(latest)
+    return latest
+
+
+# Read once at import: the version can only change via the update flow, which
+# replaces this file's manifest and relaunches the process.
+APP_VERSION = load_app_version()
+
+
 def validate_manifest(manifest):
     """Return normalized manifest data or raise UpdateCheckError."""
     if not isinstance(manifest, dict):
@@ -81,10 +120,11 @@ def validate_manifest(manifest):
 
     normalized = {"latest": latest}
 
-    # `minimum_supported_version` is the Stage 2 name; `minimum_supported` is the
-    # original Stage 1 field. Accept either and normalize to `minimum_supported`.
-    minimum = _optional_string(manifest, "minimum_supported") or _optional_string(
-        manifest, "minimum_supported_version"
+    # `minimum_supported_version` is the canonical field name; `minimum_supported`
+    # (the original Stage 1 name) is accepted for backward compatibility. Either
+    # normalizes to the internal `minimum_supported` key.
+    minimum = _optional_string(manifest, "minimum_supported_version") or _optional_string(
+        manifest, "minimum_supported"
     )
     if minimum:
         parse_semver(minimum)
@@ -178,6 +218,8 @@ def check_for_updates(
 
 __all__ = [
     "APP_VERSION",
+    "LOCAL_MANIFEST_PATH",
+    "load_app_version",
     "STATE_CHECK_FAILED",
     "STATE_DISABLED",
     "STATE_UPDATE_AVAILABLE",
