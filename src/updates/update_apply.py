@@ -20,33 +20,12 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.updates import update_installer as installer  # noqa: E402
+from src.updates.update_log import StepLogger  # noqa: E402
 
 
 PARENT_WAIT_SECONDS = 30
 HEARTBEAT_WAIT_SECONDS = 40
 POLL_SECONDS = 0.5
-
-
-class _Logger:
-    """Plain-text, timestamped, user-readable step log (also echoed to stdout)."""
-
-    def __init__(self, path):
-        self.path = path
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        self._fh = open(path, "a", encoding="utf-8")
-
-    def line(self, step, status, detail=""):
-        stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        text = f"{stamp}  {step:<9} {status:<5} {detail}".rstrip()
-        self._fh.write(text + "\n")
-        self._fh.flush()
-        print(text, flush=True)
-
-    def close(self):
-        try:
-            self._fh.close()
-        except OSError:
-            pass
 
 
 def _process_alive(pid):
@@ -168,14 +147,15 @@ def _attempt_rollback(job, log, failed_step):
         installer.rollback(backup_dir, install_root)
         log.line("ROLLBACK", "ok", f"restored from {backup_dir}")
     except Exception as exc:  # noqa: BLE001
-        log.line("ROLLBACK", "fail", f"{exc} | backup preserved at {backup_dir}")
+        log.exception("ROLLBACK", exc)
+        log.line("ROLLBACK", "info", f"backup preserved at {backup_dir}")
         return False
     # Bring the restored (working) app back up so the user is not left with nothing.
     try:
         _relaunch(job["relaunch"], install_root)
         log.line("RELAUNCH", "ok", "restored app relaunched")
     except Exception as exc:  # noqa: BLE001
-        log.line("RELAUNCH", "fail", str(exc))
+        log.exception("RELAUNCH", exc)
     return True
 
 
@@ -183,8 +163,12 @@ def run(job_path):
     with open(job_path, encoding="utf-8") as fh:
         job = json.load(fh)
 
-    log = _Logger(job["logs_path"])
-    log.line("APPLY", "start", f"target {job.get('target_version', '?')}")
+    log = StepLogger(job["logs_path"])
+    log.line(
+        "APPLY", "start",
+        f"target {job.get('target_version', '?')} | pid {os.getpid()} "
+        f"| python {sys.version.split()[0]} | {sys.platform}",
+    )
 
     install_root = job["install_root"]
     extract_root = job["extract_root"]
@@ -202,7 +186,7 @@ def run(job_path):
         installer.backup_targets(replacements, backup_dir, deletions=deletions)
         log.line("BACKUP", "ok", f"-> {backup_dir}")
     except Exception as exc:  # noqa: BLE001
-        log.line("BACKUP", "fail", str(exc))
+        log.exception("BACKUP", exc)
         log.close()
         return 1  # nothing replaced yet; safe to stop without rollback
 
@@ -220,7 +204,7 @@ def run(job_path):
         installer.apply_deletions(deletions, install_root)
         log.line("REPLACE", "ok", f"{len(replacements)} files, {len(deletions)} deleted")
     except Exception as exc:  # noqa: BLE001
-        log.line("REPLACE", "fail", str(exc))
+        log.exception("REPLACE", exc)
         _attempt_rollback(job, log, "replace")
         log.close()
         return 1
@@ -230,7 +214,7 @@ def run(job_path):
         _relaunch(job["relaunch"], install_root)
         log.line("RELAUNCH", "start", "launching updated app")
     except Exception as exc:  # noqa: BLE001
-        log.line("RELAUNCH", "fail", str(exc))
+        log.exception("RELAUNCH", exc)
         _attempt_rollback(job, log, "relaunch")
         log.close()
         return 1
@@ -256,6 +240,17 @@ def main(argv):
     try:
         return run(argv[1])
     except Exception as exc:  # noqa: BLE001
+        # This process is detached: stderr is invisible. Try hard to leave the
+        # crash in the job's log file so a failed update can be diagnosed.
+        try:
+            with open(argv[1], encoding="utf-8") as fh:
+                logs_path = json.load(fh).get("logs_path")
+            if logs_path:
+                log = StepLogger(logs_path)
+                log.exception("FATAL", exc)
+                log.close()
+        except Exception:  # noqa: BLE001
+            pass
         print(f"update_apply fatal: {exc}", file=sys.stderr)
         return 1
 

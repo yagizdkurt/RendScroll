@@ -23,6 +23,7 @@ from src.server.paths import (
 )
 from src.updates import update_installer
 from src.updates.update_checker import APP_VERSION, check_for_updates
+from src.updates.update_log import StepLogger
 from src.updates.update_config import (
     DEFAULT_DOWNLOAD_URL,
     DOWNLOAD_TIMEOUT_SECONDS,
@@ -137,26 +138,52 @@ def begin_update(base_dir):
 def run_update_install(base_dir, target_version):
     """Download + extract + validate, then hand off to the detached apply helper.
     Sets EXIT_REQUESTED on a successful hand-off so the current instance releases
-    its files."""
+    its files.
+
+    Every step is logged to ``.rendscroll-update/logs/prepare-<stamp>.log`` —
+    this phase runs before the detached helper exists, so without its own log a
+    failure here would leave no trace on disk."""
+    stamp = time.strftime("%Y-%m-%dT%H-%M-%SZ", time.gmtime())
+    log = StepLogger(os.path.join(base_dir, UPDATE_LOGS_DIR, f"prepare-{stamp}.log"))
     download_zip = os.path.join(base_dir, UPDATE_DOWNLOAD_ZIP)
     extract_dir = os.path.join(base_dir, UPDATE_EXTRACT_DIR)
+    download_url = _manifest_download_url()
+    log.line(
+        "PREPARE", "start",
+        f"{APP_VERSION} -> {target_version or '?'} from {download_url}",
+    )
+
+    step = "DOWNLOAD"
     try:
         state.set_update_progress("downloading", "Downloading update…")
         update_installer.download_zip(
-            _manifest_download_url(), download_zip, timeout=DOWNLOAD_TIMEOUT_SECONDS
+            download_url, download_zip, timeout=DOWNLOAD_TIMEOUT_SECONDS
         )
+        log.line("DOWNLOAD", "ok", f"-> {download_zip}")
 
+        step = "EXTRACT"
         state.set_update_progress("extracting", "Extracting update…")
         extract_root = update_installer.extract_zip(download_zip, extract_dir)
+        log.line("EXTRACT", "ok", f"-> {extract_root}")
+
+        step = "VALIDATE"
         update_installer.validate_extract(extract_root)
+        log.line("VALIDATE", "ok", "extract looks like RendScroll")
     except Exception as exc:  # noqa: BLE001
-        state.set_update_progress("failed", f"Download failed: {exc}", ok=False, active=False)
+        log.exception(step, exc)
+        state.set_update_progress(
+            "failed",
+            f"Update failed during {step.lower()}: {exc} "
+            f"(details: {os.path.relpath(log.path, base_dir)})",
+            ok=False, active=False,
+        )
+        log.close()
         return
 
-    _handoff_to_helper(base_dir, extract_root, target_version)
+    _handoff_to_helper(base_dir, extract_root, target_version, log)
 
 
-def _handoff_to_helper(base_dir, extract_root, target_version):
+def _handoff_to_helper(base_dir, extract_root, target_version, log):
     """Write the apply job, spawn the detached helper, then exit."""
     try:
         state.set_update_progress("preparing", "Preparing update…")
@@ -182,11 +209,16 @@ def _handoff_to_helper(base_dir, extract_root, target_version):
             json.dump(job, fh, indent=2)
 
         apply_script = os.path.join(base_dir, "src", "updates", "update_apply.py")
-        _spawn_detached([sys.executable, apply_script, job_path], base_dir)
+        helper = _spawn_detached([sys.executable, apply_script, job_path], base_dir)
+        log.line("HANDOFF", "ok", f"helper pid {helper.pid} | job {job_path} | apply log {logs_path}")
     except Exception as exc:  # noqa: BLE001
+        log.exception("HANDOFF", exc)
+        log.close()
         state.set_update_progress("failed", f"Could not start updater: {exc}", ok=False, active=False)
         return
 
+    log.line("PREPARE", "ok", "shutting down so the helper can apply")
+    log.close()
     state.set_update_progress(
         "relaunching",
         "Applying update and relaunching. This window will close.",
