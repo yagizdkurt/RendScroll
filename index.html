@@ -97,6 +97,10 @@
   <script src="src/cards/transition/transition.js"></script>
   <script src="src/cards/shared/cardCollapse.js"></script>
   <script src="src/cards/shared/layout.js"></script>
+  <!-- Card-source -> card-element rendering, extracted from app.js so it can be
+       tested against real code. Declaration-only; must load before the app
+       subsystems (appLibrary / refNavigation) and app.js that call it. -->
+  <script src="src/app/renderCard.js"></script>
   <!-- Multi-campaign manager: lists/creates/switches/imports/exports campaigns and
        owns the start screen. Needs refLibrary.js; used by app.js boot, so load it
        before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
