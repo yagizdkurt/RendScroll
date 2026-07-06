@@ -7,19 +7,17 @@
 ![GitHub forks](https://img.shields.io/github/forks/yagizdkurt/RendScroll?style=social)
 ![Status](https://img.shields.io/badge/status-active-success)
 
-**Turn your campaign notes into a Dungeon Master's screen you actually want to run from.**
+**Turn your campaign into a DM sheet.**
 
-**Yours, Free and Offline. It runs entirely on your machine. No accounts, no cloud, no ritual. Just your world.**
+**Yours, Free and Offline. It runs entirely on your machine. No accounts. Just your world.**
 
 <br />
 
 ![Screenshot](src/STDImages/RendScroll6.png)
 
-*Plain notes go in. An old, gold-edged book comes out — ready for the table.*
+**Ready for the table.**
 
 </div>
-
----
 
 ## HOW TO RUN:
 
@@ -44,8 +42,6 @@
 - **Print Or Export** — Easily export a clean PDF to lay beside your dice or export as campaign zip so that others can play it too.
 
 - **Combat helper.** — Initiative and turn order helper is there so that you dont forget whos after who, also track every enemy's HP so that you dont need to do math in your papers.
-
----
 
 ## Current Cards
 
