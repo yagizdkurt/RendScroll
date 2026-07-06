@@ -23,7 +23,7 @@
 
 ## HOW TO RUN:
 
-1. Run **`python launcher.py`**. (If you are having good time with python you should be able to open it with double clicking. If not then open console and write "python launcher.py" and it will open.)
+1. Run **`launcher.py`**. (If you are having good time with python you should be able to open it with double clicking. If not then open console and write "python launcher.py" and it will open.)
 
 ## 🆕 Whats new (1.6 Search)
 
