@@ -5,15 +5,15 @@
      - type "choice": one value -> data-opt-<attr> on <body>  (CSS keys off it)
      - type "image":  a data-URL  -> CSS var on <body>        (custom page BG)
 
-   Persistence is two files (see launcher.py):
+   Persistence:
      - src/Options/options.defaults.json  -> committed default values ("Back to defaults")
-     - options.current.json       -> gitignored, the user's saved choices (served/written
-       from content/options.current.json on disk; the URL stays root-relative)
+     - content/.sys/renderer-options.json -> user's saved choices via the server
+     - content/options.current.json        -> legacy read fallback
 
    Save model is "live preview, commit on Save": the Options modal edits a
-   working copy that previews instantly; only Save writes options.current.json
-   (and a localStorage mirror as an offline fallback). Closing without Save
-   reverts the preview to the last committed state.
+   working copy that previews instantly; only Save writes persistent options.
+   localStorage is used only when server persistence is unavailable. Closing
+   without Save reverts the preview to the last committed state.
 
    To add a new design knob later: add one SCHEMA entry + the matching CSS
    (a `body.<bodyClass>` rule for a toggle, or `body[data-opt-<attr>="..."]`
@@ -22,6 +22,7 @@ const RendererOptions = (() => {
   const STORAGE_KEY = "rendererOptions"; // localStorage mirror / offline fallback
   const DEFAULTS_URL = "src/Options/options.defaults.json";
   const CURRENT_URL = "options.current.json";
+  const CURRENT_ENDPOINT = "/__renderer_options";
   const SAVE_ENDPOINT = "/__save_options";
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // ~2 MB guard for uploaded PNGs
   const PARCHIMENT_IMAGE_URL = "src/STDImages/parchiment.png";
@@ -194,12 +195,27 @@ const RendererOptions = (() => {
     }
   }
 
+  function clearLocalFallback() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+  }
+
+  async function persistedOptions() {
+    const payload = await fetchJSON(CURRENT_ENDPOINT, { optionalMissing: true });
+    if (payload && payload.ok && payload.options && typeof payload.options === "object") {
+      return payload.options;
+    }
+    return null;
+  }
+
   async function init() {
     const fileDefaults = await fetchJSON(DEFAULTS_URL);
     defaults = mergeState(schemaDefaults(), fileDefaults || {});
-    // Prefer the gitignored current file; fall back to a localStorage mirror
-    // (e.g. opened as file://), then to defaults.
-    const current = (await fetchJSON(CURRENT_URL, { optionalMissing: true })) || localFallback() || {};
+    // Prefer the .sys-backed endpoint; fall back to the legacy current file, a
+    // localStorage mirror (e.g. opened as file://), then defaults.
+    const current = (await persistedOptions()) ||
+      (await fetchJSON(CURRENT_URL, { optionalMissing: true })) ||
+      localFallback() ||
+      {};
     committed = mergeState(defaults, current);
     Object.assign(working, committed);
     apply(committed);
@@ -207,7 +223,6 @@ const RendererOptions = (() => {
   }
 
   async function persist(state) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) { warn("Could not update local options mirror.", err); }
     try {
       const res = await fetch(SAVE_ENDPOINT, {
         method: "POST",
@@ -218,8 +233,10 @@ const RendererOptions = (() => {
       if (!res.ok || !payload || !payload.ok) {
         throw new Error(payload && payload.error ? payload.error : `HTTP ${res.status}`);
       }
+      clearLocalFallback();
       return true;
     } catch (err) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (storageErr) { warn("Could not update local options mirror.", storageErr); }
       warn("Could not save options to disk; local mirror only.", err);
       return false; // saved to localStorage only (not launched via launcher.py)
     }

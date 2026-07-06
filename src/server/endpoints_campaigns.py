@@ -7,16 +7,46 @@ import zipfile
 
 from src.server import discovery, state
 from src.server.paths import (
+    active_campaign_state_path,
+    atomic_write_json,
     CAMPAIGNS_DIR,
     SCENES_SUBDIR,
     campaign_dir_path,
     campaign_scenes_root,
     clean_campaign_name,
     clean_campaign_title,
+    read_json_file,
     trash_user_path,
     user_root,
 )
 from src.server.term import GREEN, YELLOW, paint
+
+
+def _persist_active_campaign(base_dir, name):
+    atomic_write_json(active_campaign_state_path(base_dir), {
+        "version": 1,
+        "activeCampaign": name or None,
+    })
+
+
+def active_campaign(ctx, query, body):
+    target = active_campaign_state_path(ctx.base_dir)
+    persisted = None
+    try:
+        data = read_json_file(target)
+        if data.get("version") == 1:
+            name = clean_campaign_name(data.get("activeCampaign"))
+            if name and os.path.isdir(campaign_scenes_root(ctx.base_dir, name)):
+                persisted = name
+            elif data.get("activeCampaign") is None:
+                persisted = None
+    except OSError:
+        persisted = None
+
+    if persisted is not None:
+        state.set_active_campaign(persisted)
+        return 200, {"ok": True, "name": persisted}
+    return 200, {"ok": True, "name": None}
 
 
 def list_campaigns(ctx, query, body):
@@ -24,8 +54,7 @@ def list_campaigns(ctx, query, body):
 
 
 def select_campaign(ctx, query, body):
-    """Set the default campaign (the client persists the choice in localStorage
-    and re-asserts it on load). A null/empty name deselects (start screen)."""
+    """Set and persist the default campaign. A null/empty name deselects."""
     try:
         name = clean_campaign_name(body.get("name"))
     except AttributeError as exc:
@@ -33,11 +62,19 @@ def select_campaign(ctx, query, body):
 
     if name is None:
         state.set_active_campaign(None)
+        try:
+            _persist_active_campaign(ctx.base_dir, None)
+        except OSError as exc:
+            return 500, {"ok": False, "error": str(exc)}
         return 200, {"ok": True, "name": None}
 
     if not os.path.isdir(campaign_scenes_root(ctx.base_dir, name)):
         return 404, {"ok": False, "error": "campaign not found"}
     state.set_active_campaign(name)
+    try:
+        _persist_active_campaign(ctx.base_dir, name)
+    except OSError as exc:
+        return 500, {"ok": False, "error": str(exc)}
     return 200, {"ok": True, "name": name}
 
 
@@ -153,5 +190,14 @@ def delete_campaign(ctx, query, body):
     except ValueError as exc:
         return 403, {"ok": False, "error": str(exc)}
     state.clear_active_campaign_if(name)
+    try:
+        current = None
+        data = read_json_file(active_campaign_state_path(base))
+        if data.get("version") == 1:
+            current = clean_campaign_name(data.get("activeCampaign"))
+        if current == name:
+            _persist_active_campaign(base, None)
+    except OSError as exc:
+        return 500, {"ok": False, "error": str(exc)}
     print(paint(f"Moved campaign to trash: {CAMPAIGNS_DIR}/{name} -> {trashed}", YELLOW), flush=True)
     return 200, {"ok": True, "trashed": trashed}

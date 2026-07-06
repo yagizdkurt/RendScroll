@@ -25,7 +25,7 @@ import time
 import webbrowser
 
 from src.server import endpoints_updates, state, term
-from src.server.paths import OPTIONS_CURRENT_FILE, user_root
+from src.server.paths import OPTIONS_CURRENT_FILE, renderer_options_state_path, user_root
 from src.server.routes import NoCacheHTTPRequestHandler
 from src.server.term import CYAN, DIM, GREEN, RED, YELLOW, paint
 
@@ -310,15 +310,18 @@ def find_browser_executable(spec_id):
 
 
 def read_browser_choice(base_dir):
-    """The Options UI persists a `browser` key in content/options.current.json
-    (written via /__save_options); it applies on the next launch. Missing file,
-    unreadable JSON, or an unknown value all mean auto-detect."""
-    path = os.path.join(user_root(base_dir), OPTIONS_CURRENT_FILE)
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, ValueError):
-        return "auto"
+    """The Options UI persists a `browser` key in content/.sys. Legacy
+    content/options.current.json remains a read fallback during migration."""
+    data = None
+    for path in (
+            renderer_options_state_path(base_dir),
+            os.path.join(user_root(base_dir), OPTIONS_CURRENT_FILE)):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            break
+        except (OSError, ValueError):
+            data = None
     choice = data.get("browser") if isinstance(data, dict) else None
     return choice if choice in BROWSER_CHOICES else "auto"
 

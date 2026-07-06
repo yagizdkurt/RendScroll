@@ -73,7 +73,7 @@ class LauncherDurabilityTests(unittest.TestCase):
             self.ctx(), {}, {"theme": "dark", "size": 14})
 
         self.assertEqual(status, 200)
-        target = os.path.join(self.tmp, "content", "options.current.json")
+        target = os.path.join(self.tmp, "content", ".sys", "renderer-options.json")
         self.assertEqual(json.loads(read(target)), {"theme": "dark", "size": 14})
 
     def test_campaign_file_delete_moves_markdown_to_trash(self):

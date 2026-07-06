@@ -43,6 +43,10 @@ ASSET_TYPES = {
 }
 OPTIONS_DEFAULTS_FILE = os.path.join("src", "Options", "options.defaults.json")
 OPTIONS_CURRENT_FILE = "options.current.json"
+SYS_DIR = ".sys"
+APP_STATE_FILE = "app.json"
+RENDERER_OPTIONS_STATE_FILE = "renderer-options.json"
+DRAFT_STATE_FILE = "drafts.json"
 # Destination root for "Export Campaign Package" zips (under USER_DATA_DIR).
 # Gitignored (the `*` rule).
 EXPORTS_DIR = "exports"
@@ -67,6 +71,23 @@ def campaign_dir_path(base_dir, name):
 
 def campaign_scenes_root(base_dir, name):
     return os.path.join(campaign_dir_path(base_dir, name), SCENES_SUBDIR)
+
+
+def context_sys_path(base_dir, filename):
+    """Path to an install/context-level .sys file under content/.sys."""
+    return os.path.join(user_root(base_dir), SYS_DIR, filename)
+
+
+def active_campaign_state_path(base_dir):
+    return context_sys_path(base_dir, APP_STATE_FILE)
+
+
+def renderer_options_state_path(base_dir):
+    return context_sys_path(base_dir, RENDERER_OPTIONS_STATE_FILE)
+
+
+def draft_state_path(base_dir, campaign):
+    return os.path.join(campaign_dir_path(base_dir, campaign), SYS_DIR, DRAFT_STATE_FILE)
 
 
 def clean_campaign_name(value):

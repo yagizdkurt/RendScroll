@@ -164,6 +164,10 @@ function editManifestDraftKey(path) {
 }
 
 function loadEditManifestDraft(path) {
+  if (typeof DraftState !== "undefined" && DraftState.getEditManifest) {
+    const draft = DraftState.getEditManifest(path);
+    if (draft) return normalizeManifestValues(draft);
+  }
   try {
     const raw = localStorage.getItem(editManifestDraftKey(path));
     return raw ? normalizeManifestValues(JSON.parse(raw)) : null;
@@ -173,12 +177,20 @@ function loadEditManifestDraft(path) {
 }
 
 function saveEditManifestDraft(path, values) {
+  if (typeof DraftState !== "undefined" && DraftState.setEditManifest) {
+    DraftState.setEditManifest(path, normalizeManifestValues(values));
+    return;
+  }
   try {
     localStorage.setItem(editManifestDraftKey(path), JSON.stringify(normalizeManifestValues(values)));
   } catch (_) {}
 }
 
 function clearEditManifestDraft(path) {
+  if (typeof DraftState !== "undefined" && DraftState.clearEditManifest) {
+    DraftState.clearEditManifest(path);
+    return;
+  }
   try {
     localStorage.removeItem(editManifestDraftKey(path));
   } catch (_) {}

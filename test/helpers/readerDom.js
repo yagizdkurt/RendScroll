@@ -34,6 +34,7 @@ const READER_SCRIPTS = [
   "src/utils/serverApi.js",
   "src/debug/rsLog.js",
   "src/session/sessionState.js",
+  "src/session/draftState.js",
   "src/parser/rendscrollParser.js",
   "src/cards/shared/skillCheckRules.js",
   "src/inlineFormatting.js",

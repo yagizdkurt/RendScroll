@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from src.server import (
     endpoints_assets,
     endpoints_campaigns,
+    endpoints_drafts,
     endpoints_export,
     endpoints_files,
     endpoints_library,
@@ -49,6 +50,7 @@ ROUTES = {
     ("GET", "/__update_status"): Route(endpoints_updates.update_status, "none", False),
     ("GET", "/__update_progress"): Route(endpoints_updates.update_progress, "none", False),
     ("GET", "/__campaigns"): Route(endpoints_campaigns.list_campaigns, "none", False),
+    ("GET", "/__active_campaign"): Route(endpoints_campaigns.active_campaign, "none", False),
     ("GET", "/__campaign_files"): Route(endpoints_files.campaign_files, "none", True),
     ("GET", "/__scene_bundle"): Route(endpoints_files.scene_bundle, "none", True),
     ("GET", "/__library_files"): Route(endpoints_library.library_files, "none", True),
@@ -56,6 +58,8 @@ ROUTES = {
     ("GET", "/__assets"): Route(endpoints_assets.list_assets, "none", True),
     ("GET", "/__scene_graph"): Route(endpoints_scene_graph.get_scene_graph, "none", True),
     ("GET", "/__session_state"): Route(endpoints_session_state.get_session_state, "none", True),
+    ("GET", "/__draft_state"): Route(endpoints_drafts.get_draft_state, "none", True),
+    ("GET", "/__renderer_options"): Route(endpoints_options.renderer_options, "none", False),
     ("POST", "/__rendscroll_exit"): Route(endpoints_updates.rendscroll_exit, "none", False),
     ("POST", "/__begin_update"): Route(endpoints_updates.begin_update_endpoint, "none", False),
     ("POST", "/__select_campaign"): Route(endpoints_campaigns.select_campaign, "json", False),
@@ -70,6 +74,7 @@ ROUTES = {
     ("POST", "/__save_options"): Route(endpoints_options.save_options, "json", False),
     ("POST", "/__save_scene_graph"): Route(endpoints_scene_graph.save_scene_graph, "json", True),
     ("POST", "/__save_session_state"): Route(endpoints_session_state.save_session_state, "json", True),
+    ("POST", "/__save_draft_state"): Route(endpoints_drafts.save_draft_state, "json", True),
     ("POST", "/__pick_asset"): Route(endpoints_assets.pick_asset, "json", True),
     ("POST", "/__export_package"): Route(endpoints_export.export_package, "json", True),
 }

@@ -369,6 +369,67 @@ def session_state_path(base_dir, name):
     return os.path.join(campaign_dir_path(base_dir, name), ".sys", "session.json")
 
 
+def _draft_scene_ref_ok(value):
+    """Draft scene refs are campaign-relative ('scenes/...')."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    norm = value.replace("\\", "/")
+    return (
+        norm.startswith(f"{SCENES_SUBDIR}/")
+        and not norm.startswith("/")
+        and ".." not in norm.split("/")
+        and "\x00" not in norm
+    )
+
+
+def _draft_type_ok(value):
+    """Creation draft keys are schema/card types, not paths."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    return "/" not in value and "\\" not in value and "\x00" not in value and value not in (".", "..")
+
+
+def _manifest_draft_value_ok(value):
+    if not isinstance(value, dict):
+        return False
+    for key in ("duration", "summary"):
+        if key in value and not isinstance(value[key], str):
+            return False
+    for key in ("goals", "keyNpcs", "rewards"):
+        if key in value and (
+            not isinstance(value[key], list)
+            or any(not isinstance(item, str) for item in value[key])
+        ):
+            return False
+    return True
+
+
+def validate_draft_state(data):
+    """Validate drafts.json (version 1). Per-create payloads are client-owned;
+    the server validates the durable envelope and path/type keys."""
+    if not isinstance(data, dict):
+        return "expected a JSON object"
+    if data.get("version") != 1:
+        return "unsupported draft version"
+    create = data.get("create")
+    edit_manifest = data.get("editManifest")
+    if not isinstance(create, dict):
+        return "create must be an object"
+    if not isinstance(edit_manifest, dict):
+        return "editManifest must be an object"
+    for draft_type, value in create.items():
+        if not _draft_type_ok(draft_type):
+            return "malformed create draft key"
+        if not isinstance(value, dict):
+            return "create draft values must be objects"
+    for scene, value in edit_manifest.items():
+        if not _draft_scene_ref_ok(scene):
+            return "malformed editManifest draft key"
+        if not _manifest_draft_value_ok(value):
+            return "malformed editManifest draft value"
+    return None
+
+
 def _scene_graph_ref_ok(value):
     """Scene refs in graph.json are campaign-relative ('scenes/…'). The server
     never opens them as paths, but reject traversal-shaped strings anyway so

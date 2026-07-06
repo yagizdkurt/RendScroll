@@ -3,7 +3,7 @@
    RendScroll campaigns are self-contained folders under content/campaigns/ (each with a
    campaign.json manifest and a scenes/ folder). This module owns:
      - the list of campaigns (GET /__campaigns),
-     - which one is active (persisted in localStorage; mirrored to the server via
+     - which one is active (persisted by the server in content/.sys/app.json via
        POST /__select_campaign so scene/library discovery and campaign-first asset
        serving resolve correctly),
      - the "Manage Campaigns" overlay (also the empty start screen): create, open,
@@ -11,8 +11,7 @@
 
    It knows nothing about rendering: app.js passes an `onSwitch(name|null)` callback
    that reloads the reference library + scenes (or clears the reader for the start
-   screen). Selection is the client's source of truth; the server is told on every
-   switch and on boot. */
+   screen). */
 
 const CampaignManager = (() => {
   const STORAGE_KEY = "rendscroll-current-campaign";
@@ -74,7 +73,25 @@ const CampaignManager = (() => {
     return payload;
   }
 
-  // Switch to a campaign: tell the server, persist the choice, reload the reader.
+  async function getPersistedActiveCampaign() {
+    try {
+      const { res, payload } = await fetchJSON("/__active_campaign");
+      if (res.ok && payload && payload.ok) return payload.name || null;
+    } catch (err) {
+      warn("Saved campaign could not be loaded from persistent storage.", err);
+    }
+    return null;
+  }
+
+  function legacySavedCampaign() {
+    try { return localStorage.getItem(STORAGE_KEY); } catch (_) { return null; }
+  }
+
+  function clearLegacySavedCampaign() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+  }
+
+  // Switch to a campaign: tell the server to persist the choice, reload the reader.
   async function select(name) {
     if (typeof Editor !== "undefined" && Editor.confirmNavigation) {
       const canLeave = await Editor.confirmNavigation();
@@ -82,7 +99,7 @@ const CampaignManager = (() => {
     }
     await postSelect(name);
     activeName = name;
-    try { localStorage.setItem(STORAGE_KEY, name); } catch (_) { /* private mode */ }
+    clearLegacySavedCampaign();
     if (onSwitch) await onSwitch(name);
     return true;
   }
@@ -90,8 +107,9 @@ const CampaignManager = (() => {
   // Restore the last campaign on boot, or fall back to the start screen.
   async function init() {
     await loadCampaigns();
-    let saved = null;
-    try { saved = localStorage.getItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+    const persisted = await getPersistedActiveCampaign();
+    const legacy = legacySavedCampaign();
+    const saved = persisted || legacy;
 
     if (saved && campaigns.some((c) => c.name === saved)) {
       try { await select(saved); return; } catch (err) { warn("Saved campaign \"" + saved + "\" could not be restored; falling back to start screen.", err); }
@@ -101,7 +119,7 @@ const CampaignManager = (() => {
     // silently load root files as a fake campaign.
     activeName = null;
     try { await postSelect(null); } catch (err) { warn("Could not clear active campaign on the server.", err); }
-    try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+    clearLegacySavedCampaign();
     if (onSwitch) await onSwitch(null);
     open();
   }
@@ -183,7 +201,7 @@ const CampaignManager = (() => {
     }
     if (activeName === name) {
       activeName = null;
-      try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+      clearLegacySavedCampaign();
       if (onSwitch) await onSwitch(null);
     }
     await loadCampaigns();

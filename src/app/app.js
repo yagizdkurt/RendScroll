@@ -272,6 +272,9 @@ async function activateCampaign(name) {
   if (typeof SessionState !== "undefined") {
     await SessionState.loadForCampaign(name);
   }
+  if (typeof DraftState !== "undefined") {
+    await DraftState.loadForCampaign(name);
+  }
   if (typeof RefLibrary !== "undefined") {
     try { await RefLibrary.init(); } catch (err) {
       if (typeof RSLog !== "undefined" && RSLog.warn) RSLog.warn("library", "Reference library init failed; continuing with an empty library.", err);
@@ -339,8 +342,8 @@ async function init() {
   setupCollapsibleSections();
   installSidebarContextMenu();
 
-  // The campaign manager owns selection (localStorage + server) and the start
-  // screen; it calls activateCampaign() to load the chosen campaign's reader.
+  // The campaign manager owns persistent selection and the start screen; it
+  // calls activateCampaign() to load the chosen campaign's reader.
   if (typeof CampaignManager !== "undefined") {
     CampaignManager.configure({ onSwitch: activateCampaign });
     await CampaignManager.init();

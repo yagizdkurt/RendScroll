@@ -26,13 +26,17 @@ const EditorForm = (() => {
     if (e.key === "Escape") dismiss();
   }
 
-  // --- creation-form draft persistence (localStorage, survives app restart) -----
+  // --- creation-form draft persistence (.sys via DraftState, local fallback) -----
   const DRAFT_PREFIX = "rendscroll-draft:"; // + schema type
 
   function draftKey(type) {
     return DRAFT_PREFIX + type;
   }
   function loadDraft(type) {
+    if (typeof DraftState !== "undefined" && DraftState.getCreate) {
+      const draft = DraftState.getCreate(type);
+      if (draft) return draft;
+    }
     try {
       const raw = localStorage.getItem(draftKey(type));
       return raw ? JSON.parse(raw) : null;
@@ -41,11 +45,19 @@ const EditorForm = (() => {
     }
   }
   function saveDraft(type, out) {
+    if (typeof DraftState !== "undefined" && DraftState.setCreate) {
+      DraftState.setCreate(type, out);
+      return;
+    }
     try {
       localStorage.setItem(draftKey(type), JSON.stringify(out));
     } catch (e) {}
   }
   function clearDraft(type) {
+    if (typeof DraftState !== "undefined" && DraftState.clearCreate) {
+      DraftState.clearCreate(type);
+      return;
+    }
     try {
       localStorage.removeItem(draftKey(type));
     } catch (e) {}

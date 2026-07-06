@@ -107,6 +107,15 @@ class ReadBrowserChoiceTests(unittest.TestCase):
             self.write_options({"browser": choice})
             self.assertEqual(launcher.read_browser_choice(self.tmp), choice)
 
+    def test_sys_options_win_over_legacy_file(self):
+        self.write_options({"browser": "edge"})
+        target = paths.renderer_options_state_path(self.tmp)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "w", encoding="utf-8") as fh:
+            json.dump({"browser": "firefox"}, fh)
+
+        self.assertEqual(launcher.read_browser_choice(self.tmp), "firefox")
+
     def test_unknown_value_means_auto(self):
         self.write_options({"browser": "netscape"})
         self.assertEqual(launcher.read_browser_choice(self.tmp), "auto")

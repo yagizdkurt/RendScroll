@@ -98,6 +98,55 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload, [])
 
+    def test_select_campaign_persists_active_campaign(self):
+        status, payload = self.dispatch(
+            "POST", "/__select_campaign", raw_body=json.dumps({"name": "Alpha"}).encode("utf-8"))
+
+        self.assertEqual(status, 200, payload)
+        target = os.path.join(self.tmp, "content", ".sys", "app.json")
+        with open(target, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertEqual(saved, {"version": 1, "activeCampaign": "Alpha"})
+
+        state.set_active_campaign(None)
+        status, payload = self.dispatch("GET", "/__active_campaign")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["name"], "Alpha")
+        self.assertEqual(state.get_active_campaign(), "Alpha")
+
+    def test_delete_campaign_clears_persisted_active_campaign(self):
+        self.dispatch(
+            "POST", "/__select_campaign", raw_body=json.dumps({"name": "Alpha"}).encode("utf-8"))
+
+        status, payload = self.dispatch(
+            "POST", "/__delete_campaign", raw_body=json.dumps({"name": "Alpha"}).encode("utf-8"))
+
+        self.assertEqual(status, 200, payload)
+        target = os.path.join(self.tmp, "content", ".sys", "app.json")
+        with open(target, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertEqual(saved, {"version": 1, "activeCampaign": None})
+
+    def test_renderer_options_use_sys_with_legacy_read_fallback(self):
+        write(os.path.join(self.tmp, "content", "options.current.json"), json.dumps({"browser": "edge"}))
+
+        status, payload = self.dispatch("GET", "/__renderer_options")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["source"], "legacy")
+        self.assertEqual(payload["options"], {"browser": "edge"})
+
+        status, out = self.dispatch(
+            "POST", "/__save_options", raw_body=json.dumps({"browser": "firefox"}).encode("utf-8"))
+        self.assertEqual(status, 200, out)
+        target = os.path.join(self.tmp, "content", ".sys", "renderer-options.json")
+        with open(target, encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh), {"browser": "firefox"})
+
+        status, payload = self.dispatch("GET", "/__renderer_options")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["source"], "sys")
+        self.assertEqual(payload["options"], {"browser": "firefox"})
+
     def test_body_campaign_param_is_consumed_not_persisted(self):
         # The transport-level campaign field must not leak into the saved graph.
         body = {"version": 1, "nodes": [], "edges": [], "campaign": "Alpha"}
@@ -128,6 +177,49 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertFalse(payload["readOnly"])
         self.assertEqual(payload["state"], {"version": 1, "scenes": {}})
+
+    def test_draft_state_saves_under_campaign_sys(self):
+        body = {
+            "version": 1,
+            "create": {"item": {"name": "Sword"}},
+            "editManifest": {
+                "scenes/1.md": {
+                    "duration": "",
+                    "summary": "Draft summary",
+                    "goals": [],
+                    "keyNpcs": [],
+                    "rewards": [],
+                }
+            },
+            "campaign": "Beta",
+        }
+        status, payload = self.dispatch(
+            "POST", "/__save_draft_state", raw_body=json.dumps(body).encode("utf-8"))
+
+        self.assertEqual(status, 200, payload)
+        draft_path = os.path.join(self.tmp, "content", "campaigns", "Beta", ".sys", "drafts.json")
+        with open(draft_path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertNotIn("campaign", saved)
+        self.assertEqual(saved["create"]["item"]["name"], "Sword")
+        self.assertEqual(saved["editManifest"]["scenes/1.md"]["summary"], "Draft summary")
+
+    def test_draft_state_rejects_invalid_or_future_payloads(self):
+        bad_payloads = [
+            {"version": 2, "create": {}, "editManifest": {}},
+            {"version": 1, "create": {"bad/path": {}}, "editManifest": {}},
+            {"version": 1, "create": {}, "editManifest": {"../x.md": {}}},
+            {"version": 1, "create": {}, "editManifest": {"scenes/1.md": {"goals": "bad"}}},
+        ]
+
+        for payload in bad_payloads:
+            status, out = self.dispatch(
+                "POST",
+                "/__save_draft_state",
+                raw_body=json.dumps(dict(payload, campaign="Alpha")).encode("utf-8"),
+            )
+            self.assertEqual(status, 400, payload)
+            self.assertFalse(out["ok"])
 
     def test_session_state_body_campaign_param_is_consumed_not_persisted(self):
         body = {
