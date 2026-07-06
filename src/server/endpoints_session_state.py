@@ -1,4 +1,4 @@
-"""Per-campaign live session state endpoints (campaigns/<name>/session.json)."""
+"""Per-campaign live session state endpoints (campaigns/<name>/.sys/session.json)."""
 
 import json
 import os
@@ -46,7 +46,7 @@ def get_session_state(ctx, query, body):
 
 def save_session_state(ctx, query, body):
     # POST /__save_session_state — body is the whole session state. Writes are
-    # confined to campaigns/<name>/session.json; no client-supplied path is used.
+    # confined to campaigns/<name>/.sys/session.json; no client-supplied path is used.
     if not ctx.campaign:
         return 400, {"ok": False, "error": "no active campaign"}
 
@@ -63,5 +63,5 @@ def save_session_state(ctx, query, body):
     except OSError as exc:
         return 500, {"ok": False, "error": str(exc)}
 
-    print(paint(f"Saved: campaigns/{ctx.campaign}/session.json", GREEN), flush=True)
+    print(paint(f"Saved: campaigns/{ctx.campaign}/.sys/session.json", GREEN), flush=True)
     return 200, {"ok": True}

@@ -150,7 +150,7 @@ class DispatchTests(unittest.TestCase):
             "POST", "/__save_session_state", raw_body=json.dumps(body).encode("utf-8"))
 
         self.assertEqual(status, 200, payload)
-        session_path = os.path.join(self.tmp, "content", "campaigns", "Beta", "session.json")
+        session_path = os.path.join(self.tmp, "content", "campaigns", "Beta", ".sys", "session.json")
         with open(session_path, encoding="utf-8") as fh:
             saved = json.load(fh)
         self.assertNotIn("campaign", saved)

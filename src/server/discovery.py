@@ -366,7 +366,7 @@ def scene_graph_path(base_dir, name):
 
 def session_state_path(base_dir, name):
     """Per-campaign live table state (combat runner, v1)."""
-    return os.path.join(campaign_dir_path(base_dir, name), "session.json")
+    return os.path.join(campaign_dir_path(base_dir, name), ".sys", "session.json")
 
 
 def _scene_graph_ref_ok(value):

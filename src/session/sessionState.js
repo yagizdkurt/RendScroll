@@ -1,6 +1,6 @@
 /* Per-campaign live table session state.
 
-   Session state is not content: it lives in campaigns/<name>/session.json and is
+   Session state is not content: it lives in campaigns/<name>/.sys/session.json and is
    loaded/saved through fixed server endpoints. V1 persists combat runner state
    only. Browser-global like the rest of RendScroll. */
 
