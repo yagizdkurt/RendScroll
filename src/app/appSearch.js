@@ -8,6 +8,7 @@
 const CampaignSearch = (() => {
   const DEFAULT_LIMIT = 30;
   const SNIPPET_MAX = 120;
+  const HIGHLIGHT_MS = 5000;
 
   let mounted = false;
   let inputEl = null;
@@ -103,6 +104,7 @@ const CampaignSearch = (() => {
           path: source.path,
           lineIndex,
           lineNumber: lineIndex + 1,
+          query: q,
           snippet: makeSnippet(text, q),
         };
         if (results.length < limit) results.push(result);
@@ -277,6 +279,67 @@ const CampaignSearch = (() => {
     setTimeout(() => el.classList.remove("ref-flash"), 1200);
   }
 
+  function clearHighlights() {
+    if (typeof document === "undefined") return;
+    document.querySelectorAll(".campaign-search-hit").forEach((mark) => {
+      const parent = mark.parentNode;
+      if (!parent) return;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      mark.remove();
+      parent.normalize();
+    });
+  }
+
+  function textSearchRoot(root, startEl) {
+    const doc = root && root.ownerDocument;
+    if (!root || !doc) return [];
+    const NF = (doc.defaultView && doc.defaultView.NodeFilter) || globalThis.NodeFilter;
+    const walker = doc.createTreeWalker(root, NF.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || !node.nodeValue || !node.nodeValue.trim()) return NF.FILTER_REJECT;
+        const tag = parent.tagName ? parent.tagName.toLowerCase() : "";
+        if (tag === "script" || tag === "style" || tag === "textarea" || tag === "input") {
+          return NF.FILTER_REJECT;
+        }
+        if (parent.closest && parent.closest(".campaign-search")) return NF.FILTER_REJECT;
+        return NF.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    let started = !startEl;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!started) {
+        const rel = startEl.compareDocumentPosition(node);
+        started = startEl.contains(node) || !!(rel & Node.DOCUMENT_POSITION_FOLLOWING);
+      }
+      if (started) nodes.push(node);
+    }
+    return nodes;
+  }
+
+  function highlightRenderedMatch(root, query, startEl) {
+    clearHighlights();
+    const q = String(query || "").trim();
+    if (!root || !q || typeof document === "undefined") return null;
+    const needle = _rsLower(q);
+    const doc = root.ownerDocument || document;
+    for (const node of textSearchRoot(root, startEl)) {
+      const at = _rsLower(node.nodeValue).indexOf(needle);
+      if (at < 0) continue;
+      const range = doc.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + q.length);
+      const mark = doc.createElement("mark");
+      mark.className = "campaign-search-hit";
+      range.surroundContents(mark);
+      const timer = setTimeout(clearHighlights, HIGHLIGHT_MS);
+      if (timer && typeof timer.unref === "function") timer.unref();
+      return mark;
+    }
+    return null;
+  }
+
   function containsLine(el, lineIndex) {
     const start = Number(el.dataset.srcStart);
     const end = Number(el.dataset.srcEnd);
@@ -297,10 +360,12 @@ const CampaignSearch = (() => {
     return target || pageEl;
   }
 
-  function revealAndFlash(target) {
+  function revealAndFlash(target, result, root) {
     if (!target) return;
     if (typeof revealElement === "function") revealElement(target);
-    if (target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    const hit = highlightRenderedMatch(root || target, result && result.query, target);
+    const scrollTarget = hit || target;
+    if (scrollTarget.scrollIntoView) scrollTarget.scrollIntoView({ behavior: "smooth", block: "center" });
     flashTarget(target);
   }
 
@@ -310,7 +375,7 @@ const CampaignSearch = (() => {
     const loaded = await app.guardedLoad(result.path);
     if (!loaded) return;
     const pageEl = document.getElementById("page");
-    revealAndFlash(findSceneTarget(pageEl, result.lineIndex));
+    revealAndFlash(findSceneTarget(pageEl, result.lineIndex), result, pageEl);
   }
 
   async function openLibraryResult(result) {
@@ -325,7 +390,7 @@ const CampaignSearch = (() => {
     const target = pageEl.querySelector(".library-view " + selector) ||
       pageEl.querySelector(".library-view") ||
       pageEl;
-    revealAndFlash(target);
+    revealAndFlash(target, result, target);
   }
 
   async function openResult(result) {
@@ -428,6 +493,8 @@ const CampaignSearch = (() => {
     librarySources,
     makeSnippet,
     findSceneTarget,
+    highlightRenderedMatch,
+    clearHighlights,
     _state: () => ({ sceneCache: sceneCache.slice(), cacheReady, currentResults: currentResults.slice(), currentOverflow }),
   };
 })();

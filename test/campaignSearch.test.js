@@ -93,3 +93,27 @@ test("Ctrl+F focuses the mounted campaign search input", async () => {
   delete global.document;
   delete global.window;
 });
+
+test("rendered match highlight wraps and clears the exact text", () => {
+  const dom = new JSDOM(
+    "<!DOCTYPE html><body><article id='page'>" +
+      "<h2 data-section-start='4'>Event</h2>" +
+      "<p>The sunken bell waits below.</p>" +
+    "</article></body>"
+  );
+  global.document = dom.window.document;
+
+  const page = dom.window.document.getElementById("page");
+  const start = page.querySelector("h2");
+  const mark = CampaignSearch.highlightRenderedMatch(page, "sunken bell", start);
+
+  assert.ok(mark);
+  assert.equal(mark.textContent, "sunken bell");
+  assert.equal(page.querySelectorAll(".campaign-search-hit").length, 1);
+
+  CampaignSearch.clearHighlights();
+  assert.equal(page.querySelectorAll(".campaign-search-hit").length, 0);
+  assert.match(page.textContent, /The sunken bell waits below/);
+
+  delete global.document;
+});
