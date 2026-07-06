@@ -30,20 +30,19 @@ def _persist_active_campaign(base_dir, name):
 
 
 def active_campaign(ctx, query, body):
+    # read_json_file never raises (returns {} on any read/parse failure).
     target = active_campaign_state_path(ctx.base_dir)
     persisted = None
-    try:
-        data = read_json_file(target)
-        if data.get("version") == 1:
-            name = clean_campaign_name(data.get("activeCampaign"))
-            if name and os.path.isdir(campaign_scenes_root(ctx.base_dir, name)):
-                persisted = name
-            elif data.get("activeCampaign") is None:
-                persisted = None
-    except OSError:
-        persisted = None
+    data = read_json_file(target)
+    if data.get("version") == 1:
+        name = clean_campaign_name(data.get("activeCampaign"))
+        if name and os.path.isdir(campaign_scenes_root(ctx.base_dir, name)):
+            persisted = name
 
     if persisted is not None:
+        # A GET, but it deliberately re-syncs the in-memory active campaign to the
+        # persisted choice on boot so scene/library discovery resolves correctly
+        # before the client re-asserts it via POST /__select_campaign.
         state.set_active_campaign(persisted)
         return 200, {"ok": True, "name": persisted}
     return 200, {"ok": True, "name": None}
@@ -190,14 +189,13 @@ def delete_campaign(ctx, query, body):
     except ValueError as exc:
         return 403, {"ok": False, "error": str(exc)}
     state.clear_active_campaign_if(name)
-    try:
-        current = None
-        data = read_json_file(active_campaign_state_path(base))
-        if data.get("version") == 1:
-            current = clean_campaign_name(data.get("activeCampaign"))
-        if current == name:
+    # read_json_file never raises; only the persist write below can.
+    data = read_json_file(active_campaign_state_path(base))
+    current = clean_campaign_name(data.get("activeCampaign")) if data.get("version") == 1 else None
+    if current == name:
+        try:
             _persist_active_campaign(base, None)
-    except OSError as exc:
-        return 500, {"ok": False, "error": str(exc)}
+        except OSError as exc:
+            return 500, {"ok": False, "error": str(exc)}
     print(paint(f"Moved campaign to trash: {CAMPAIGNS_DIR}/{name} -> {trashed}", YELLOW), flush=True)
     return 200, {"ok": True, "trashed": trashed}

@@ -399,6 +399,14 @@ const EditorForm = (() => {
     }
     activeDismiss = draftType ? closeSavingDraft : close;
 
+    // When the draft store is unavailable this session (e.g. an unreadable
+    // drafts.json), drafts stay in memory only — say so instead of failing silent.
+    if (draftType && typeof DraftState !== "undefined" &&
+        DraftState._isReadOnly && DraftState._isReadOnly()) {
+      body.appendChild(el("div", "editor-draft-note",
+        "Drafts can't be saved this session (draft store unavailable)."));
+    }
+
     const foot = el("div", "editor-modal-foot");
     if (draftType) {
       const discard = el("button", "editor-btn danger editor-foot-left", "Discard");
