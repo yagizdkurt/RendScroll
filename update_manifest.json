@@ -1,8 +1,8 @@
 {
-  "latest": "1.5.1",
+  "latest": "1.5.2",
   "minimum_supported_version": "1.5.1",
   "url": "https://github.com/yagizdkurt/RendScroll",
   "download_url": "https://codeload.github.com/yagizdkurt/RendScroll/zip/refs/heads/main",
-  "title": "1.5.1 Browser Support Update",
-  "changes": "Added browser support, ensuring compatibility and improved performance across different browsers."
+  "title": "1.5.2 Search",
+  "changes": "Added search functionality."
 }

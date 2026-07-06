@@ -25,9 +25,9 @@
 
 1. Run **`python launcher.py`**. (If you are having good time with python you should be able to open it with double clicking. If not then open console and write "python launcher.py" and it will open.)
 
-## 🆕 Whats new (1.5 Browsers)
+## 🆕 Whats new (1.5.2 Search)
 
-- Added support for firefox + edge.
+- Added search feature
 
 ## ⚔️ Why it feels good
 
