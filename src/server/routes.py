@@ -20,6 +20,7 @@ from src.server import (
     endpoints_library,
     endpoints_options,
     endpoints_scene_graph,
+    endpoints_session_state,
     endpoints_updates,
     state,
 )
@@ -54,6 +55,7 @@ ROUTES = {
     ("GET", "/__library_bundle"): Route(endpoints_library.library_bundle, "none", True),
     ("GET", "/__assets"): Route(endpoints_assets.list_assets, "none", True),
     ("GET", "/__scene_graph"): Route(endpoints_scene_graph.get_scene_graph, "none", True),
+    ("GET", "/__session_state"): Route(endpoints_session_state.get_session_state, "none", True),
     ("POST", "/__rendscroll_exit"): Route(endpoints_updates.rendscroll_exit, "none", False),
     ("POST", "/__begin_update"): Route(endpoints_updates.begin_update_endpoint, "none", False),
     ("POST", "/__select_campaign"): Route(endpoints_campaigns.select_campaign, "json", False),
@@ -67,6 +69,7 @@ ROUTES = {
     ("POST", "/__move_library_file"): Route(endpoints_library.move_library_file, "json", True),
     ("POST", "/__save_options"): Route(endpoints_options.save_options, "json", False),
     ("POST", "/__save_scene_graph"): Route(endpoints_scene_graph.save_scene_graph, "json", True),
+    ("POST", "/__save_session_state"): Route(endpoints_session_state.save_session_state, "json", True),
     ("POST", "/__pick_asset"): Route(endpoints_assets.pick_asset, "json", True),
     ("POST", "/__export_package"): Route(endpoints_export.export_package, "json", True),
 }

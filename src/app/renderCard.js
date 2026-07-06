@@ -71,14 +71,14 @@ function stampClosed(cardEl, card) {
 // heading goes through marked here (no more re-parsing the whole card just to feed
 // the builder DOM it re-sniffed). Parsing the PREPARED source means an Item's
 // resolved SourceItem merge is reflected in the node the builder sees.
-function renderCardFromSource(type, src) {
+function renderCardFromSource(type, src, context) {
   const renderSrc = prepareCardSourceForRender(type, stripCardTextSize(src));
   const builder = cardBuilder(type);
   // No builder (e.g. echo): render the whole block straight through marked.
   if (!builder) return { cardEl: null, els: renderMarkdownEls(normalizeClosedMarkdown(renderSrc)) };
   const card = RendScrollParser.firstCardNode(RendScrollParser.parseRendScroll(renderSrc));
   const head = renderMarkdownEls(renderSrc.split(/\r?\n/)[0] || "")[0] || null;
-  const cardEl = builder(card, head, []);
+  const cardEl = builder(card, head, [], context || {});
   if (cardEl) stampClosed(cardEl, card);
   return { cardEl, els: head ? [head] : [] };
 }

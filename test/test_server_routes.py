@@ -116,6 +116,63 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(payload["error"], "no active campaign")
 
+    def test_session_state_requires_a_campaign(self):
+        status, payload = self.dispatch("GET", "/__session_state")
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "no active campaign")
+
+    def test_session_state_missing_file_is_empty(self):
+        status, payload = self.dispatch(
+            "GET", "/__session_state", query={"campaign": "Alpha"})
+
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["readOnly"])
+        self.assertEqual(payload["state"], {"version": 1, "scenes": {}})
+
+    def test_session_state_body_campaign_param_is_consumed_not_persisted(self):
+        body = {
+            "version": 1,
+            "scenes": {
+                "scenes/1.md": {
+                    "cards": {
+                        "combat:ambush": {
+                            "kind": "combat",
+                            "phase": "setup",
+                            "players": [],
+                            "enemyRolls": [],
+                        }
+                    }
+                }
+            },
+            "campaign": "Beta",
+        }
+        status, payload = self.dispatch(
+            "POST", "/__save_session_state", raw_body=json.dumps(body).encode("utf-8"))
+
+        self.assertEqual(status, 200, payload)
+        session_path = os.path.join(self.tmp, "content", "campaigns", "Beta", "session.json")
+        with open(session_path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertNotIn("campaign", saved)
+        self.assertEqual(saved["version"], 1)
+
+    def test_session_state_rejects_invalid_or_future_payloads(self):
+        bad_payloads = [
+            {"version": 2, "scenes": {}},
+            {"version": 1, "scenes": {"../x.md": {"cards": {}}}},
+            {"version": 1, "scenes": {"scenes/1.md": {"cards": {"../bad": {}}}}},
+            {"version": 1, "scenes": {"scenes/1.md": {"cards": {"combat:x": {"kind": "note", "phase": "setup"}}}}},
+        ]
+
+        for payload in bad_payloads:
+            status, out = self.dispatch(
+                "POST",
+                "/__save_session_state",
+                raw_body=json.dumps(dict(payload, campaign="Alpha")).encode("utf-8"),
+            )
+            self.assertEqual(status, 400, payload)
+            self.assertFalse(out["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

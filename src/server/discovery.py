@@ -364,6 +364,11 @@ def scene_graph_path(base_dir, name):
     return os.path.join(campaign_dir_path(base_dir, name), "graph.json")
 
 
+def session_state_path(base_dir, name):
+    """Per-campaign live table state (combat runner, v1)."""
+    return os.path.join(campaign_dir_path(base_dir, name), "session.json")
+
+
 def _scene_graph_ref_ok(value):
     """Scene refs in graph.json are campaign-relative ('scenes/…'). The server
     never opens them as paths, but reject traversal-shaped strings anyway so
@@ -399,4 +404,57 @@ def validate_scene_graph(data):
             return "malformed edge entry"
         if "label" in edge and not isinstance(edge["label"], str):
             return "edge label must be a string"
+    return None
+
+
+def _session_scene_ref_ok(value):
+    """Session scene refs are campaign-relative ('scenes/…'). Reject traversal
+    shapes so session.json cannot become a path-like dumping ground."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    norm = value.replace("\\", "/")
+    return (
+        norm.startswith(f"{SCENES_SUBDIR}/")
+        and not norm.startswith("/")
+        and ".." not in norm.split("/")
+    )
+
+
+def _session_card_ref_ok(value):
+    """Card ids are render-time identifiers like 'combat:ambush' or
+    'combat:ambush-2'. They are not paths, so separators and parent refs are
+    rejected."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    return "/" not in value and "\\" not in value and "\x00" not in value and value not in (".", "..")
+
+
+def validate_session_state(data):
+    """Validate a session.json payload (version 1). Returns an error string, or
+    None when the payload is acceptable to write. Per-card payloads are mostly
+    client-owned; the server only validates the durable envelope and ids."""
+    if not isinstance(data, dict):
+        return "expected a JSON object"
+    if data.get("version") != 1:
+        return "unsupported session version"
+    scenes = data.get("scenes")
+    if not isinstance(scenes, dict):
+        return "scenes must be an object"
+    for scene, scene_state in scenes.items():
+        if not _session_scene_ref_ok(scene):
+            return "malformed scene key"
+        if not isinstance(scene_state, dict):
+            return "malformed scene state"
+        cards = scene_state.get("cards")
+        if not isinstance(cards, dict):
+            return "scene cards must be an object"
+        for card_id, card_state in cards.items():
+            if not _session_card_ref_ok(card_id):
+                return "malformed card key"
+            if not isinstance(card_state, dict):
+                return "malformed card state"
+            if card_state.get("kind") != "combat":
+                return "unsupported session card kind"
+            if card_state.get("phase") not in ("setup", "active"):
+                return "unsupported combat phase"
     return None

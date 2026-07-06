@@ -109,14 +109,33 @@ function stampRefName(el, name) {
   if (el && el.dataset && name) el.dataset.refName = rsLower(String(name).trim());
 }
 
+function cardIdSlug(value) {
+  const slug = rsLower(String(value || ""))
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "untitled";
+}
+
+function nextCardId(renderContext, card) {
+  const base = card.type + ":" + cardIdSlug(card.title);
+  const count = (renderContext.cardIdCounts.get(base) || 0) + 1;
+  renderContext.cardIdCounts.set(base, count);
+  return count === 1 ? base : base + "-" + count;
+}
+
 // One card block -> the element(s) to append. A builder turns (heading, body
 // nodes) into a card; a missing builder or a null result leaves the raw nodes.
-function renderCardBlock(doc, card) {
-  const { cardEl, els } = renderCardFromSource(card.type, cardRawSource(doc, card));
+function renderCardBlock(doc, card, renderContext) {
+  const cardId = nextCardId(renderContext, card);
+  const { cardEl, els } = renderCardFromSource(card.type, cardRawSource(doc, card), {
+    cardId,
+    scenePath: renderContext.scenePath,
+  });
   if (!cardEl) { stampAccentClass(els, card.type); return els; }
   stampAccentClass([cardEl], card.type);
   applyCardTextSize(cardEl, cardTextSize(card));
   stampRefName(cardEl, card.title);
+  cardEl.dataset.cardId = cardId;
   // Source line range of this card in the scene. layout only MOVES nodes, so the
   // stamp survives into the final grid; editor/anchors.js joins it back to the
   // outline card by line instead of re-simulating the layout routing.
@@ -134,6 +153,7 @@ function refMissingCard(type, name) {
 
 function renderPage(text) {
   const doc = RendScrollParser.parseRendScroll(text);
+  const renderContext = { cardIdCounts: new Map(), scenePath: currentPath };
   page.innerHTML = "";
 
   doc.sections.forEach((section) => {
@@ -161,7 +181,7 @@ function renderPage(text) {
     section.blocks.forEach((block) => {
       if (block.kind === "card") {
         flushNonCards();
-        renderCardBlock(doc, block).forEach((el) => page.appendChild(el));
+        renderCardBlock(doc, block, renderContext).forEach((el) => page.appendChild(el));
       } else {
         buffer.push(block);
       }
@@ -249,6 +269,9 @@ function showStartScreen() {
 // CampaignManager on boot and on every switch — the server already knows the
 // active campaign at this point, so RefLibrary loads the campaign-scoped library.
 async function activateCampaign(name) {
+  if (typeof SessionState !== "undefined") {
+    await SessionState.loadForCampaign(name);
+  }
   if (typeof RefLibrary !== "undefined") {
     try { await RefLibrary.init(); } catch (err) {
       if (typeof RSLog !== "undefined" && RSLog.warn) RSLog.warn("library", "Reference library init failed; continuing with an empty library.", err);
