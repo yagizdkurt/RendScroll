@@ -315,7 +315,7 @@ async function activateCampaign(name) {
     currentPath = null;
     page.innerHTML =
       '<div class="scene-empty-hint">This campaign has no scenes yet. Use ' +
-      '<strong>+ New Page</strong> to add one.</div>';
+      '<strong>+</strong> to add one.</div>';
   }
 }
 

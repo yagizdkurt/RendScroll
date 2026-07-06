@@ -203,6 +203,26 @@ function openNavMenu(items, x, y) {
   window.addEventListener("scroll", removeNavContextMenu, true);
 }
 
+function createAddMenuItems() {
+  const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
+  const newLib = (kind, scope) => () => {
+    const cfg = libraryConfig(kind);
+    if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name), scope);
+  };
+  return [
+    { label: "Add scene", disabled: !hasCampaign, onClick: openNewPageDialog },
+    { separator: true },
+    { label: "Add item", onClick: newLib("item", "global") },
+    { label: "Add campaign-bound item", disabled: !hasCampaign, onClick: newLib("item", "campaign") },
+    { label: "Add enemy", onClick: newLib("enemy", "global") },
+    { label: "Add campaign-bound enemy", disabled: !hasCampaign, onClick: newLib("enemy", "campaign") },
+  ];
+}
+
+function openAddMenu(x, y) {
+  openNavMenu(createAddMenuItems(), x, y);
+}
+
 function mountCampaignEntries(entries) {
   nav.innerHTML = "";
   entries.forEach((entry, index) => {
@@ -230,14 +250,6 @@ function mountCampaignEntries(entries) {
     });
     nav.appendChild(btn);
   });
-  // A standalone "+ New page" affordance, mirroring the Item / Enemy libraries
-  // (the topbar button does the same thing).
-  const create = document.createElement("button");
-  create.className = "nav-create";
-  create.textContent = "+ New page";
-  create.dataset.navIndex = "+";
-  create.addEventListener("click", openNewPageDialog);
-  nav.appendChild(create);
 }
 
 // Right-clicking empty sidebar space opens a create menu. Button/input targets
@@ -249,19 +261,7 @@ function installSidebarContextMenu() {
   sidebar.addEventListener("contextmenu", (e) => {
     if (e.target.closest("button, input, select, textarea, .options")) return;
     e.preventDefault();
-    const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
-    const newLib = (kind, scope) => () => {
-      const cfg = libraryConfig(kind);
-      if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name), scope);
-    };
-    openNavMenu([
-      { label: "New scene", disabled: !hasCampaign, onClick: openNewPageDialog },
-      { separator: true },
-      { label: "New item", onClick: newLib("item", "global") },
-      { label: "New campaign-bound item", disabled: !hasCampaign, onClick: newLib("item", "campaign") },
-      { label: "New enemy", onClick: newLib("enemy", "global") },
-      { label: "New campaign-bound enemy", disabled: !hasCampaign, onClick: newLib("enemy", "campaign") },
-    ], e.clientX, e.clientY);
+    openAddMenu(e.clientX, e.clientY);
   });
 }
 

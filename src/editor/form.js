@@ -334,8 +334,8 @@ const EditorForm = (() => {
       }
 
       // Open the enemy library picker and append the chosen enemy as a ref row.
-      // Picks existing library enemies only — authoring happens via the Enemies
-      // sidebar ("+ New enemy"), so we never nest a second editor form here.
+      // Picks existing library enemies only; authoring happens via the shared
+      // Add menu, so we never nest a second editor form here.
       function openEnemyPicker() {
         if (typeof EditorLibraryPicker === "undefined") return;
         EditorLibraryPicker.open({

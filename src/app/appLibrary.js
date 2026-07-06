@@ -93,8 +93,8 @@ async function moveLibrary(kind, name, toScope) {
   }
 }
 
-// Group library entries by origin (campaign-local vs global). Each group gets a
-// subheader and its own "+ New …" that creates into that origin's folder.
+// Group library entries by origin (campaign-local vs global). Creation lives in
+// the shared Add menu, not in the sidebar lists.
 function mountLibraryNav(kind) {
   const cfg = libraryConfig(kind);
   const navEl = cfg.nav();
@@ -114,14 +114,6 @@ function mountLibraryNav(kind) {
     header.textContent = label;
     navEl.appendChild(header);
     list.forEach((entry) => navEl.appendChild(libraryEntryButton(kind, cfg, entry)));
-    const create = document.createElement("button");
-    create.className = "nav-create";
-    create.textContent = "+ New " + cfg.noun;
-    create.dataset.navIndex = "+";
-    create.addEventListener("click", () => {
-      if (typeof Editor !== "undefined") cfg.create((name) => openLibrary(kind, name), scope);
-    });
-    navEl.appendChild(create);
   };
 
   group("Campaign " + cfg.kicker, campaign, "campaign");

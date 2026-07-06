@@ -484,5 +484,12 @@ async function openEditManifestDialog(entry) {
 
 function mountNewPageButton() {
   if (!newPageButton) return;
-  newPageButton.addEventListener("click", openNewPageDialog);
+  newPageButton.addEventListener("click", () => {
+    if (typeof openAddMenu === "function") {
+      const rect = newPageButton.getBoundingClientRect();
+      openAddMenu(rect.left, rect.bottom + 8);
+    } else {
+      openNewPageDialog();
+    }
+  });
 }

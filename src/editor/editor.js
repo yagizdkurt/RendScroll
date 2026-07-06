@@ -188,9 +188,9 @@ const Editor = (() => {
     }
   }
 
-  // Create a library item with no scene instance (the Items sidebar "+ New item",
-  // parallel to createEnemyToLibrary). `onCreated(name)` runs after the file is
-  // written (e.g. to open the new item's library view).
+  // Create a library item with no scene instance, parallel to
+  // createEnemyToLibrary. `onCreated(name)` runs after the file is written
+  // (e.g. to open the new item's library view).
   function createLibraryItem(onCreated, scope) {
     if (typeof RefLibrary === "undefined" || typeof EditorForm === "undefined") return;
     EditorForm.openCreate("sourceitem", state.model, async (block) => {
@@ -213,7 +213,7 @@ const Editor = (() => {
   }
 
   // Create a new enemy library file from the SourceEnemy form. Used by the combat
-  // card's "+ from library → create new" and the Enemies sidebar "+ New enemy".
+  // card's "+ from library -> create new" and the shared Add menu.
   // `onCreated(name)` (optional) runs after the file is written (e.g. to add a ref
   // row to the open combat card, or open the new enemy's library view).
   function createEnemyToLibrary(onCreated, scope) {
@@ -624,9 +624,9 @@ const Editor = (() => {
     confirmNavigation,
     save,
     hasUnsavedChanges: () => !!state.dirty,
-    // Create a new library item with no scene instance (Items sidebar "+ New item").
+    // Create a new library item with no scene instance.
     createLibraryItem,
-    // Create a new enemy library file (combat picker + Enemies sidebar).
+    // Create a new enemy library file (combat picker + shared Add menu).
     createEnemyToLibrary,
     // Move one inline combat enemy into the library (combat enemy editor).
     moveEnemyToLibrary,
