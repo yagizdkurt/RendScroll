@@ -13,7 +13,7 @@
 
 <br />
 
-![Screenshot](src/STDImages/RendScroll5.png)
+![Screenshot](src/STDImages/RendScroll6.png)
 
 *Plain notes go in. An old, gold-edged book comes out — ready for the table.*
 
