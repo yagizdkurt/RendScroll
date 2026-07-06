@@ -21,7 +21,7 @@
 
 ---
 
-## ⚙️ HOW TO RUN:
+## HOW TO RUN:
 
 1. Run **`python launcher.py`**. (If you are having good time with python you should be able to open it with double clicking. If not then open console and write "python launcher.py" and it will open.)
 
@@ -29,27 +29,25 @@
 
 - Added search feature
 
-## ⚔️ Why it feels good
+## Features
 
 - **complete DM workbench** — write, build, reuse, all from the same app.
 
-- **Scene Mapper** Never forget "where does this road go to" again.
+- **Scene Mapper** — Never forget "where does this road go to" again.
 
-- **The page reads itself, in play order.** Scenes flow top to bottom, event by event — no flipping between sections mid-encounter to find what happens next.
+- **A real visual editor** — Shape any card through clean forms, pick the type, fill the fields, move it to place.
 
-- **A real visual editor** Shape any card through clean forms, pick the type, fill the fields, move it to place.
+- **Good Iconography** — Standardized **damage-type icons**, dice, AC/HP/initiative crests.
 
-- **Good Iconography** Standardized **damage-type icons**, dice, AC/HP/initiative crests.
+- **Libraries** — Do not write your items or enemies again and again or copy paste them. With libraries you can write an enemy once and use it in every campaign whenever you like.
 
-- **Libraries** Do not write your items or enemies again and again or copy paste them. With libraries you can write an enemy once and use it in every campaign whenever you like.
+- **Print Or Export** — Easily export a clean PDF to lay beside your dice or export as campaign zip so that others can play it too.
 
-- **Print Or Export** Easily export a clean PDF to lay beside your dice or export as campaign zip so that others can play it too.
-
-- **Combat helper.** Initiative and turn order helper is there so that you dont forget whos after who, also track every enemy's HP so that you dont need to do math in your papers.
+- **Combat helper.** — Initiative and turn order helper is there so that you dont forget whos after who, also track every enemy's HP so that you dont need to do math in your papers.
 
 ---
 
-## 🃏 Current Cards
+## Current Cards
 
 | Card | Usage |
 | --- | --- |
