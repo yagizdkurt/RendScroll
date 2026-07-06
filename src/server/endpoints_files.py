@@ -18,6 +18,11 @@ def campaign_files(ctx, query, body):
     return 200, discovery.discover_campaign_files(ctx.base_dir, ctx.campaign)
 
 
+def scene_bundle(ctx, query, body):
+    return 200, discovery.discover_campaign_files(
+        ctx.base_dir, ctx.campaign, with_content=True)
+
+
 def create_campaign_file(ctx, query, body):
     try:
         title = clean_campaign_title(body.get("title"))

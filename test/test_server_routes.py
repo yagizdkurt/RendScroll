@@ -70,6 +70,21 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual([e["path"] for e in payload], ["campaigns/Beta/scenes/1.md"])
 
+    def test_scene_bundle_includes_saved_scene_content(self):
+        status, payload = self.dispatch(
+            "GET", "/__scene_bundle", query={"campaign": "Beta"})
+
+        self.assertEqual(status, 200)
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["path"], "campaigns/Beta/scenes/1.md")
+        self.assertEqual(payload[0]["content"], "# B\n")
+
+    def test_scene_bundle_missing_campaign_is_empty(self):
+        status, payload = self.dispatch("GET", "/__scene_bundle")
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, [])
+
     def test_missing_param_falls_back_to_server_default(self):
         state.set_active_campaign("Alpha")
 

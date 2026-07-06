@@ -121,9 +121,10 @@ def campaign_entry_from_filename(filename, full_path, rel_prefix):
     }
 
 
-def discover_campaign_files(base_dir, campaign):
+def discover_campaign_files(base_dir, campaign, with_content=False):
     """List the given campaign's scenes/ .md files. Empty when no campaign is
-    given — the front end then shows the start screen."""
+    given — the front end then shows the start screen. When with_content is
+    true, include the raw markdown content for each scene."""
     scenes_root = campaign_scenes_root_if_exists(base_dir, campaign)
     if not scenes_root:
         return []
@@ -140,7 +141,14 @@ def discover_campaign_files(base_dir, campaign):
         full_path = os.path.join(scenes_root, name)
         if not os.path.isfile(full_path):
             continue
-        entries.append(campaign_entry_from_filename(name, full_path, rel_prefix))
+        entry = campaign_entry_from_filename(name, full_path, rel_prefix)
+        if with_content:
+            try:
+                with open(full_path, encoding="utf-8") as fh:
+                    entry["content"] = fh.read()
+            except OSError:
+                entry["content"] = ""
+        entries.append(entry)
 
     entries.sort(key=lambda entry: (
         entry["number"] is None,

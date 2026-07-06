@@ -6,13 +6,22 @@
     flex:0 0 auto;
     height:auto;
     min-height:var(--topbar-height);
+    display:flex;
     flex-wrap:wrap;
     padding:8px 12px;
   }
   #topbar-primary,
+  #topbar-search,
   #topbar-tools{
     flex-wrap:wrap;
   }
+  #topbar-primary{flex:1 1 auto;}
+  #topbar-search{
+    flex:1 1 100%;
+    order:3;
+  }
+  #topbar-tools{flex:0 1 auto;}
+  .campaign-search{max-width:none;}
   .update-notice{
     align-items:flex-start;
     flex-direction:column;

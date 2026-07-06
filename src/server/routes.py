@@ -49,6 +49,7 @@ ROUTES = {
     ("GET", "/__update_progress"): Route(endpoints_updates.update_progress, "none", False),
     ("GET", "/__campaigns"): Route(endpoints_campaigns.list_campaigns, "none", False),
     ("GET", "/__campaign_files"): Route(endpoints_files.campaign_files, "none", True),
+    ("GET", "/__scene_bundle"): Route(endpoints_files.scene_bundle, "none", True),
     ("GET", "/__library_files"): Route(endpoints_library.library_files, "none", True),
     ("GET", "/__library_bundle"): Route(endpoints_library.library_bundle, "none", True),
     ("GET", "/__assets"): Route(endpoints_assets.list_assets, "none", True),

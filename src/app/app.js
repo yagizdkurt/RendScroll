@@ -98,6 +98,9 @@ function renderSectionHeading(doc, section) {
   if (h && section.collapsable !== null && section.collapsable !== undefined) {
     h.dataset.collapsable = section.collapsable ? "true" : "false";
   }
+  if (h && section.headingRange) {
+    h.dataset.sectionStart = String(section.headingRange.startLine);
+  }
   return h;
 }
 
@@ -303,6 +306,10 @@ async function init() {
   await RendererOptions.init();
   const optionsEl = document.getElementById("topbar-tools") || document.getElementById("options");
   if (optionsEl) RendererOptions.mount(optionsEl);
+  const searchEl = document.getElementById("topbar-search");
+  if (searchEl && typeof CampaignSearch !== "undefined" && CampaignSearch.mount) {
+    CampaignSearch.mount(searchEl);
+  }
 
   installRefLinkHandler();
   installLibraryChangeHandler();
