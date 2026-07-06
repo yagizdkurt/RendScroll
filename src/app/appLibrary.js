@@ -93,8 +93,8 @@ async function moveLibrary(kind, name, toScope) {
   }
 }
 
-// Group library entries by origin (campaign-local vs global). Creation lives in
-// the shared Add menu, not in the sidebar lists.
+// Keep campaign-local entries before global entries. Creation lives in the
+// shared Add menu, not in the sidebar lists.
 function mountLibraryNav(kind) {
   const cfg = libraryConfig(kind);
   const navEl = cfg.nav();
@@ -106,18 +106,14 @@ function mountLibraryNav(kind) {
   const global = entries.filter((e) => e.origin !== "campaign");
   const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
 
-  const group = (label, list, scope) => {
+  const appendGroup = (list, scope) => {
     // Show the Campaign group only when a campaign is active; always show Global.
     if (scope === "campaign" && !hasCampaign) return;
-    const header = document.createElement("div");
-    header.className = "nav-group-label";
-    header.textContent = label;
-    navEl.appendChild(header);
     list.forEach((entry) => navEl.appendChild(libraryEntryButton(kind, cfg, entry)));
   };
 
-  group("Campaign " + cfg.kicker, campaign, "campaign");
-  group("Global " + cfg.kicker, global, "global");
+  appendGroup(campaign, "campaign");
+  appendGroup(global, "global");
 }
 
 // Re-read every library list into the sidebar (after create/edit/delete).
