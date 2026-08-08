@@ -30,8 +30,16 @@ RendScroll and run at the table.
 8. Represent real branches with `### Transition:` cards whose `Scene:` value
    exactly matches a target scene filename stem.
 9. Every reference must resolve. Every referenced local asset must be included.
+   An `Image:`, `BG:`, or `File:` line whose target you are not shipping is worse
+   than no line at all — omit the directive. "Pending asset" is not a state a
+   delivered package may be in.
 10. Never emit ellipses, placeholders, `TODO`, "same as above," or omitted file
     bodies in the final deliverable.
+11. Classify before you structure. Book order is not gameplay order; only
+    genuinely playable beats become `##` events. See Stage C.
+12. One fact, one home. If a destination, condition, or statistic belongs to a
+    scene, put it in that scene; do not restate it in a second document that also
+    claims to own it.
 
 ## 2. Inputs and the conversion pipeline
 
@@ -72,14 +80,89 @@ Before writing RendScroll files, extract a private working model with at least:
 Resolve contradictions only when the source itself resolves them. Otherwise keep
 the ambiguity explicit for the GM.
 
-### Stage C — Make a scene matrix
+### Stage C — Classify every section before deciding what is a scene
+
+**This stage is mandatory and it is the one converters skip.** Do it before the
+scene matrix, in writing, for every heading in the source.
+
+A published adventure's layout hierarchy and a play session's temporal hierarchy
+are different things. A book puts the villain's history first because a reader
+needs it first. That is not the villain attacking the party in scene one.
+
+**Never equate book order with gameplay order.**
+
+Before anything becomes an event, answer one question:
+
+> If a GM were running this at the table, would this happen **to or around the
+> player characters** at this point?
+
+If the answer is no, it is not an event. It does not become one merely because it
+occupies a heading between two things that are.
+
+#### The classification table
+
+Assign every source section exactly one category, then use the mapping in the last
+column. Nothing else is a legitimate conversion target.
+
+| # | Category | What it is | RendScroll representation |
+|---|---|---|---|
+| A | GM preparation / background | History, cosmology, why a villain behaves as they do | `lore/` entries. A no-event scene may link to them as a dashboard. |
+| B | Persistent NPC / campaign state | Standing objectives active across many scenes ("he wants Ireena") | `lore/` entries stated as ongoing state, not as a sequence. |
+| C | Roleplaying guidance | How to portray someone whenever they appear | The NPC's `lore/` record. Not an encounter. |
+| D | Reusable procedure | "When X attacks" — what happens whenever a recurring situation occurs | A `lore/` entry, or an `### STD:` note where it is used. Not a scheduled event. |
+| E | Preparation procedure | An ordered thing the GM performs outside play (a pre-game card draw, a random-table roll-up) | `## Step 1:`, `## Step 2:` … in a clearly labelled preparation scene. **Ordered, but not Events.** |
+| F | Actual playable scene | Something that occurs at the table | `## Event 1:`, `## Event 2:` … This is the only category that earns an Event. |
+| G | Player read-aloud | Text the source intends to be spoken to the players | `### Narrative` + `Text:` + `>`. |
+| H | Lookup / reference table | Treasure tables, card meanings, possible allies, encounter tables | One `lore/` page with a lookup entry. **Never one scene per row.** |
+
+#### Traps this table exists to prevent
+
+- **Prose order becoming event order.** Four consecutive book sections about a
+  villain are not Events 1–4. A GM cannot point at "Event 3: The Vampire's History"
+  and say "this is what is happening right now."
+- **A lookup table exploding into scenes.** Forty possible card results are forty
+  rows of one lookup, consulted once. They are not forty scenes, and they are not
+  forty `##` events inside one scene either.
+- **A preparation procedure disguised as play.** An ordered GM procedure is real
+  and ordered — use `## Step N:` and say plainly that it happens before the session.
+  If the same procedure can *also* be performed in-world later (a fortune-teller
+  reading for the players), say so and mark which text is player-facing in which
+  case. They are two different things sharing one description.
+- **Reference material implying presence.** A section describing an NPC's
+  personality does not put that NPC in the room. See §10.
+- **Chapter framing promoted to read-aloud.** An epigraph, a cover quotation, or a
+  scene-setting paragraph addressed to the GM is category A, not G. Only convert
+  text to `### Narrative` when the source intends or supports reading it aloud.
+  When in doubt, it is not read-aloud.
+- **Invented dialogue.** If the source says an NPC *believes* something, record the
+  belief. Do not manufacture a quotable line to make the prose fit a dialogue card.
+  Quotation marks are reserved for speech the source actually supplies.
+- **Branch alternatives run as a sequence.** Four alternative openings are a choice
+  the GM makes once. They are not four events, and the selector itself is not an
+  event either.
+
+#### Categories A–E and H produce documents with no Events at all
+
+That is normal and correct. A scene file whose every `##` is a `Step`, a
+`Conditional Procedure`, or an `Optional Briefing` — or which has no `##` beyond
+its cards — is a legitimate RendScroll document. Do not manufacture Events to make
+a preparation page look like the others.
+
+Record the classification in the scene matrix (next stage) as an explicit column so
+the decision is auditable rather than implicit.
+
+### Stage D — Make a scene matrix
 
 Create a planning table before generating files. One row equals one future scene
 file. Use columns similar to:
 
-| Order | Filename stem | Scene title | Entry condition | Playable events | Required facts/cards | Exits |
-|---|---|---|---|---|---|---|
-| 1 | `001_arrival` | Arrival at Blackwater | Campaign start | Gate, witness, clue | Narrative, NPC, Object, checks | `002_bridge`, `003_marsh` |
+| Order | Filename stem | Scene title | Category | Entry condition | Playable events | Required facts/cards | Exits |
+|---|---|---|---|---|---|---|---|
+| 1 | `001_arrival` | Arrival at Blackwater | F | Campaign start | Gate, witness, clue | Narrative, NPC, Object, checks | `002_bridge`, `003_marsh` |
+| 2 | `000_prep` | Before You Begin | A/E | — | none | STD, Step 1–3, lore links | `001_arrival` |
+
+The `Category` column is the Stage C classification. A row whose category is not
+`F` must not have `## Event` headings.
 
 Split into a new scene file when one or more are true:
 
@@ -92,7 +175,7 @@ Split into a new scene file when one or more are true:
 Do not split merely because the source starts a new paragraph. Conversely, do not
 hide a real branch inside prose when it needs a navigable transition.
 
-### Stage D — Extract reusable material
+### Stage E — Extract reusable material
 
 Before writing scene instances:
 
@@ -103,7 +186,7 @@ Before writing scene instances:
 - give library files stable, unique names because references resolve by filename
   stem, case-insensitively.
 
-### Stage E — Write scenes in play order
+### Stage F — Write scenes in play order
 
 For every scene-matrix row:
 
@@ -115,7 +198,7 @@ For every scene-matrix row:
    transition immediately where it becomes relevant.
 6. End routes with explicit transitions when another scene file follows.
 
-### Stage F — Perform a closed-world validation
+### Stage G — Perform a closed-world validation
 
 Assume the generated folder is the only campaign content the recipient has. Check
 all filenames, transitions, library references, lore links, and local assets
@@ -205,6 +288,25 @@ RendScroll sorts numerically by the leading integer, then by filename. Files wit
 no numeric prefix appear after numbered files. Use unique numbers and consistent
 zero-padding for human readability.
 
+**The number is displayed, not just a sort key.** The sidebar renders it as each
+entry's visible index (`content: attr(data-nav-index)` in `styles/base.css`), so a
+GM reading 1, 2, 10, 11 sees a list that appears to be missing scenes 3 through 9.
+
+Number the scenes **contiguously from 001**, and renumber whenever the set changes.
+Deleting a scene, or promoting one to a lore page, leaves a hole that looks like
+lost content — close it. Do not reserve number bands for "sections"; express
+grouping through titles and transitions instead, which is where a GM will actually
+look for it.
+
+Renumbering is a three-part edit, and all three must happen together:
+
+1. rename the file;
+2. update every `Scene:` value that targets the old stem;
+3. update any conversion report, manifest, or checklist that cites the stem.
+
+Verify afterwards that every `Scene:` still resolves. A stale target is a dead
+Continue button, and RendScroll will not warn you at import time.
+
 The sidebar label comes from the filename text after the numeric prefix. If the
 filename is only a number such as `1.md`, RendScroll uses the first `#` title.
 
@@ -292,6 +394,13 @@ For source-compatible output:
 
 An event is a playable beat, not necessarily a whole location. It should contain
 all information needed when that beat occurs.
+
+`##` headings are not a generic outline device. An `##` in a scene file reads as
+"and then this happens." Use `## Event N:` only for Stage C category F. For the
+other categories, keep the `##` label honest about what it is — `## Step 1:`,
+`## Optional Briefing:`, `## Conditional Procedure:`, `## Choose One` — or use no
+`##` at all and let the file be a flat page of cards. A preparation document with
+zero `##` headings is valid.
 
 Canonical event opening:
 
@@ -456,6 +565,13 @@ Supported fields, in canonical order:
 Omit empty fields. Do not write a list on the same line as its label. Use a short
 summary for GM orientation, not read-aloud narration.
 
+`Key NPCs:` means **physically present in this scene**, not "mentioned here" and
+not "relevant to this material." Listing an absent NPC is the presence trap of
+Stage C leaking into metadata: it tells the GM someone is in the room who is not,
+and on a preparation page it can even leak a secret the source says to withhold.
+If nobody is present, omit the field. The same applies to `Rewards:` — list what
+the party can actually walk away with here.
+
 ## 9. Narrative card
 
 Use exactly `### Narrative`, with no colon.
@@ -519,8 +635,14 @@ Supported identity fields:
 Dialogue topic rules:
 
 - A plain label such as `Missing Caravan:` opens a dialogue subcard.
-- Keep a topic label to 40 characters or fewer.
-- Use letters, digits, spaces, and `_`; simple ASCII labels are safest.
+- Keep a topic label to **40 characters or fewer, including the colon**. This is a
+  hard renderer limit, and exceeding it fails silently: a 41-character label is not
+  reported as an error, it simply stops being a topic and drops into the body as
+  loose prose. Count the characters. `If the Characters Deliver the Warning:` is
+  38 and works; adding one more word does not.
+- Use letters, digits, spaces, and `_`; simple ASCII labels are safest. Apostrophes
+  and other punctuation disqualify the line as a topic, so rephrase rather than
+  dropping the apostrophe from a possessive.
 - Do not use `####` headings for dialogue. Every heading ends the NPC card.
 - Put sample player questions in bullets and complete NPC answers in
   blockquotes.
@@ -724,7 +846,10 @@ Fields:
 
 - `Type:` may be a standard type or custom text.
 - `Damage:` uses the shared damage expression when applicable.
-- `Rarity:` convention is `1` Common, `2` Rare, `3` Epic.
+- `Rarity:` must be `1` Common, `2` Rare, or `3` Epic. Any other value still
+  prints, but loses its rarity badge styling — so a source "Legendary" written
+  literally renders with *less* emphasis than a common item. Map the source tier
+  onto `1`/`2`/`3` and preserve the original wording as a `Properties:` bullet.
 - Any other non-empty `Label: value` line becomes an additional metadata row,
   unless it is a reserved universal directive.
 - Description lines begin with `>`.
@@ -904,6 +1029,25 @@ Rules:
 - Do not use prose-only "go to scene" instructions when a resolvable Transition
   can represent the branch.
 
+### A Transition asserts chronology — never point one at a lookup
+
+A Transition is not a cross-reference. It renders a Continue button and locks a
+directed edge in the scene map, so it states: *after this, that happens next.*
+Two consequences follow.
+
+- **Never transition into a reference document.** If several branches all point at
+  one document that merely lists what each branch's outcome was, you have rebuilt
+  the very convergence you avoided inside the scenes, and a GM who ran one branch
+  is shown the outcomes of branches they never ran. Put each branch's outcome in
+  that branch's own scene. Prose disclaiming the convergence does not cancel the
+  edge — delete the edge.
+- **Convergence must be real.** Two routes may target the same later stem when the
+  source genuinely reunites them at a scene that is played. They must not target a
+  shared summary page.
+
+When a chapter or route simply ends, it ends. A terminal scene needs no Transition;
+close it with an `### STD:` note naming the destination in the wider campaign.
+
 ## 21. SourceItem library files
 
 Each reusable item is one Markdown file in `items/`. The filename stem is the
@@ -997,6 +1141,21 @@ Contract:
   an entry. Use H3 or lower only if a body subdivision is truly necessary.
 - Keep the filename stem equal to the page name. This is not merely cosmetic:
   links resolve the page component against the library filename.
+- Write lore as in-world reference prose. It must not contain notes about the
+  conversion itself — "in this package," "the converter chose," "see scene 014."
+  Those belong in the conversion report or in an `### STD:` GM note in a scene.
+- Use LF line endings and keep the file canonical. A lore page that does not
+  round-trip through the lore editor's serializer will be silently rewritten the
+  first time someone saves it.
+
+### Lookup pages
+
+A category-H page holds many mutually exclusive results. Give it one entry that
+explains how to use the lookup, then list the results as `###`/`####` subdivisions
+inside that entry. Optimize for a GM who reads exactly one row: keep each result to
+its trigger, its supplied text, and its outcome. Do not decorate every row with
+art, and do not group results under invented headings the source does not have —
+alphabetical or suit order is enough.
 
 ### Lore links
 
@@ -1040,6 +1199,35 @@ The size must be from 8 through 32 inclusive. Normal Markdown may appear inside
 the tag. Always close `[size]` and `[link]` tags.
 
 ## 25. Images and audio
+
+### Ship the file or omit the directive
+
+**Write an asset reference only when the binary is already in the package.** This
+is the single most common way a conversion arrives broken: the converter plans an
+illustration programme, emits the directives, and ships no files. The result is not
+a package "awaiting art" — it is a package where every card points at a 404.
+
+If you cannot supply an image, omit the directive and put the information in words.
+A `### Picture:` card with no `Image:` is an empty card; delete it. A handout the
+players are meant to see should cite the published handout in prose ("show the
+Appendix F letter") rather than reference a file you do not have.
+
+### Keep the image budget small
+
+Images are decoration on top of a text renderer, not content. Before adding one,
+ask what it does for the GM that the card's words do not.
+
+- **Do not illustrate every row of a lookup table.** One image per possible result
+  in a table the GM consults once is pure weight — it makes the one row they need
+  harder to find.
+- **Do not portrait every walk-on NPC.** Reserve portraits for recurring or
+  centrally important characters. `Personality:` bullets carry the table
+  information.
+- **Do prioritize genuine player-facing handouts** — letters, maps, crests, symbols
+  the source explicitly says to show the players — and GM-facing diagrams that are
+  awkward to describe in words.
+
+A campaign with six well-chosen images is more usable than one with seventy.
 
 ### Portable asset strategy
 
@@ -1241,6 +1429,21 @@ asset is missing.
 - [ ] No generated `.sys/` runtime state is included.
 - [ ] No external global content is required for a self-contained campaign.
 
+### Classification
+
+- [ ] Every source section carries an explicit Stage C category (A–H).
+- [ ] Every `## Event` passes the test: the GM could point at it mid-session and
+  say "this is what is happening right now at the table."
+- [ ] No category A–E or H material appears as an Event.
+- [ ] Preparation procedures use `## Step N:` and say they happen before play.
+- [ ] Lookup tables are lore entries, not scenes and not events.
+- [ ] Alternative branches are presented as a choice, not as a sequence.
+- [ ] Every `### Narrative` reproduces text the source intends to be read aloud.
+- [ ] Every quotation is speech the source actually supplies; none was invented to
+  fit a card.
+- [ ] No NPC card, `Key NPCs:` entry, or dialogue block implies presence where the
+  source only supplies reference information.
+
 ### Scene structure
 
 - [ ] Every scene has exactly one primary `#` title.
@@ -1259,7 +1462,8 @@ asset is missing.
 ### Specialized cards
 
 - [ ] Manifest list fields use bullets.
-- [ ] NPC topics are plain short labels, not subheadings.
+- [ ] NPC topics are plain short labels, not subheadings, and every one is 40
+  characters or fewer including the colon.
 - [ ] Check outcomes use `> DC: text`, `> F: text`, or plain `> text`.
 - [ ] Numeric DCs are ascending per check.
 - [ ] Object `Loot:` is last.
@@ -1268,6 +1472,11 @@ asset is missing.
 - [ ] Item/Ability `Properties:` use bullets.
 - [ ] Ability `Lore:` is last.
 - [ ] Every Transition `Scene:` matches an existing filename stem.
+- [ ] Scene numbers are contiguous from `001` with no gaps, because the sidebar
+  displays them and a gap reads as a missing scene.
+- [ ] No Transition targets a reference/summary document, and every convergence is
+  a scene that is actually played.
+- [ ] `Rarity:` values are `1`, `2`, or `3`.
 - [ ] No legacy `### Echo` is used.
 
 ### Libraries and lore
@@ -1279,6 +1488,7 @@ asset is missing.
 - [ ] Every lore filename stem matches its `# Lore:` page name.
 - [ ] Lore entries have unique names and no page/entry name contains `/` or `\`.
 - [ ] Lore has no page-level prose outside entries.
+- [ ] Lore contains no notes about the conversion package itself.
 - [ ] Every `[link=...]` target resolves to an on-page card, item, enemy, or typed
   lore page/entry.
 - [ ] Every card `LoreRef:` resolves to an existing lore page or entry and is used
@@ -1287,10 +1497,14 @@ asset is missing.
 
 ### Assets and fidelity
 
-- [ ] Every local image/audio reference maps to an included file.
+- [ ] Every local image/audio reference maps to an included file. Verify by listing
+  the asset folders, not by trusting the manifest.
+- [ ] No asset is "pending." Zero references and zero files is a valid, shippable
+  state; N references and zero files is not.
 - [ ] Bare image names have a `.png` file; bare audio names have an `.mp3` file.
 - [ ] Nested assets use `/images/...` or `/audio/...` references.
-- [ ] No empty asset directive remains.
+- [ ] No empty asset directive remains, and no `### Picture:` card lacks an image.
+- [ ] No fact is stated authoritatively in two documents.
 - [ ] No source fact was silently changed or invented.
 - [ ] All mandatory clues and branch exits remain reachable.
 - [ ] The final files contain no placeholders, omissions, or unresolved notes.

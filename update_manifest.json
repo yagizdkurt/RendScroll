@@ -1,8 +1,8 @@
 {
-  "latest": "1.6.1",
+  "latest": "1.7.0",
   "minimum_supported_version": "1.5.1",
   "url": "https://github.com/yagizdkurt/RendScroll",
   "download_url": "https://codeload.github.com/yagizdkurt/RendScroll/zip/refs/heads/main",
-  "title": "1.6.1 Search Update",
-  "changes": "Added Search functionality + Updated the UI to be more user-friendly"
+  "title": "1.7.0 Lore Update",
+  "changes": "Added Lore sections so that you can link your lore to the scrolls. Added a new feature that allows you to change the scroll's color. Fixed some bugs and improved performance."
 }
