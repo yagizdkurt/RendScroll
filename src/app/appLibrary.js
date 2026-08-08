@@ -18,13 +18,15 @@
    resolve to a single card and go through renderCardFromSource; a kind with its
    own renderer (lore) supplies it and owns everything below the toolbar.
 
-   `titleTag` (default "div") is the element the view title is built from. Lore is a
-   whole page rather than one entry, so it uses a real <h1> and picks up the scene
-   title styling (.page h1) instead of restating it. */
+   `titleTag` (default "div") is the element the view title is built from, and
+   `toolbar` (default true) whether the management bar is drawn. Lore is a whole page
+   rather than one entry: it uses a real <h1> so it picks up the scene title styling
+   (.page h1) instead of restating it, and drops the toolbar — deleting a lore page is
+   done from the sidebar entry's right-click menu. */
 const LIBRARY_VIEWS = {
   lore: {
     view: "lore", kicker: "Lore", noun: "lore page", nameAttr: "loreName",
-    titleTag: "h1",
+    titleTag: "h1", toolbar: false,
     nav: () => ReaderDom.loreNav(),
     create: (cb) => LoreEditor.createPage && LoreEditor.createPage(cb),
     render: (kind, name, viewEl) => renderLoreView(kind, name, viewEl),
@@ -59,11 +61,18 @@ function libraryEntries(kind) {
   return RefLibrary.entries(kind).map((e) => ({ name: e.name, path: e.path, origin: e.origin || "global" }));
 }
 
+// Does this kind have both a campaign-local and a global root? A campaign-only
+// kind (lore) has nothing to distinguish, so its entries carry no origin badge.
+function kindHasGlobalRoot(kind) {
+  const def = (typeof RefLibrary !== "undefined") ? RefLibrary.def(kind) : null;
+  return !def || def.scope !== "campaign";
+}
+
 // One library entry button (with a campaign badge when it is campaign-local).
 function libraryEntryButton(kind, cfg, entry) {
   const btn = document.createElement("button");
   btn.textContent = entry.name;
-  if (entry.origin === "campaign") {
+  if (entry.origin === "campaign" && kindHasGlobalRoot(kind)) {
     const badge = document.createElement("span");
     badge.className = "nav-origin-badge";
     badge.textContent = "C";
@@ -72,7 +81,8 @@ function libraryEntryButton(kind, cfg, entry) {
   }
   btn.dataset[cfg.nameAttr] = entry.name;
   btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
-  btn.title = entry.name + (entry.origin === "campaign" ? " (campaign)" : "");
+  btn.title = entry.name +
+    (entry.origin === "campaign" && kindHasGlobalRoot(kind) ? " (campaign)" : "");
   btn.classList.toggle("active", ReaderState.view() === cfg.view && entry.name === ReaderState.libraryName());
   btn.addEventListener("click", () => openLibrary(kind, entry.name));
   btn.addEventListener("contextmenu", (e) => {
@@ -83,14 +93,19 @@ function libraryEntryButton(kind, cfg, entry) {
   return btn;
 }
 
-// Right-click menu for an Items/Enemies entry: Delete (confirmed, reuses
-// deleteLibrary) plus a Move action whose direction follows the entry's origin.
-// "Move to campaign" is disabled when no campaign is active.
+// Right-click menu for a library entry: Delete (confirmed, reuses deleteLibrary)
+// plus a Move action whose direction follows the entry's origin. "Move to campaign"
+// is disabled when no campaign is active. A campaign-only kind (lore) has nowhere
+// to move to, so it gets Delete alone.
 function openLibraryEntryMenu(kind, entry, x, y) {
   const hasCampaign = typeof CampaignManager !== "undefined" && CampaignManager.active();
   const items = [
     { label: "Delete", danger: true, onClick: () => deleteLibrary(kind, entry.name) },
   ];
+  if (!kindHasGlobalRoot(kind)) {
+    openNavMenu(items, x, y);
+    return;
+  }
   if (entry.origin === "campaign") {
     items.push({ label: "Move to global library", onClick: () => moveLibrary(kind, entry.name, "global") });
   } else {
@@ -194,25 +209,31 @@ function renderLibraryView(kind, name) {
   head.appendChild(kicker);
   head.appendChild(titleEl);
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "library-view-toolbar";
-  // A kind with its own renderer runs a full edit session (dirty / undo / Save)
-  // instead of the one-shot card form, so it gets no "✎ Edit" button here.
-  if (!cfg.render) {
-    toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this " + cfg.noun, () => {
-      if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
-        Editor.editLibraryItem(kind, name);
-      }
-    }));
-  }
-  toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
-    if (typeof RefLibrary !== "undefined") await RefLibrary.refresh(kind, name);
-    renderLibraryView(kind, name);
-  }));
-  toolbar.appendChild(libraryToolbarButton("Delete", "Delete this " + cfg.noun, () => deleteLibrary(kind, name), "danger"));
-
   view.appendChild(head);
-  view.appendChild(toolbar);
+
+  // `toolbar: false` (lore) means the kind reads as a page of the book, not as a
+  // managed library entry: no management bar above the content. Deleting stays
+  // reachable from the sidebar entry's right-click menu.
+  if (cfg.toolbar !== false) {
+    const toolbar = document.createElement("div");
+    toolbar.className = "library-view-toolbar";
+    // A kind with its own renderer runs a full edit session (dirty / undo / Save)
+    // instead of the one-shot card form, so it gets no "✎ Edit" button here.
+    if (!cfg.render) {
+      toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this " + cfg.noun, () => {
+        if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
+          Editor.editLibraryItem(kind, name);
+        }
+      }));
+    }
+    toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
+      if (typeof RefLibrary !== "undefined") await RefLibrary.refresh(kind, name);
+      renderLibraryView(kind, name);
+    }));
+    toolbar.appendChild(libraryToolbarButton("Delete", "Delete this " + cfg.noun,
+      () => deleteLibrary(kind, name), "danger"));
+    view.appendChild(toolbar);
+  }
 
   if (cfg.render) {
     cfg.render(kind, name, view);

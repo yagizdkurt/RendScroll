@@ -11,9 +11,12 @@
   max-width: none;
 }
 
+/* No management toolbar under the title band, so the band owns the gap to the
+   content itself. */
 .library-view-lore .library-view-head {
   position: relative; /* anchor for the page-level edit tool */
   text-align: center;
+  margin-bottom: 1.1rem;
 }
 
 .lore-page {
