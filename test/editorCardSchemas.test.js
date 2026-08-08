@@ -152,7 +152,10 @@ test("SourceItem schema has no instance-only slots", () => {
     body: "> Pale light.",
   });
 
-  assert.deepEqual(keys, ["title", "type", "damage", "rarity", "image", "properties", "body"]);
+  // No instance-only slots (sourceItem/column/textSize/stuck/closed): a library base
+  // item owns content, not placement. Lore attachments are content, so they belong.
+  assert.deepEqual(keys,
+    ["title", "type", "damage", "rarity", "image", "properties", "body", "loreRefs"]);
   assert.match(out, /^### SourceItem: Lantern$/m);
   assert.match(out, /^Type: Tool$/m);
   assert.match(out, /^Rarity: 2$/m);
@@ -195,4 +198,52 @@ test("Narrative schema parses Text label and unquotes content", () => {
   assert.equal(values.column, "right");
   assert.equal(values.textSize, "15");
   assert.equal(values.text, "First line\n\nSecond line");
+});
+
+// --- Lore attachments (LoreRef:) -------------------------------------------
+
+test("lore attachments serialize as one LoreRef: line each, and parse back", () => {
+  const schema = EditorSchemas.get("obj");
+  const out = EditorSchemas.serialize(schema, {
+    title: "The Sunken Door",
+    column: "left",
+    loreRefs: ["The Gate/Ancient God", "Ruins/The Fall"],
+    body: [{ kind: "text", text: "> A door." }],
+  });
+
+  assert.match(out, /^LoreRef: The Gate\/Ancient God$/m);
+  assert.match(out, /^LoreRef: Ruins\/The Fall$/m);
+
+  const values = EditorSchemas.parse(schema, out);
+  assert.deepEqual(values.loreRefs, ["The Gate/Ancient God", "Ruins/The Fall"]);
+});
+
+test("no lore attachments writes no LoreRef: line", () => {
+  const schema = EditorSchemas.get("npc");
+  const out = EditorSchemas.serialize(schema, { title: "Warden", column: "left", loreRefs: [] });
+  assert.doesNotMatch(out, /LoreRef/);
+  assert.deepEqual(EditorSchemas.parse(schema, out).loreRefs, []);
+});
+
+test("LoreRef: is emitted before a trailing Checks: block, or the parser eats it", () => {
+  // The parser's check capture stops at a boundary, not at a directive line — a
+  // LoreRef: written after the checks would be swallowed on reload.
+  const schema = EditorSchemas.get("obj");
+  // Round-trip a real card so the body model is the parser's, not a guess.
+  const values = EditorSchemas.parse(schema, [
+    "### Object: Door",
+    "LoreRef: The Gate/Ancient God",
+    "> A door.",
+    "Checks:",
+    "- Perception:",
+    "> 10: You spot the seam.",
+    "",
+  ].join("\n"));
+  assert.deepEqual(values.loreRefs, ["The Gate/Ancient God"]);
+
+  const out = EditorSchemas.serialize(schema, values);
+  const lines = out.split("\n");
+  assert.ok(lines.findIndex((l) => /^LoreRef:/.test(l)) < lines.findIndex((l) => /^Checks:/.test(l)),
+    "LoreRef: must come before the Checks: block:\n" + out);
+  assert.deepEqual(EditorSchemas.parse(schema, out).loreRefs, ["The Gate/Ancient God"]);
 });

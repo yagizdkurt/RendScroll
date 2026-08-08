@@ -6,7 +6,8 @@
 
    Global (non-module) like the other reader files: loaded via a <script> tag in
    index.html BEFORE app.js. Depends on globals already loaded by then:
-   RendScrollParser, RendScrollCards, renderMarkdownEls / cardDirective (cards/shared),
+   RendScrollParser, RendScrollCards, renderMarkdownEls / cardDirective / cardDirectiveAll
+   (cards/shared),
    normalizeClosedMarkdown (cards/shared/cardCollapse.js), and the OPTIONAL ItemData /
    RefLibrary (guarded). The CommonJS export guard at the bottom lets Node tests
    reference the surface; in the browser it is a no-op. */
@@ -65,6 +66,18 @@ function stampClosed(cardEl, card) {
   else if (/^(f|false)$/i.test(v)) cardEl.dataset.ccDirective = "open";
 }
 
+/* Carry the card's "LoreRef:" lore-entry attachments onto the card element, for the
+   types that declare `loreRefs` in the registry. cardLoreRefs.js turns them into
+   chips after the collapse pass has built the card head — same stamp-then-decorate
+   split as Closed: above. Newline-joined: a lore page/entry name may contain a
+   comma but never a newline. */
+function stampLoreRefs(cardEl, card, type) {
+  if (!cardEl || !cardEl.dataset || !card) return;
+  if (typeof RendScrollCards === "undefined" || !RendScrollCards.loreRefs(type)) return;
+  const refs = cardDirectiveAll(card, "loreref");
+  if (refs.length) cardEl.dataset.loreRefs = refs.join("\n");
+}
+
 // Card source (heading + body) -> its built card element. Shared by scene cards
 // and library SourceItem views so item rendering stays on one path. The builder
 // reads structured directives/checks/body from the parsed AST node, so only the
@@ -80,6 +93,7 @@ function renderCardFromSource(type, src, context) {
   const head = renderMarkdownEls(renderSrc.split(/\r?\n/)[0] || "")[0] || null;
   const cardEl = builder(card, head, [], context || {});
   if (cardEl) stampClosed(cardEl, card);
+  if (cardEl) stampLoreRefs(cardEl, card, type);
   return { cardEl, els: head ? [head] : [] };
 }
 
@@ -92,6 +106,7 @@ if (typeof module !== "undefined" && module.exports) {
     itemSourceResolver,
     prepareCardSourceForRender,
     stampClosed,
+    stampLoreRefs,
     renderCardFromSource,
     CARD_TEXT_SIZE_DEFAULT_PX,
   };

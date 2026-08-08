@@ -21,6 +21,11 @@
        from it (see collapsibleSelectors), so a collapsible type is declared once
        here instead of in two hand-kept lists. Omit it for types that don't
        collapse (std / narrative / manifest / picture / audio / transition).
+   - loreRefs -> may this type carry "LoreRef:" lore-entry chips? Declared here
+       rather than derived from titleClass because the two sets differ on purpose
+       (unexpected collapses but takes no lore chips; sourceenemy takes neither).
+       A type that declares it MUST also declare a titleClass — the chips live in
+       the collapse pass's .card-head, which only exists for those types (guard test).
    - accentClass -> the heading accent class app.js stamps on this type's heading
        (stampAccentClass). Presentation, not classification — which is why it
        lives here and not in the parser's CARD_TYPES. Matching `h3.<class>` rules
@@ -43,6 +48,7 @@ const RendScrollCards = (() => {
       // Explicit null = "this type renders no card element"; omitted = derive.
       cssClass: s.cssClass === null ? null : (s.cssClass || type + "-card"),
       titleClass: s.titleClass || null,
+      loreRefs: !!s.loreRefs,
       accentClass: s.accentClass || null,
     };
   }
@@ -51,6 +57,7 @@ const RendScrollCards = (() => {
   function builder(type) { const e = registry[type]; return e ? e.build : null; }
   function cssClass(type) { const e = registry[type]; return e ? e.cssClass : null; }
   function titleClass(type) { const e = registry[type]; return e ? e.titleClass : null; }
+  function loreRefs(type) { const e = registry[type]; return !!(e && e.loreRefs); }
   function accentClass(type) { const e = registry[type]; return e ? e.accentClass : null; }
   function types() { return Object.keys(registry); }
 
@@ -79,7 +86,7 @@ const RendScrollCards = (() => {
 
   return {
     register, get, builder, types,
-    cssClass, titleClass, accentClass,
+    cssClass, titleClass, loreRefs, accentClass,
     cardSelector, collapsibleSelectors,
   };
 })();

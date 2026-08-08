@@ -189,7 +189,7 @@ function buildSourceEnemyCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: both builders read directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("combat", { build: buildCombatCard, cssClass: "combat-card", titleClass: "combat-title", accentClass: "combat-section" });
+  RendScrollCards.register("combat", { build: buildCombatCard, cssClass: "combat-card", titleClass: "combat-title", loreRefs: true, accentClass: "combat-section" });
   // Root carries "combat-card sourceenemy-card"; combat-card is the identifying one
   // (layout's cardTypeOf reads the first *-card class).
   RendScrollCards.register("sourceenemy", { build: buildSourceEnemyCard, cssClass: "combat-card" });

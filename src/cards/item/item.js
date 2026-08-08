@@ -61,7 +61,9 @@ const ItemData = (() => {
       out.title = hm[2].trim();
       i = 1;
     }
-    const control = /^(side|text\s*size|connect|combine|closed)\s*:\s*(.*)$/i;
+    // Universal directive lines: consumed by the parser/passes, never item fields.
+    // (cardBodySource re-injects them into the text this parser sees.)
+    const control = /^(side|text\s*size|connect|combine|closed|lore\s*ref)\s*:\s*(.*)$/i;
     while (i < lines.length) {
       const line = lines[i];
       const t = line.trim();
@@ -323,6 +325,6 @@ if (typeof module !== "undefined" && module.exports) module.exports = { ItemData
    sourceitem (library base item) renders through the same builder. No normalizer:
    the builder reads directives/body from the parsed AST node (via ItemData.parse). */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("item", { build: buildItemCard, cssClass: "item-card", titleClass: "item-title" });
-  RendScrollCards.register("sourceitem", { build: buildSourceItemCard, cssClass: "item-card", titleClass: "item-title" });
+  RendScrollCards.register("item", { build: buildItemCard, cssClass: "item-card", titleClass: "item-title", loreRefs: true });
+  RendScrollCards.register("sourceitem", { build: buildSourceItemCard, cssClass: "item-card", titleClass: "item-title", loreRefs: true });
 }

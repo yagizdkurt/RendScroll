@@ -15,6 +15,16 @@ function cardDirective(cardNode, name) {
   return d ? d.value : "";
 }
 
+// Every value of a REPEATABLE directive, in source order ("loreref": one line per
+// attached lore entry). Empty values are dropped; a missing directive yields [].
+function cardDirectiveAll(cardNode, name) {
+  if (!cardNode || !cardNode.directives) return [];
+  return cardNode.directives
+    .filter((x) => x.name === name)
+    .map((x) => String(x.value || "").trim())
+    .filter(Boolean);
+}
+
 // True when the card is placed in the right column ("Side: R"). The parser folds
 // the Side directive into cardNode.column, so this is the single read for it.
 function cardIsRight(cardNode) {
@@ -97,7 +107,7 @@ function cardBodySource(cardNode) {
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    cardDirective, cardIsRight, cardBodyLines, cardBodyElements, cardOrderedBody, cardBodySource,
-    renderMarkdownEls,
+    cardDirective, cardDirectiveAll, cardIsRight, cardBodyLines, cardBodyElements,
+    cardOrderedBody, cardBodySource, renderMarkdownEls,
   };
 }

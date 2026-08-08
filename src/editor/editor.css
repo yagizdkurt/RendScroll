@@ -391,6 +391,11 @@ body.editor-on .editor-chapter-zone {
 .editor-list-item input {
   flex: 1;
 }
+/* Lore attachment rows (src/lore/lore.editor.js): one Page/Entry dropdown each. */
+.editor-list-item .lore-ref-select {
+  flex: 1;
+  min-width: 0;
+}
 .editor-mini {
   font: inherit;
   cursor: pointer;

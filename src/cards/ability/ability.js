@@ -188,7 +188,7 @@ function buildAbilityCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("ability", { build: buildAbilityCard, cssClass: "ability-card", titleClass: "ability-title" });
+  RendScrollCards.register("ability", { build: buildAbilityCard, cssClass: "ability-card", titleClass: "ability-title", loreRefs: true });
 }
 
 /* parseAbilityBody is the pure per-type body parser shared with the editor

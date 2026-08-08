@@ -53,6 +53,63 @@
   padding-right:2rem;
 }
 
+/* ---------- Lore chips ("LoreRef:", cards/shared/cardLoreRefs.js) ---------- */
+/* The chips share the card head with the title, so they stay visible on a
+   collapsed card. Floated right so the title text flows to their left; the head's
+   own 2rem right padding keeps them clear of the collapse toggle. The float needs
+   a containing block or a wrapped second row would spill past the title's rule. */
+.page .has-lore-refs{display:flow-root;}
+
+/* row-reverse + wrap: the first chip sits at the right, later ones fill leftwards,
+   and an overflowing row wraps to a new line starting from the right again. */
+.page .card-lore-refs{
+  float:right;
+  display:flex;
+  flex-direction:row-reverse;
+  flex-wrap:wrap;
+  justify-content:flex-start;
+  gap:.25rem;
+  max-width:62%;
+  margin:0 0 .25rem .5rem;
+}
+
+.page .lore-ref-chip{
+  padding:.1rem .5rem;
+  border:1px solid #24406d;
+  border-radius:999px;
+  background:#2f5590;
+  color:#fff;
+  font-family:'Alegreya Sans SC',sans-serif;
+  font-size:.74rem;
+  font-weight:700;
+  letter-spacing:.04em;
+  line-height:1.35;
+  white-space:nowrap;
+  text-decoration:none;
+  cursor:pointer;
+}
+/* A chip is an .rs-ref-link, so it inherits that rule's inline-link look (blue text,
+   dotted underline, dark-blue hover). Re-state the pill's own colours over it. */
+.page .lore-ref-chip:hover,
+.page .lore-ref-chip:focus-visible{
+  background:#3d6ab3;
+  border-color:#2f5590;
+  color:#fff;
+  text-decoration:none;
+}
+/* The lore page/entry is gone: still shown (never silently dropped), but marked. */
+.page .lore-ref-chip.is-broken{
+  opacity:.45;
+  text-decoration:line-through;
+}
+/* The 1.2s "this link goes nowhere" flash, legible on the pill. */
+.page .lore-ref-chip.rs-ref-link-broken{
+  background:var(--maroon);
+  border-color:var(--maroon-bar);
+  color:#fff;
+  opacity:1;
+}
+
 /* Thin header bar for title-less collapsible cards: just hosts the toggle and
    stays visible when collapsed. */
 .page .card-bare-head{

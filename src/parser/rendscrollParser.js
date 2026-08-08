@@ -59,9 +59,15 @@ const RendScrollParser = (() => {
   // they stay in the card body, and each type's renderer interprets them, exactly
   // as the card builders do today. Keeping the core directive set universal avoids
   // leaking type knowledge into the parser.
+  // "loreref" is repeatable: a card may carry one LoreRef: line per attached lore
+  // entry (directives is a list, so every line survives — see cardDirectiveAll).
   const DIRECTIVE_NAMES = new Set([
     "side", "image", "bg", "closed", "textsize", "size", "file", "connect", "combine",
+    "loreref",
   ]);
+  // Directives a card may legitimately carry more than once (everything else is a
+  // duplicate the debug panel reports). Consumers derive from this, never restate it.
+  const REPEATABLE_DIRECTIVE_NAMES = new Set(["loreref"]);
   const STUCK_NAMES = new Set(["connect", "combine"]);
   const TRUTHY = new Set(["t", "true", "yes", "1"]);
 
@@ -702,6 +708,7 @@ const RendScrollParser = (() => {
     lower,
     keywordLower,
     directiveNames: DIRECTIVE_NAMES,
+    repeatableDirectiveNames: REPEATABLE_DIRECTIVE_NAMES,
     splitLines,
     lineText,
     cardType,

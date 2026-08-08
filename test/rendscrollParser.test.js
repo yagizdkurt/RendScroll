@@ -334,6 +334,59 @@ test("Malformed directives are kept as unknown blocks, never dropped", () => {
   assert.match(bodyText(item), /Type: Junk/);
 });
 
+// --- LoreRef: (repeatable directive) ---------------------------------------
+
+test("LoreRef: is a repeatable directive, kept in source order", () => {
+  const doc = parseRendScroll([
+    "# Scene",
+    "## Event",
+    "### POI: The Door",
+    "LoreRef: The Gate/Ancient God",
+    "Lore Ref: Ruins/The Fall",
+    "> A door.",
+    "",
+  ].join("\n"));
+  const card = allCards(doc)[0];
+  // Spaces/case in the label are normalized away, exactly like "Text Size".
+  assert.deepEqual(directiveNames(card), ["loreref", "loreref"]);
+  assert.deepEqual(card.directives.map((d) => d.value),
+    ["The Gate/Ancient God", "Ruins/The Fall"]);
+  // Directives never reach the body, so no builder has to strip them.
+  assert.doesNotMatch(bodyText(card), /Lore\s*Ref/i);
+});
+
+test("a bare Lore: is NOT the LoreRef directive — Ability's lore panel keeps it", () => {
+  const doc = parseRendScroll([
+    "# Scene",
+    "## Event",
+    "### Spell: Fireball",
+    "Lore:",
+    "> Found in the ash.",
+    "",
+  ].join("\n"));
+  const card = allCards(doc)[0];
+  assert.deepEqual(directiveNames(card), []);
+  assert.equal(card.unknown.length, 0, "a bare Lore: is body content, not a malformed directive");
+  assert.match(bodyText(card), /^Lore:$/m);
+});
+
+test("a valueless LoreRef: is reported as malformed, never dropped", () => {
+  const doc = parseRendScroll([
+    "# Scene", "## Event", "### POI: The Door", "LoreRef:", "",
+  ].join("\n"));
+  const card = allCards(doc)[0];
+  assert.deepEqual(directiveNames(card), []);
+  assert.equal(card.unknown.length, 1);
+  assert.match(card.unknown[0].reason, /value/);
+});
+
+test("loreref is declared repeatable, so consumers do not call it a duplicate", () => {
+  assert.ok(RendScrollParser.directiveNames.has("loreref"));
+  assert.ok(RendScrollParser.repeatableDirectiveNames.has("loreref"));
+  // Everything else is single-valued.
+  assert.deepEqual([...RendScrollParser.repeatableDirectiveNames], ["loreref"]);
+});
+
 // --- Unknown card type -----------------------------------------------------
 
 test("Unknown card type renders as a plain heading section, not a card", () => {

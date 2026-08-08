@@ -247,6 +247,7 @@ function renderLibraryView(kind, name) {
     view.appendChild(cardEl || refMissingCard(kind, name));
     enhanceBaseStyling(view);
     enhanceCardCollapse(view);
+    enhanceLoreRefs(view);
   } else {
     view.appendChild(refMissingCard(kind, name));
   }

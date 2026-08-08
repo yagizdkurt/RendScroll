@@ -47,7 +47,7 @@ const EditorSchemas = (() => {
   // resolve at call time.
   const RENDER = (typeof cardBodySource !== "undefined")
     ? {
-        cardBodySource, cardBodyLines, cardOrderedBody, cardDirective,
+        cardBodySource, cardBodyLines, cardOrderedBody, cardDirective, cardDirectiveAll,
         parseItemBody, parseAbilityBody, parseManifestBody,
         parseNpcBody, parseObjBody, parseCombatBody, parseTransitionBody,
       }
@@ -85,7 +85,7 @@ const EditorSchemas = (() => {
   // `column` field, emitted separately as "Side:"). serialize() emits these before
   // the body and the per-type adapters read them off the node instead of the body
   // — one source of truth for what "universal" means.
-  const DIRECTIVE_KEYS = new Set(["image", "bg", "textSize", "closed", "stuck", "size", "file"]);
+  const DIRECTIVE_KEYS = new Set(["image", "bg", "textSize", "closed", "stuck", "size", "file", "loreRefs"]);
 
   function serialize(schema, values) {
     const eol = "\n"; // outline.frameBlock re-maps to the file's EOL
@@ -118,6 +118,11 @@ const EditorSchemas = (() => {
           out += f.mdLabel + ":" + eol;
           items.forEach((it) => (out += "- " + it + eol));
         }
+      } else if (f.kind === "loreRefs") {
+        // A repeatable directive: one "LoreRef: Page/Entry" line per attachment.
+        // Not a "Label:" + bullets block — each line must stay a parseable directive.
+        (v || []).map((x) => String(x).trim()).filter(Boolean)
+          .forEach((ref) => (out += f.mdLabel + ": " + ref + eol));
       } else if (f.kind === "enemies") {
         // `single` (SourceEnemy library file): one enemy, named from the card
         // title, written bare (no "Enemies:" label). Otherwise a labelled block.
@@ -152,6 +157,7 @@ const EditorSchemas = (() => {
     const values = {};
     schema.fields.forEach((f) => {
       if (f.kind === "list") values[f.key] = [];
+      else if (f.kind === "loreRefs") values[f.key] = [];
       else if (f.kind === "enemies") values[f.key] = [];
       else if (f.kind === "checks" || f.kind === "linesWithChecks") values[f.key] = [];
       else if (f.kind === "flag") values[f.key] = false;
@@ -187,6 +193,8 @@ const EditorSchemas = (() => {
         case "textSize": values.textSize = D("textsize"); break;
         case "size": values.size = D("size"); break;
         case "file": values.file = D("file"); break;
+        // Repeatable: every LoreRef: line, in source order.
+        case "loreRefs": values.loreRefs = RENDER.cardDirectiveAll(node, "loreref"); break;
         default: break;
       }
     });
@@ -457,6 +465,10 @@ const EditorSchemas = (() => {
   const fImage = { key: "image", label: "Image (portrait)", kind: "text", mdLabel: "Image", assetType: "images" };
   const fBg = { key: "bg", label: "BG (watermark)", kind: "text", mdLabel: "BG", assetType: "images" };
   const fClosed = { key: "closed", label: "Start collapsed", kind: "flag", mdLabel: "Closed" };
+  // Attached lore entries: one "LoreRef: Page/Entry" line each (see serialize()).
+  // The rows are edited with the picker registered by src/lore/lore.editor.js;
+  // without that file loaded the field still round-trips, just uncontrolled.
+  const fLoreRefs = { key: "loreRefs", label: "Lore", kind: "loreRefs", mdLabel: "LoreRef" };
   const fStuck = { key: "stuck", label: "Stick to card above", kind: "flag", mdLabel: "Combine", mdAliases: ["Connect"] };
   // Column is serialized as a "Side:" body line (default left writes nothing,
   // "right" writes "Side: R"). See serialize()/parse().
@@ -543,6 +555,7 @@ const EditorSchemas = (() => {
     fColumn,
     fTextSize,
     fBodyWithChecks("First dialogue / questions / known topics / dialogue topics / Checks: ...", "npc"),
+    fLoreRefs,
     fClosed,
   ], { fromBody: npcFromBody });
 
@@ -557,6 +570,7 @@ const EditorSchemas = (() => {
     fTextSize,
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, extra lines…"),
+    fLoreRefs,
     fStuck, fClosed,
   ], { fromBody: itemFromBody });
 
@@ -587,6 +601,7 @@ const EditorSchemas = (() => {
     fTextSize,
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, Lore: …"),
+    fLoreRefs,
     fStuck, fClosed,
   ], { fromBody: abilityFromBody });
 
@@ -596,6 +611,7 @@ const EditorSchemas = (() => {
     fColumn,
     fTextSize,
     fBodyWithChecks("> description, Checks: / Loot: …", "obj"),
+    fLoreRefs,
     fClosed,
   ], { fromBody: objFromBody });
 
@@ -606,6 +622,7 @@ const EditorSchemas = (() => {
     fTextSize,
     fBodyWithChecks("> opening, Tactics: ...", "combat"),
     { key: "enemies", label: "Enemies", kind: "enemies", mdLabel: "Enemies" },
+    fLoreRefs,
     fClosed,
   ], { fromBody: combatFromBody });
 
@@ -694,6 +711,7 @@ const EditorSchemas = (() => {
     fImage,
     { key: "properties", label: "Properties", kind: "list", mdLabel: "Properties" },
     fBody("> description, extra lines…"),
+    fLoreRefs,
   ], { fromBody: sourceItemFromBody });
 
   // A standalone library enemy: a "### SourceEnemy: Name" heading + one enemy

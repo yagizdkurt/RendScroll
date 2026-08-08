@@ -76,6 +76,7 @@ const READER_SCRIPTS = [
   "src/cards/transition/transition.js",
   "src/cards/echo/echo.js",
   "src/cards/shared/cardCollapse.js",
+  "src/cards/shared/cardLoreRefs.js",
   "src/app/renderCard.js",
   "src/lore/loreModel.js",
   "src/lore/loreView.js",
@@ -153,6 +154,7 @@ const EXPOSE_GLOBALS = [
   "renderMarkdownEls",
   "renderCardFromSource",
   "renderPage",
+  "enhanceLoreRefs",
 ]
   .map((n) => `if (typeof ${n} !== "undefined") window.${n} = ${n};`)
   .join("\n");

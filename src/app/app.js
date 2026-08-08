@@ -174,6 +174,8 @@ function renderPage(text) {
 
   enhanceBaseStyling(page);
   enhanceCardCollapse(page);
+  // Lore chips live in the card head the collapse pass just built.
+  enhanceLoreRefs(page);
   // Re-arrange the styled nodes into the header band + two-column grid.
   layoutTwoColumns(page);
   // After the grid exists, add collapse toggles to the main event headings.

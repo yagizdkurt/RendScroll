@@ -72,6 +72,25 @@ test("every declared accentClass belongs to a real parser card type", () => {
     "accentClass declared for types the parser does not classify: " + unknown.join(", "));
 });
 
+test("lore chips are declared only for types that have a card head to host them", () => {
+  // cardLoreRefs.js inserts the chips into the collapse pass's .card-head, which
+  // only exists for types that declared a titleClass — so loreRefs without one
+  // would render nothing at all.
+  const withLore = Array.from(T.cards.types()).filter((type) => T.cards.loreRefs(type));
+  assert.deepStrictEqual(withLore.sort(),
+    ["ability", "combat", "item", "npc", "obj", "sourceitem"],
+    "the set of lore-attachable card types changed");
+  const headless = withLore.filter((type) => !T.cards.titleClass(type));
+  assert.strictEqual(headless.length, 0,
+    "loreRefs declared for types with no titleClass: " + headless.join(", "));
+
+  // Prose/contingency cards are deliberately out (narrative, unexpected, …).
+  ["narrative", "unexpected", "std", "manifest", "picture", "audio", "transition", "sourceenemy"]
+    .forEach((type) => {
+      assert.strictEqual(T.cards.loreRefs(type), false, type + " must not take lore chips");
+    });
+});
+
 test("every declared accentClass has a matching h3 rule in base.css", () => {
   // The JS half and the CSS half of an accent are separate files by necessity;
   // this is what keeps them from drifting (declare a class, forget the rule, and

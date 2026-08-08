@@ -113,6 +113,9 @@
   <!-- Classification-only type: no builder, only a heading accent. -->
   <script src="src/cards/echo/echo.js"></script>
   <script src="src/cards/shared/cardCollapse.js"></script>
+  <!-- "LoreRef:" chips in the card head. Runs after the collapse pass (it needs the
+       head that pass builds) and uses LoreModel's address grammar at render time. -->
+  <script src="src/cards/shared/cardLoreRefs.js"></script>
   <script src="src/cards/shared/layout.js"></script>
   <!-- Card-source -> card-element rendering, extracted from app.js so it can be
        tested against real code. Declaration-only; must load before the app
@@ -158,6 +161,8 @@
   <script src="src/cards/skillChecks/skillChecks.editor.js"></script>
   <!-- Item editor fields (Type picker + Damage). Registers with form.js. -->
   <script src="src/cards/item/item.editor.js"></script>
+  <!-- Lore attachment picker for the card "Lore" field. Registers with form.js. -->
+  <script src="src/lore/lore.editor.js"></script>
   <!-- Item Library picker: choose an existing library item (or create a new one)
        when inserting a SourceItem-backed scene Item. Needs form.js + refLibrary.js. -->
   <script src="src/editor/libraryPicker.js"></script>

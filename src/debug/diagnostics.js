@@ -82,6 +82,12 @@ const RendScrollDiagnostics = (() => {
     });
   }
 
+  function isRepeatableDirective(name) {
+    const p = parser();
+    const repeatable = p && p.repeatableDirectiveNames;
+    return !!(repeatable && repeatable.has(name));
+  }
+
   function addDuplicateDirectiveDiagnostics(doc, file, issues) {
     allCards(doc).forEach((card) => {
       const seen = {};
@@ -90,6 +96,8 @@ const RendScrollDiagnostics = (() => {
       });
       Object.keys(seen).forEach((name) => {
         if (seen[name] <= 1) return;
+        // LoreRef: and friends are repeatable by design — one line per attachment.
+        if (isRepeatableDirective(name)) return;
         const d = card.directives.find((x) => x.name === name);
         issues.push(issue(
           "warn",
@@ -241,6 +249,31 @@ const RendScrollDiagnostics = (() => {
         const known = onPage.has(normName(name)) || (lib && lib.lookupAny(name));
         if (!known) issues.push(issue("warn", file, idx + 1, `broken link: [link=${name}]`, "broken-link"));
       }
+    });
+
+    addLoreRefDiagnostics(doc, file, issues);
+  }
+
+  /* A card's "LoreRef: Page/Entry" attachments (cards/shared/cardLoreRefs.js) point
+     at the same targets as a lore link, so they get the same check — the chip only
+     dims, this is where a renamed page/entry is actually reported. */
+  function addLoreRefDiagnostics(doc, file, issues) {
+    allCards(doc).forEach((card) => {
+      card.directives.forEach((d) => {
+        if (d.name !== "loreref") return;
+        const value = String(d.value || "").trim();
+        const address = loreAddress(/^lore\s*:/i.test(value) ? value : "lore:" + value);
+        if (!address) {
+          issues.push(issue("warn", file, dispLine(d.range),
+            `malformed LoreRef: ${value}`, "broken-lore-link"));
+          return;
+        }
+        const problem = loreLinkProblem(address);
+        if (problem) {
+          issues.push(issue("warn", file, dispLine(d.range),
+            problem.replace("broken lore link:", "broken LoreRef:"), "broken-lore-link"));
+        }
+      });
     });
   }
 
