@@ -542,7 +542,7 @@ const CampaignSearch = (() => {
     inputEl = document.createElement("input");
     inputEl.type = "search";
     inputEl.className = "campaign-search-input";
-    inputEl.placeholder = "Search campaign";
+    inputEl.placeholder = "Search in the campaign";
     inputEl.autocomplete = "off";
     inputEl.spellcheck = false;
     inputEl.setAttribute("aria-label", "Search campaign scenes and libraries");
