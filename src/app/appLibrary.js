@@ -12,16 +12,16 @@
 
    Library enemies differ from items only in this config: they are concrete stat
    blocks referenced from combat cards (not inserted as standalone scene cards), and
-   their view state uses currentView === "enemy" instead of "library". */
+   their view state is ReaderState.view() === "enemy" instead of "library". */
 const LIBRARY_VIEWS = {
   item: {
     view: "library", kicker: "Items", noun: "item", nameAttr: "itemName",
-    nav: () => libraryNav,
+    nav: () => ReaderDom.libraryNav(),
     create: (cb, scope) => Editor.createLibraryItem && Editor.createLibraryItem(cb, scope),
   },
   enemy: {
     view: "enemy", kicker: "Enemies", noun: "enemy", nameAttr: "enemyName",
-    nav: () => enemiesNav,
+    nav: () => ReaderDom.enemiesNav(),
     create: (cb, scope) => Editor.createEnemyToLibrary && Editor.createEnemyToLibrary(cb, scope),
   },
 };
@@ -48,7 +48,7 @@ function libraryEntryButton(kind, cfg, entry) {
   btn.dataset[cfg.nameAttr] = entry.name;
   btn.dataset.navIndex = entry.name.charAt(0).toUpperCase(); // collapsed-mode glyph
   btn.title = entry.name + (entry.origin === "campaign" ? " (campaign)" : "");
-  btn.classList.toggle("active", currentView === cfg.view && entry.name === currentLibraryName);
+  btn.classList.toggle("active", ReaderState.view() === cfg.view && entry.name === ReaderState.libraryName());
   btn.addEventListener("click", () => openLibrary(kind, entry.name));
   btn.addEventListener("contextmenu", (e) => {
     e.preventDefault();
@@ -86,7 +86,7 @@ async function moveLibrary(kind, name, toScope) {
   try {
     await RefLibrary.moveFile(kind, name, toScope);
     refreshLibrarySidebars();
-    if (currentView === cfg.view && currentLibraryName === name) openLibrary(kind, name);
+    if (ReaderState.view() === cfg.view && ReaderState.libraryName() === name) openLibrary(kind, name);
     document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: kind, name, moved: toScope } }));
   } catch (err) {
     alert(err.message || ("The " + cfg.noun + " could not be moved."));
@@ -124,18 +124,16 @@ function refreshLibrarySidebars() {
 // Switch the reader area to a single library entry's card + management toolbar.
 async function openLibrary(kind, name) {
   const cfg = libraryConfig(kind);
-  const isCurrent = currentView === cfg.view && currentLibraryName === name;
+  const isCurrent = ReaderState.view() === cfg.view && ReaderState.libraryName() === name;
   if (!isCurrent && typeof confirmReaderNavigation === "function" && !(await confirmReaderNavigation())) return false;
-  currentView = cfg.view;
-  currentLibraryName = name;
-  currentPath = null;
+  ReaderState.setLibraryView(cfg.view, name);
   document.querySelectorAll("#nav button, #library-nav button, #enemies-nav button")
     .forEach((b) => b.classList.remove("active"));
   cfg.nav().querySelectorAll("button").forEach((b) =>
     b.classList.toggle("active", b.dataset[cfg.nameAttr] === name)
   );
   renderLibraryView(kind, name);
-  page.parentElement.scrollTop = 0;
+  ReaderDom.page().parentElement.scrollTop = 0;
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path: null, text: "" } }));
   return true;
 }
@@ -152,6 +150,7 @@ function libraryToolbarButton(label, title, onClick, extraClass) {
 
 function renderLibraryView(kind, name) {
   const cfg = libraryConfig(kind);
+  const page = ReaderDom.page();
   page.innerHTML = "";
   const view = document.createElement("div");
   view.className = "library-view";
@@ -206,12 +205,12 @@ async function deleteLibrary(kind, name) {
     await RefLibrary.deleteFile(kind, name);
     document.dispatchEvent(new CustomEvent("library:changed", { detail: { type: kind, name, removed: true } }));
     // Leave the library view: go back to the first campaign scene (or empty).
-    if (campaignEntries.length) {
-      await guardedLoad(campaignEntries[0].path);
+    const entries = ReaderState.campaignEntries();
+    if (entries.length) {
+      await guardedLoad(entries[0].path);
     } else {
-      currentView = "scene";
-      currentLibraryName = null;
-      page.innerHTML = "";
+      ReaderState.setSceneView(null);
+      ReaderDom.page().innerHTML = "";
     }
   } catch (err) {
     alert(err.message || ("The " + cfg.noun + " could not be deleted."));
@@ -224,27 +223,28 @@ async function deleteLibrary(kind, name) {
 function installLibraryChangeHandler() {
   document.addEventListener("library:changed", () => {
     refreshLibrarySidebars();
-    if (currentView === "library" && currentLibraryName) {
+    const libraryName = ReaderState.libraryName();
+    if (ReaderState.view() === "library" && libraryName) {
       // The edited/deleted item may be the one on screen.
-      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("item", currentLibraryName)) {
-        renderLibraryView("item", currentLibraryName);
+      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("item", libraryName)) {
+        renderLibraryView("item", libraryName);
       }
       return;
     }
-    if (currentView === "enemy" && currentLibraryName) {
-      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("enemy", currentLibraryName)) {
-        renderLibraryView("enemy", currentLibraryName);
+    if (ReaderState.view() === "enemy" && libraryName) {
+      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("enemy", libraryName)) {
+        renderLibraryView("enemy", libraryName);
       }
       return;
     }
-    if (currentView === "scene") {
+    if (ReaderState.view() === "scene") {
       // Re-render the scene so edited/added references resolve. When the editor
       // is on, route through it so the editing decorations are re-applied.
       const ed = (typeof Editor !== "undefined" && Editor.getState) ? Editor.getState() : null;
       if (ed && ed.enabled && Editor.rerender) {
         Editor.rerender();
       } else {
-        const src = (typeof window !== "undefined" && window.__rsLastSource) || "";
+        const src = ReaderState.currentSource();
         if (src) renderPage(src);
       }
     }

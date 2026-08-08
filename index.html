@@ -117,7 +117,9 @@
        before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
   <script src="src/campaign/campaignManager.js"></script>
   <!-- Reader subsystems split out of app.js. All declaration-only globals; must
-       load BEFORE app.js, whose init() (run at load) calls into them. -->
+       load BEFORE app.js, whose init() (run at load) calls into them.
+       readerState.js owns the state + shell elements they all share. -->
+  <script src="src/app/readerState.js"></script>
   <script src="src/app/appModals.js"></script>
   <script src="src/app/appSidebar.js"></script>
   <script src="src/app/appLibrary.js"></script>

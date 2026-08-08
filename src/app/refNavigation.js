@@ -8,7 +8,7 @@
 function findCardByRefName(name) {
   const key = rsLower(String(name).trim());
   const sel = (window.CSS && CSS.escape) ? CSS.escape(key) : key.replace(/"/g, '\\"');
-  return page.querySelector('[data-ref-name="' + sel + '"]');
+  return ReaderDom.page().querySelector('[data-ref-name="' + sel + '"]');
 }
 
 // Open every collapsed card/heading hiding `el`, so a jump never lands on
@@ -16,6 +16,7 @@ function findCardByRefName(name) {
 // HeadingCollapse) so collapse state stays consistent.
 function revealElement(el) {
   let node = el;
+  const page = ReaderDom.page();
   while (node && node !== page) {
     if (node.classList && node.classList.contains("is-collapsed")) {
       const btn = node.querySelector(":scope > .card-head > .card-toggle");
@@ -25,7 +26,7 @@ function revealElement(el) {
   }
   let guard = 0;
   while (el.offsetParent === null && guard++ < 50) {
-    const collapsed = [...page.querySelectorAll(".heading-collapsed")];
+    const collapsed = [...ReaderDom.page().querySelectorAll(".heading-collapsed")];
     if (!collapsed.length) break;
     let toOpen = collapsed[0];
     for (const h of collapsed) {
@@ -118,6 +119,7 @@ function activateRefLink(a) {
 }
 
 function installRefLinkHandler() {
+  const page = ReaderDom.page();
   page.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest(".rs-ref-link");
     if (!a || !page.contains(a)) return;

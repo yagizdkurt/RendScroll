@@ -18,6 +18,7 @@ const SCRIPTS = [
   "src/cards/shared/cardDirectives.js",
   "src/cards/manifest/manifest.js",
   "src/app/sceneManifest.js",
+  "src/app/readerState.js",
 ];
 
 function loadHarness(sceneText) {
@@ -28,7 +29,6 @@ function loadHarness(sceneText) {
   const win = dom.window;
   win.requestAnimationFrame = (fn) => fn();
   win.alert = (msg) => { throw new Error(msg); };
-  win.currentPath = "";
   win.load = async (p) => { win.__loaded = p; };
   win.fetchMarkdown = async () => (sceneText === undefined ? "# Scene\n" : sceneText);
   // The only stub: we assert what would be written, without touching the network.

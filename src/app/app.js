@@ -1,27 +1,18 @@
 /* ============================================================
    Entry point: owns the render pipeline and orchestration
-   (init / campaign activation / scene load), plus the shared
-   reader state every sibling module reads. Feature subsystems
+   (init / campaign activation / scene load). Feature subsystems
    that used to live here now sit beside it as plain globals:
+     - app/readerState.js  shared reader state + DOM handles
      - app/appModals.js    New Page + delete-confirm dialogs
      - app/appSidebar.js   sidebar, campaign CRUD, nav context menu
      - app/appLibrary.js   reference-library reader view
      - app/refNavigation.js inline [link=] jump + preview
    Card rendering lives in cards/<type>/*.js.
-   ============================================================ */
 
-const nav = document.getElementById("nav");
-const libraryNav = document.getElementById("library-nav");
-const enemiesNav = document.getElementById("enemies-nav");
-const page = document.getElementById("page");
-const sidebarToggle = document.getElementById("sidebar-toggle");
-const newPageButton = document.getElementById("new-page-button");
-let currentPath = null;
-let campaignEntries = [];
-// The reader area shows either a campaign scene ("scene") or a single library
-// item ("library"); the sidebar reflects which is active.
-let currentView = "scene";
-let currentLibraryName = null;
+   Shared state (current scene/view/campaign entries) and the shell elements are
+   NOT declared here: app/readerState.js owns them, and every file in this folder
+   goes through ReaderState / ReaderDom. See that file for why.
+   ============================================================ */
 
 /* Card type -> heading accent class. The parser owns classification (card.type);
    this map is the renderer's presentation choice for each type. Only level-3 card
@@ -153,7 +144,8 @@ function refMissingCard(type, name) {
 
 function renderPage(text) {
   const doc = RendScrollParser.parseRendScroll(text);
-  const renderContext = { cardIdCounts: new Map(), scenePath: currentPath };
+  const renderContext = { cardIdCounts: new Map(), scenePath: ReaderState.currentPath() };
+  const page = ReaderDom.page();
   page.innerHTML = "";
 
   doc.sections.forEach((section) => {
@@ -199,11 +191,9 @@ function renderPage(text) {
 
 async function load(path) {
   const text = await fetchMarkdown(path);
-  currentPath = path;
-  currentView = "scene";
-  currentLibraryName = null;
+  ReaderState.setSceneView(path);
   renderPage(text);
-  page.parentElement.scrollTop = 0;
+  ReaderDom.page().parentElement.scrollTop = 0;
   document.querySelectorAll("#nav button").forEach((b) =>
     b.classList.toggle("active", b.dataset.path === path)
   );
@@ -221,21 +211,25 @@ async function confirmReaderNavigation() {
 }
 
 async function guardedLoad(path) {
-  if (currentView === "scene" && currentPath === path) return true;
+  if (ReaderState.view() === "scene" && ReaderState.currentPath() === path) return true;
   if (!(await confirmReaderNavigation())) return false;
   await load(path);
   return true;
 }
 
-/* Dev-only: inspect the parsed RendScroll AST for the current scene without
-   touching rendering. In the console: `__rsDump()` prints readable JSON, and
-   `__rsParse()` returns the live document. Caches the raw source each scene load.
-   This is a passive observer of the existing pipeline (Phase 1 of the parser
-   migration); it changes nothing the user sees. */
+/* Cache the raw source of the scene on screen. ReaderState owns it — every
+   re-render path (appLibrary's library:changed handler, the facade below) reads
+   it from there. */
 document.addEventListener("scene:loaded", (e) => {
-  window.__rsLastSource = e.detail && e.detail.text ? e.detail.text : "";
+  ReaderState.setCurrentSource(e.detail && e.detail.text ? e.detail.text : "");
 });
-window.__rsParse = () => RendScrollParser.parseRendScroll(window.__rsLastSource || "");
+
+/* Dev-only console hooks: inspect the parsed RendScroll AST for the current scene
+   without touching rendering. `__rsDump()` prints readable JSON, `__rsParse()`
+   returns the live document, `__rsLastSource` is the raw markdown. Passive
+   observers — no production code path reads them. */
+Object.defineProperty(window, "__rsLastSource", { get: () => ReaderState.currentSource() });
+window.__rsParse = () => RendScrollParser.parseRendScroll(ReaderState.currentSource());
 window.__rsDump = () => {
   const json = RendScrollParser.debugDump(window.__rsParse());
   console.log(json);
@@ -244,11 +238,11 @@ window.__rsDump = () => {
 
 /* Small, read-only accessor so tooling (e.g. the Debug panel, src/debug/) can
    read the same scene state the renderer/editor use, without duplicating the
-   file-fetch logic. Additive — the dev hooks above are unchanged. */
+   file-fetch logic. Delegates to ReaderState — no second copy of the state. */
 window.RendScrollApp = {
-  currentSource: () => window.__rsLastSource || "",
-  currentPath: () => currentPath,
-  campaignEntries: () => campaignEntries.slice(),
+  currentSource: ReaderState.currentSource,
+  currentPath: ReaderState.currentPath,
+  campaignEntries: ReaderState.campaignEntries,
   confirmNavigation: confirmReaderNavigation,
   guardedLoad,
 };
@@ -256,11 +250,10 @@ window.RendScrollApp = {
 // The empty start screen shown when no campaign is active (the Manage Campaigns
 // overlay is open over this). We never auto-load root files as a fake campaign.
 function showStartScreen() {
-  currentPath = null;
-  currentView = "scene";
-  campaignEntries = [];
-  nav.innerHTML = "";
-  page.innerHTML =
+  ReaderState.setSceneView(null);
+  ReaderState.setCampaignEntries([]);
+  ReaderDom.nav().innerHTML = "";
+  ReaderDom.page().innerHTML =
     '<div class="scene-empty-hint">No campaign selected. Use ' +
     '<strong>Manage Campaigns</strong> to create, open, or import one.</div>';
 }
@@ -303,7 +296,7 @@ async function activateCampaign(name) {
     showNavError("Campaign files could not be discovered. Start RendScroll with launcher.py.");
     return;
   }
-  campaignEntries = entries;
+  ReaderState.setCampaignEntries(entries);
   mountCampaignEntries(entries);
   // The scene-graph panel (and any future subsystem) refreshes per-campaign
   // state on this; fired after entries exist so listeners see the new list.
@@ -312,8 +305,8 @@ async function activateCampaign(name) {
   if (entries.length) {
     load(entries[0].path);
   } else {
-    currentPath = null;
-    page.innerHTML =
+    ReaderState.setCurrentPath(null);
+    ReaderDom.page().innerHTML =
       '<div class="scene-empty-hint">This campaign has no scenes yet. Use ' +
       '<strong>+</strong> to add one.</div>';
   }
@@ -321,7 +314,7 @@ async function activateCampaign(name) {
 
 async function init() {
   setSidebarCollapsed(SafeStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
-  sidebarToggle.addEventListener("click", () =>
+  ReaderDom.sidebarToggle().addEventListener("click", () =>
     setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"))
   );
   mountNewPageButton();

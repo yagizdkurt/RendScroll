@@ -132,6 +132,8 @@ async function bootReader({ withLayout = false, withApp = false } = {}) {
 
   if (withApp) {
     add(APP_STUBS);
+    // app.js reads its shared state + shell elements through these; must load first.
+    add(fs.readFileSync(path.join(ROOT, "src/app/readerState.js"), "utf8"));
     add(fs.readFileSync(path.join(ROOT, "src/app/app.js"), "utf8"));
     // Let app.js's async init() settle before the caller renders.
     await new Promise((r) => setTimeout(r, 0));

@@ -252,7 +252,7 @@ async function openNewPageDialog() {
     backdropEvent: "click",
     allowBackdropClose: () => !create.disabled,
     onKeydown: (e) => { if (e.key === "Escape" && !create.disabled) close(); },
-    onClose: () => { newPageButton.disabled = false; },
+    onClose: () => { ReaderDom.newPageButton().disabled = false; },
   });
   modal.noValidate = true;
 
@@ -303,7 +303,7 @@ async function openNewPageDialog() {
     create.disabled = busy;
     manifestFields.setBusy(busy);
     create.textContent = busy ? "Creating..." : "Create";
-    newPageButton.disabled = busy;
+    ReaderDom.newPageButton().disabled = busy;
   }
 
   function close() { closeModal(); }
@@ -324,7 +324,7 @@ async function openNewPageDialog() {
     try {
       const entry = await createCampaignFile(title, serializeManifestValues(manifestFields.read()));
       const entries = await loadCampaignEntries();
-      campaignEntries = entries;
+      ReaderState.setCampaignEntries(entries);
       mountCampaignEntries(entries);
       await load(entry.path);
       close();
@@ -451,7 +451,7 @@ async function openEditManifestDialog(entry) {
       clearEditManifestDraft(entry.path);
       saveDraftOnClose = false;
       closeModal();
-      if (entry.path === currentPath) await load(entry.path);
+      if (entry.path === ReaderState.currentPath()) await load(entry.path);
     } catch (err) {
       error.textContent = (err && err.message) || "Save failed.";
       setBusy(false);
@@ -465,6 +465,7 @@ async function openEditManifestDialog(entry) {
 }
 
 function mountNewPageButton() {
+  const newPageButton = ReaderDom.newPageButton();
   if (!newPageButton) return;
   newPageButton.addEventListener("click", () => {
     if (typeof openAddMenu === "function") {

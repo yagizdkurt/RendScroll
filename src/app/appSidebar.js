@@ -7,6 +7,7 @@
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 
 function setSidebarCollapsed(collapsed) {
+  const sidebarToggle = ReaderDom.sidebarToggle();
   document.body.classList.toggle("sidebar-collapsed", collapsed);
   sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
   sidebarToggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
@@ -50,6 +51,7 @@ function setupCollapsibleSections() {
 }
 
 function showNavError(message) {
+  const nav = ReaderDom.nav();
   nav.innerHTML = "";
   const error = document.createElement("div");
   error.className = "nav-error";
@@ -128,22 +130,22 @@ function onNavContextKey(e) {
 }
 
 async function deleteCampaignEntry(entry) {
-  const index = campaignEntries.findIndex((item) => item.path === entry.path);
+  const index = ReaderState.campaignEntries().findIndex((item) => item.path === entry.path);
   if (!(await confirmDeleteCampaignEntry(entry))) return;
 
   try {
     await deleteCampaignFile(entry.path);
     const entries = await loadCampaignEntries();
-    campaignEntries = entries;
+    ReaderState.setCampaignEntries(entries);
 
-    if (currentPath === entry.path) {
-      currentPath = null;
+    if (ReaderState.currentPath() === entry.path) {
+      ReaderState.setCurrentPath(null);
       mountCampaignEntries(entries);
       if (entries.length) {
         const next = entries[Math.min(Math.max(index, 0), entries.length - 1)];
         await load(next.path);
       } else {
-        page.innerHTML = "";
+        ReaderDom.page().innerHTML = "";
         document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path: null, text: "" } }));
       }
     } else {
@@ -224,6 +226,7 @@ function openAddMenu(x, y) {
 }
 
 function mountCampaignEntries(entries) {
+  const nav = ReaderDom.nav();
   nav.innerHTML = "";
   entries.forEach((entry, index) => {
     const { path, number, label } = entry;
@@ -234,7 +237,7 @@ function mountCampaignEntries(entries) {
     if (number !== null && number !== undefined) {
       btn.dataset.navIndex = String(number);
     }
-    btn.classList.toggle("active", path === currentPath);
+    btn.classList.toggle("active", path === ReaderState.currentPath());
     btn.addEventListener("click", () => guardedLoad(path));
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
