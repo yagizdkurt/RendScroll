@@ -50,8 +50,10 @@ const LoreView = (() => {
     section.dataset.loreEntry = M.nameKey(entry.name);
     section.dataset.loreIndex = String(index);
 
+    // An entry is a section of the page, so it is an <h2> under the page's <h1>
+    // and reads exactly like a scene's "## Section" heading.
     const head = el("div", "lore-entry-head");
-    head.appendChild(el("h3", "lore-entry-title", entry.name || "(unnamed)"));
+    head.appendChild(el("h2", "lore-entry-title", entry.name || "(unnamed)"));
     section.appendChild(head);
 
     const chipRow = chips(entry.keywords);

@@ -48,8 +48,10 @@ const SOURCE = [
 function boot() {
   const dom = new JSDOM(
     "<!DOCTYPE html><body><div id=\"topbar-primary\"></div>" +
-    "<article id=\"page\"><div class=\"library-view\">" +
-    "<div class=\"library-view-title\">The Gate</div></div></article>" +
+    // The view chrome appLibrary.renderLibraryView builds around a lore page.
+    "<article id=\"page\"><div class=\"library-view library-view-lore\">" +
+    "<div class=\"library-view-head\">" +
+    "<h1 class=\"library-view-title\">The Gate</h1></div></div></article>" +
     "<nav id=\"lore-nav\"></nav></body>",
     { runScripts: "dangerously" });
   const win = dom.window;
@@ -200,6 +202,28 @@ test("the editing tools are in the DOM once a session exists", () => {
   assert.equal(win.document.querySelectorAll(".lore-entry-tools").length, 2);
   assert.ok(win.document.querySelector(".lore-page-tools"));
   assert.ok(win.document.querySelector(".lore-add-entry"));
+});
+
+test("the tool buttons are the scene's editor-tool buttons", () => {
+  const win = boot();
+  open(win, SOURCE);
+  const tools = [...win.document.querySelectorAll(".lore-tool")];
+  assert.ok(tools.length > 0);
+  assert.ok(tools.every((b) => b.classList.contains("editor-tool")),
+    "lore tools must reuse .editor-tool rather than a lore-only button style");
+  assert.ok(win.document.querySelector(".lore-add-entry").classList.contains("editor-insert-zone"));
+});
+
+test("the page-level tool sits in the view head, and a re-render does not stack copies", () => {
+  const win = boot();
+  const S = open(win, SOURCE);
+  const head = win.document.querySelector(".library-view-head");
+  assert.equal(head.querySelectorAll(".lore-page-tools").length, 1);
+
+  S.apply(LoreModel.setPageMeta(S.model(), { keywords: "one, two" }));
+  assert.equal(win.document.querySelectorAll(".lore-page-tools").length, 1,
+    "re-rendering the page body must not leave a second page tool in the head");
+  assert.equal(head.querySelectorAll(".lore-page-tools").length, 1);
 });
 
 test("the move buttons are disabled at the ends of the list", () => {

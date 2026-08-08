@@ -217,8 +217,10 @@ const LoreEditor = (() => {
     decorate(root);
   }
 
+  // The same button a scene card's tools use (editor.css .editor-tool); .lore-tool
+  // only carries the disabled state and the hover-reveal grouping.
   function toolButton(label, title, onClick, disabled) {
-    const b = el("button", "lore-tool", label);
+    const b = el("button", "editor-tool lore-tool", label);
     b.type = "button";
     b.title = title;
     b.disabled = !!disabled;
@@ -232,10 +234,13 @@ const LoreEditor = (() => {
   function decorate(root) {
     if (!root || !doc()) return;
 
-    const pageChips = root.querySelector(".lore-page-chips");
+    // The page-level tool belongs to the title band, next to the page name. That
+    // band survives a re-render (only .lore-page is rebuilt), so drop the old copy.
+    const head = ctx && ctx.host && ctx.host.querySelector(".library-view-head");
+    if (head) head.querySelectorAll(".lore-page-tools").forEach((n) => n.remove());
     const pageTools = el("span", "lore-page-tools");
     pageTools.appendChild(toolButton("✎", "Edit page name and keywords", editPageMeta));
-    if (pageChips) pageChips.appendChild(pageTools);
+    if (head) head.appendChild(pageTools);
     else root.insertBefore(pageTools, root.firstChild);
 
     const entries = [...root.querySelectorAll(".lore-entry")];
@@ -252,7 +257,8 @@ const LoreEditor = (() => {
       head.appendChild(tools);
     });
 
-    const add = el("button", "editor-btn lore-add-entry", "+ Entry");
+    // Same dashed-gold affordance a scene uses to insert a card (editor.css).
+    const add = el("button", "editor-insert-zone lore-add-entry", "+ Entry");
     add.type = "button";
     add.addEventListener("click", () => editEntry(-1));
     root.appendChild(add);

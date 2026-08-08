@@ -1,11 +1,26 @@
-/* Lore page view. Prose, not cards — no card frame, no collapse chrome.
-   Keyword chips are the one piece of colour: small blue pills under the page
-   title and under each entry title. */
+/* Lore page view. Prose, not cards — no card frame, no collapse chrome, but the
+   same book as a scene: the page title is a .page h1, an entry heading is a
+   .page h2, and the editing chrome reuses the scene's .editor-tool /
+   .editor-insert-zone. Only what is genuinely lore-specific lives here. */
+
+/* ---------- the view shell (lore-only overrides of .library-view) ---------- */
+
+/* A lore page is a page, not a single library entry: it follows the Page Width
+   option like a scene instead of the 720px single-entry column. */
+.library-view-lore {
+  max-width: none;
+}
+
+.library-view-lore .library-view-head {
+  position: relative; /* anchor for the page-level edit tool */
+  text-align: center;
+}
 
 .lore-page {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
+  position: relative; /* fallback anchor when there is no view head to hold the page tool */
 }
 
 /* ---------- keyword chips ---------- */
@@ -16,50 +31,65 @@
   gap: .35rem;
 }
 
-.lore-chip {
+.page .lore-chip {
   display: inline-block;
   padding: .12rem .5rem;
-  border: 1px solid rgba(58, 96, 158, .45);
+  border: 1px solid var(--gold-deep);
   border-radius: 999px;
-  background: rgba(88, 132, 196, .14);
-  color: #2f5590;
-  font-size: .74rem;
-  font-weight: 600;
-  letter-spacing: .02em;
+  background: rgba(201, 173, 106, .18);
+  color: var(--maroon);
+  font-family: 'Alegreya Sans SC', sans-serif;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .06em;
   white-space: nowrap;
 }
 
+/* The page's own keywords sit under the centred title. */
 .lore-page-chips {
   margin-top: -.4rem;
 }
 
+.library-view-lore .lore-page-chips {
+  justify-content: center;
+}
+
 /* ---------- entries ---------- */
 
+/* Entry spacing comes from the heading margins, exactly as a scene's sections do. */
 .lore-entries {
   display: flex;
   flex-direction: column;
-  gap: 1.4rem;
+  gap: 0;
 }
 
 .lore-entry {
   display: flex;
   flex-direction: column;
   gap: .45rem;
-  padding-left: .7rem;
-  border-left: 3px solid rgba(156, 126, 60, .5);
 }
 
-.lore-entry-head {
+/* The heading rule spans the row, not just the title text, so it is drawn here
+   and switched off on the <h2> itself. */
+.page .lore-entry-head {
   display: flex;
   align-items: baseline;
   gap: .5rem;
+  position: relative;
+  margin: 2rem 0 .4rem;
+  padding-bottom: .25rem;
+  border-bottom: 2px solid var(--rule);
 }
 
-.lore-entry-title {
+.page .lore-entry:first-child .lore-entry-head {
+  margin-top: .4rem;
+}
+
+.page .lore-entry-title {
   margin: 0;
-  font-size: 1.06rem;
-  font-weight: 700;
-  letter-spacing: .01em;
+  padding: 0;
+  border-bottom: 0;
+  flex: 1 1 auto;
 }
 
 .lore-entry-body > :first-child { margin-top: 0; }
@@ -75,14 +105,17 @@
 
 .lore-errors {
   padding: .7rem .9rem;
-  border: 1px solid rgba(140, 40, 30, .5);
+  border: 1px solid var(--maroon-bar);
   border-left-width: 4px;
   border-radius: 4px;
-  background: rgba(190, 80, 60, .09);
+  background: rgba(146, 38, 16, .08);
 }
 
 .lore-errors-title {
+  font-family: 'Alegreya Sans SC', sans-serif;
   font-weight: 700;
+  letter-spacing: .03em;
+  color: var(--maroon);
   margin-bottom: .35rem;
 }
 
@@ -96,27 +129,27 @@
   opacity: .75;
 }
 
-/* ---------- editor decorations (inert when editor mode is off) ---------- */
+/* ---------- editor decorations (inert when editor mode is off) ----------
+   The buttons themselves are .editor-tool / .editor-insert-zone (editor.css);
+   only placement and the reveal rule are lore's. Both tool rows are positioned
+   absolutely so showing them never shifts the prose. */
 
 .lore-entry-tools,
 .lore-page-tools {
   display: none;
-  gap: .25rem;
+  position: absolute;
+  right: 0;
+  gap: 4px;
 }
 
-body.editor-on .lore-entry-tools,
+.lore-entry-tools { bottom: 2px; }
+.lore-page-tools { top: 0; }
+
+/* Entry tools follow the hovered entry, like a scene card's tools. The page tool
+   stays visible while editing — it is the only way to reach the page name. */
+body.editor-on .lore-entry:hover .lore-entry-tools,
 body.editor-on .lore-page-tools {
-  display: inline-flex;
-}
-
-.lore-tool {
-  padding: .05rem .4rem;
-  border: 1px solid rgba(0, 0, 0, .2);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, .5);
-  font-size: .78rem;
-  line-height: 1.4;
-  cursor: pointer;
+  display: flex;
 }
 
 .lore-tool:disabled {
@@ -124,11 +157,10 @@ body.editor-on .lore-page-tools {
   cursor: default;
 }
 
+/* .editor-insert-zone is normally a div; as a <button> it needs the UA chrome off. */
 .lore-add-entry {
-  align-self: flex-start;
   display: none;
-}
-
-body.editor-on .lore-add-entry {
-  display: inline-block;
+  width: 100%;
+  font: inherit;
+  background: transparent;
 }

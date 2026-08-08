@@ -86,7 +86,11 @@ test("each entry renders its title, chips and markdown body", () => {
   const entries = [...root.querySelectorAll(".lore-entry")];
   assert.equal(entries.length, 2);
 
-  assert.equal(entries[0].querySelector(".lore-entry-title").textContent, "Ancient God");
+  const title = entries[0].querySelector(".lore-entry-title");
+  assert.equal(title.textContent, "Ancient God");
+  // An entry is a section of the page: an <h2> under the view's <h1>, so it picks
+  // up the scene's "## Section" styling instead of restating it.
+  assert.equal(title.tagName, "H2");
   assert.deepEqual(
     [...entries[0].querySelectorAll(".lore-chips .lore-chip")].map((c) => c.textContent),
     ["deity", "Ancient God"]);

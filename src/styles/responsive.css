@@ -40,6 +40,7 @@
     height:auto;
     padding:26px 18px;
   }
+  body.sidebar-collapsed #lore-nav,
   body.sidebar-collapsed #library-nav,
   body.sidebar-collapsed #enemies-nav{
     display:flex;

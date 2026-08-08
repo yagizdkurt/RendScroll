@@ -16,10 +16,15 @@
 
    `render(kind, name, viewEl)` is optional. Kinds that leave it out (item, enemy)
    resolve to a single card and go through renderCardFromSource; a kind with its
-   own renderer (lore) supplies it and owns everything below the toolbar. */
+   own renderer (lore) supplies it and owns everything below the toolbar.
+
+   `titleTag` (default "div") is the element the view title is built from. Lore is a
+   whole page rather than one entry, so it uses a real <h1> and picks up the scene
+   title styling (.page h1) instead of restating it. */
 const LIBRARY_VIEWS = {
   lore: {
     view: "lore", kicker: "Lore", noun: "lore page", nameAttr: "loreName",
+    titleTag: "h1",
     nav: () => ReaderDom.loreNav(),
     create: (cb) => LoreEditor.createPage && LoreEditor.createPage(cb),
     render: (kind, name, viewEl) => renderLoreView(kind, name, viewEl),
@@ -175,14 +180,15 @@ function renderLibraryView(kind, name) {
   const page = ReaderDom.page();
   page.innerHTML = "";
   const view = document.createElement("div");
-  view.className = "library-view";
+  // The per-kind class is the hook for a kind that styles its view (lore).
+  view.className = "library-view library-view-" + kind;
 
   const head = document.createElement("div");
   head.className = "library-view-head";
   const kicker = document.createElement("div");
   kicker.className = "library-view-kicker";
   kicker.textContent = cfg.kicker;
-  const titleEl = document.createElement("div");
+  const titleEl = document.createElement(cfg.titleTag || "div");
   titleEl.className = "library-view-title";
   titleEl.textContent = name;
   head.appendChild(kicker);
