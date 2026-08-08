@@ -13,42 +13,12 @@ const path = require("node:path");
 const { JSDOM } = require("jsdom");
 
 const EditorSchemas = require("../src/editor/cardSchemas.js");
+// Card-layer <script> order: owned by the shared helper, guarded against
+// index.html by test/scriptOrder.test.js.
+const { CARD_LAYER_SCRIPTS: SCRIPTS } = require("./helpers/readerDom.js");
 
 const ROOT = path.join(__dirname, "..");
 
-// Reader subset of index.html's <script> order (same list as cardBuilders.test.js):
-// enough for every card file to load and self-register into RendScrollCards.
-const SCRIPTS = [
-  "src/vendor/marked.min.js",
-  "src/utils/text.js",
-  "src/utils/markdown.js",
-  "src/parser/rendscrollParser.js",
-  "src/cards/shared/skillCheckRules.js",
-  "src/inlineFormatting.js",
-  "src/markdown.js",
-  "src/cards/shared/cardImage.js",
-  "src/cards/shared/cardDirectives.js",
-  "src/cards/shared/StdIcons.js",
-  "src/cards/shared/damageModel.js",
-  "src/cards/shared/damageRender.js",
-  "src/cards/shared/itemTypes.js",
-  "src/cards/shared/cardParts.js",
-  "src/cards/shared/cardRegistry.js",
-  "src/cards/skillChecks/skillChecks.js",
-  "src/cards/npc/npc.js",
-  "src/cards/item/item.js",
-  "src/cards/ability/ability.js",
-  "src/cards/obj/obj.js",
-  "src/cards/combat/enemyModel.js",
-  "src/cards/combat/combat.js",
-  "src/cards/unexpected/unexpected.js",
-  "src/cards/narrative/narrative.js",
-  "src/cards/std/std.js",
-  "src/cards/manifest/manifest.js",
-  "src/cards/picture/picture.js",
-  "src/cards/audio/audio.js",
-  "src/cards/transition/transition.js",
-];
 
 let cards;
 

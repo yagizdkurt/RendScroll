@@ -1,9 +1,14 @@
-/* Shared jsdom boot for the reader render pipeline — the single source for the
-   index.html <script> ORDER that render-pipeline tests need. Before this helper
-   the ordered list was copy-pasted into cardBuilders.test.js and
-   renderAnchorStamps.test.js (and had to be edited in lockstep whenever a card
-   file was added). Consumers now call bootReader() and get a jsdom `window` with
-   the reader globals loaded.
+/* Shared jsdom boot for the reader render pipeline — and the single source for
+   every index.html <script> ORDER a test needs. Before this helper the ordered
+   list was copy-pasted into cardBuilders.test.js and renderAnchorStamps.test.js
+   (and had to be edited in lockstep whenever a card file was added). Consumers
+   now call bootReader() and get a jsdom `window` with the reader globals loaded,
+   or import one of the exported script lists.
+
+   The lists are ORDER-PRESERVING SUBSETS of index.html's <script> tags, and
+   test/scriptOrder.test.js enforces exactly that — so a reorder or rename in
+   index.html fails loudly here instead of leaving the tests validating a load
+   order the app no longer uses.
 
    Options:
      withLayout: also load cards/shared/layout.js (the two-column pass).
@@ -20,6 +25,13 @@ const path = require("node:path");
 const { JSDOM } = require("jsdom");
 
 const ROOT = path.join(__dirname, "..", "..");
+
+// The ordered <script src> list from index.html — the thing every list below is
+// checked against. Read from the real file, never restated.
+function indexHtmlScripts() {
+  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  return [...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)].map((m) => m[1]);
+}
 
 // Reader subset of index.html's <script> order, up through the card layer plus the
 // extracted card-source renderer (src/app/renderCard.js). Excludes layout.js and
@@ -62,6 +74,43 @@ const READER_SCRIPTS = [
   "src/cards/transition/transition.js",
   "src/cards/shared/cardCollapse.js",
   "src/app/renderCard.js",
+];
+
+/* Card layer only: enough for every card file to load and self-register into
+   RendScrollCards, without the session/log/storage scaffolding READER_SCRIPTS
+   pulls in. Used by editorAnchors.test.js (registry guards) and printer.test.js
+   (registry-derived print selectors) — which each kept their own copy of this
+   list before, and had already drifted apart by one entry. */
+const CARD_LAYER_SCRIPTS = [
+  "src/vendor/marked.min.js",
+  "src/utils/text.js",
+  "src/utils/markdown.js",
+  "src/parser/rendscrollParser.js",
+  "src/cards/shared/skillCheckRules.js",
+  "src/inlineFormatting.js",
+  "src/markdown.js",
+  "src/cards/shared/cardImage.js",
+  "src/cards/shared/cardDirectives.js",
+  "src/cards/shared/StdIcons.js",
+  "src/cards/shared/damageModel.js",
+  "src/cards/shared/damageRender.js",
+  "src/cards/shared/itemTypes.js",
+  "src/cards/shared/cardParts.js",
+  "src/cards/shared/cardRegistry.js",
+  "src/cards/skillChecks/skillChecks.js",
+  "src/cards/npc/npc.js",
+  "src/cards/item/item.js",
+  "src/cards/ability/ability.js",
+  "src/cards/obj/obj.js",
+  "src/cards/combat/enemyModel.js",
+  "src/cards/combat/combat.js",
+  "src/cards/unexpected/unexpected.js",
+  "src/cards/narrative/narrative.js",
+  "src/cards/std/std.js",
+  "src/cards/manifest/manifest.js",
+  "src/cards/picture/picture.js",
+  "src/cards/audio/audio.js",
+  "src/cards/transition/transition.js",
 ];
 
 // app.js's init() calls into the sidebar/campaign/options layers and touches
@@ -141,4 +190,11 @@ async function bootReader({ withLayout = false, withApp = false } = {}) {
   return win;
 }
 
-module.exports = { READER_SCRIPTS, APP_STUBS, bootReader };
+module.exports = {
+  READER_SCRIPTS,
+  CARD_LAYER_SCRIPTS,
+  APP_STUBS,
+  bootReader,
+  indexHtmlScripts,
+  ROOT,
+};

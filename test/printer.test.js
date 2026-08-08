@@ -8,36 +8,9 @@ const { JSDOM, VirtualConsole } = require("jsdom");
 
 const ROOT = path.join(__dirname, "..");
 
-const CARD_SCRIPTS = [
-  "src/vendor/marked.min.js",
-  "src/utils/text.js",
-  "src/utils/markdown.js",
-  "src/parser/rendscrollParser.js",
-  "src/cards/shared/skillCheckRules.js",
-  "src/inlineFormatting.js",
-  "src/markdown.js",
-  "src/cards/shared/cardImage.js",
-  "src/cards/shared/cardDirectives.js",
-  "src/cards/shared/StdIcons.js",
-  "src/cards/shared/damageModel.js",
-  "src/cards/shared/damageRender.js",
-  "src/cards/shared/itemTypes.js",
-  "src/cards/shared/cardParts.js",
-  "src/cards/shared/cardRegistry.js",
-  "src/cards/skillChecks/skillChecks.js",
-  "src/cards/npc/npc.js",
-  "src/cards/item/item.js",
-  "src/cards/ability/ability.js",
-  "src/cards/obj/obj.js",
-  "src/cards/combat/enemyModel.js",
-  "src/cards/combat/combat.js",
-  "src/cards/unexpected/unexpected.js",
-  "src/cards/narrative/narrative.js",
-  "src/cards/std/std.js",
-  "src/cards/manifest/manifest.js",
-  "src/cards/picture/picture.js",
-  "src/cards/audio/audio.js",
-];
+// Card-layer <script> order: owned by the shared helper, guarded against
+// index.html by test/scriptOrder.test.js.
+const { CARD_LAYER_SCRIPTS: CARD_SCRIPTS } = require("./helpers/readerDom.js");
 
 function addScript(win, file) {
   const el = win.document.createElement("script");
