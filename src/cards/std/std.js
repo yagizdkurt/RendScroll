@@ -12,13 +12,6 @@ function isStdHead(h) {
   return /^std\s*:/.test(rsLower(h.textContent).trim());
 }
 
-/* A node ends the current block if it's a new heading/separator OR a card that
-   another renderer already produced (so they don't get swallowed in). */
-function stdIsBoundary(n) {
-  if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
-  return isRenderedCard(n);
-}
-
 // Build one STD card from its parsed AST node. Image/Side come from the resolved
 // directives; the body renders unchanged through marked.
 function buildStdCard(cardNode, head, nodes) {

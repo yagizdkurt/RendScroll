@@ -24,14 +24,6 @@
 
 const ABILITY_HEAD = /^\s*(skill|spell|passive|effect)\s*:/i;
 
-/* A node ends the current section if it's a new heading/separator OR a card that
-   another renderer already produced (e.g. an item card placed right before this
-   ability). Without the card check the collector would swallow the next card. */
-function abilityIsBoundary(n) {
-  if (/^(H[23]|HR)$/.test(n.tagName)) return true;
-  return isRenderedCard(n);
-}
-
 const ABILITY_RARITIES = {
   "1": "Common",
   "2": "Rare",
@@ -196,7 +188,7 @@ function buildAbilityCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("ability", { build: buildAbilityCard, cssClass: "ability-card" });
+  RendScrollCards.register("ability", { build: buildAbilityCard, cssClass: "ability-card", titleClass: "ability-title" });
 }
 
 /* parseAbilityBody is the pure per-type body parser shared with the editor

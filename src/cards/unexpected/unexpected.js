@@ -13,14 +13,6 @@ function isUnexpectedHead(h) {
   return /^unexpected\s*:/.test(rsLower(h.textContent).trim());
 }
 
-/* A node ends the current section if it's a new heading/separator OR a card that
-   another renderer already produced (NPC/Object cards are emitted before this
-   one runs, so without this they'd be swallowed into the unexpected card). */
-function unexpectedIsBoundary(n) {
-  if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
-  return isRenderedCard(n);
-}
-
 // Build one Unexpected card from its parsed AST node. Image/Side come
 // from the resolved directives; the body renders unchanged through marked.
 function buildUnexpectedCard(cardNode, head, nodes) {
@@ -48,5 +40,5 @@ function buildUnexpectedCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("unexpected", { build: buildUnexpectedCard, cssClass: "unexpected-card" });
+  RendScrollCards.register("unexpected", { build: buildUnexpectedCard, cssClass: "unexpected-card", titleClass: "unexpected-title" });
 }

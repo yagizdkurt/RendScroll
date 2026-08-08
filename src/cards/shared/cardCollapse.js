@@ -11,20 +11,16 @@
           on  -> every card without a directive starts collapsed
           off -> every card without a directive starts open */
 
-// Card containers produced by the feature card builders.
-const CC_CARD_SELECTOR =
-  ".sc-card,.npc-card,.obj-card,.item-card,.ability-card,.combat-card,.unexpected-card";
-
-// The title element each renderer appends first inside its card. The button is
-// placed here and this element stays visible while the card is collapsed.
-const CC_TITLE_SELECTOR =
-  ":scope > .sc-card-title," +
-  ":scope > .npc-title," +
-  ":scope > .obj-title," +
-  ":scope > .item-title," +
-  ":scope > .ability-title," +
-  ":scope > .combat-title," +
-  ":scope > .unexpected-title";
+/* Which cards collapse, and what their title element is, comes from the card
+   registry — a type opts in by declaring a `titleClass` in its
+   RendScrollCards.register(...) call. Read at call time (not load time) so the
+   selectors always reflect the registered types.
+     .card  -> the card containers produced by the feature builders
+     .title -> the title element each builder appends first inside its card; the
+               toggle is placed there and it stays visible while collapsed. */
+function ccSelectors() {
+  return RendScrollCards.collapsibleSelectors();
+}
 
 // A standalone "Closed: T" / "Closed: F" directive line (value optional).
 const CC_DIRECTIVE = /^closed\s*:\s*(t|f|true|false)?$/i;
@@ -59,19 +55,20 @@ const CardCollapse = (() => {
   // Re-apply every card's default state (used on initial build and whenever the
   // global toggle flips). Directive-pinned cards keep their fixed state.
   function applyDefaults(root) {
-    root.querySelectorAll(CC_CARD_SELECTOR).forEach((card) => {
+    root.querySelectorAll(ccSelectors().card).forEach((card) => {
       if (card.querySelector(":scope > .card-head")) setCollapsed(card, defaultCollapsed(card));
     });
   }
 
   // Build the toggle button + read the directive for each card.
   function enhance(root) {
-    root.querySelectorAll(CC_CARD_SELECTOR).forEach((card) => {
+    const selectors = ccSelectors();
+    root.querySelectorAll(selectors.card).forEach((card) => {
       // Prefer the image header row (.card-figure: title + portrait) so a
       // collapsed card keeps showing its portrait; otherwise anchor to the plain
       // title. A title-less card has nothing to anchor to, so we prepend a thin
       // header bar to host the toggle and stay visible while collapsed.
-      let head = card.querySelector(":scope > .card-figure") || card.querySelector(CC_TITLE_SELECTOR);
+      let head = card.querySelector(":scope > .card-figure") || card.querySelector(selectors.title);
       if (!head) {
         head = document.createElement("div");
         head.className = "card-bare-head";

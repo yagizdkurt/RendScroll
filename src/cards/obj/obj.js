@@ -24,14 +24,6 @@
    The skill-check renderer (renderSkillChecks) is reused from skillChecks.js so
    Checks render identically to a Skill Checks section. */
 
-/* A node ends the current section if it's a new heading/separator OR a card that
-   another renderer already produced (e.g. an NPC card placed right after this
-   Object). Without the card check the collector would swallow the next card. */
-function objIsBoundary(n) {
-  if (/^(H[1-3]|HR)$/.test(n.tagName)) return true;
-  return isRenderedCard(n);
-}
-
 /* BG/Image url resolution and the portrait frame are shared across all card
    cards (cards/shared/cardImage.js): cardBgUrl(), cardPortrait(). */
 
@@ -134,7 +126,7 @@ function buildObjCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("obj", { build: buildObjCard, cssClass: "obj-card" });
+  RendScrollCards.register("obj", { build: buildObjCard, cssClass: "obj-card", titleClass: "obj-title" });
 }
 
 if (typeof window !== "undefined") window.parseObjBody = parseObjBody;

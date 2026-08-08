@@ -79,9 +79,6 @@
   // orientation, and ignores zoom entirely. So we own both here: the sidebar
   // subsection writes the current choices into a dynamic <style> element that
   // overrides printer.css. It lives in @media print, so the screen is untouched.
-  const FALLBACK_CARD_SELECTOR =
-    ".sc-card,.npc-card,.item-card,.ability-card,.obj-card,.combat-card," +
-    ".std-card,.unexpected-card,.narrative-card,.manifest-card,.picture-card,.audio-card";
   const settings = { orientation: "portrait", zoom: 50, columns: "2" };
 
   function ensureDynamicStyle() {
@@ -110,16 +107,10 @@
     return raw.length > 90 ? raw.slice(0, 89) + "..." : raw;
   }
 
+  // The card registry is the single source for card classes; it loads before
+  // this file (index.html) and before the printer tests' script list.
   function printCardSelector() {
-    if (
-      typeof RendScrollCards !== "undefined" &&
-      RendScrollCards &&
-      typeof RendScrollCards.cardSelector === "function"
-    ) {
-      const selector = RendScrollCards.cardSelector();
-      if (selector) return selector;
-    }
-    return FALLBACK_CARD_SELECTOR;
+    return RendScrollCards.cardSelector();
   }
 
   // Chromium is the default, fully supported printer. Other engines get the

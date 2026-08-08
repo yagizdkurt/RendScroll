@@ -29,7 +29,6 @@ const READER_SCRIPTS = [
   "src/vendor/marked.min.js",
   "src/utils/safeStorage.js",
   "src/utils/text.js",
-  "src/utils/dom.js",
   "src/utils/markdown.js",
   "src/utils/serverApi.js",
   "src/debug/rsLog.js",

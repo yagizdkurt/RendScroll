@@ -11,7 +11,6 @@ const ROOT = path.join(__dirname, "..");
 const CARD_SCRIPTS = [
   "src/vendor/marked.min.js",
   "src/utils/text.js",
-  "src/utils/dom.js",
   "src/utils/markdown.js",
   "src/parser/rendscrollParser.js",
   "src/cards/shared/skillCheckRules.js",

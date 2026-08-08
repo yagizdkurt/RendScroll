@@ -384,9 +384,7 @@ const CampaignSearch = (() => {
     if (opened === false) return;
     const pageEl = document.getElementById("page");
     if (!pageEl) return;
-    const selector = (typeof RendScrollCards !== "undefined" && RendScrollCards.cardSelector)
-      ? RendScrollCards.cardSelector()
-      : ".item-card,.combat-card,.npc-card,.ability-card,.obj-card,.std-card,.unexpected-card,.narrative-card,.manifest-card,.picture-card,.audio-card";
+    const selector = RendScrollCards.cardSelector();
     const target = pageEl.querySelector(".library-view " + selector) ||
       pageEl.querySelector(".library-view") ||
       pageEl;

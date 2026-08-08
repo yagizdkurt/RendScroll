@@ -21,7 +21,6 @@ const ROOT = path.join(__dirname, "..");
 const SCRIPTS = [
   "src/vendor/marked.min.js",
   "src/utils/text.js",
-  "src/utils/dom.js",
   "src/utils/markdown.js",
   "src/parser/rendscrollParser.js",
   "src/cards/shared/skillCheckRules.js",
@@ -93,4 +92,25 @@ test("cardSelector() covers every registered class exactly once", () => {
   });
   const parts = selector.split(",");
   assert.equal(new Set(parts).size, parts.length, "cardSelector() must not repeat classes");
+});
+
+// cardCollapse.js derives BOTH of its selectors from the registry's titleClass,
+// so a collapsible type is declared in exactly one place.
+test("collapsibleSelectors() is derived from the registered titleClass values", () => {
+  const { card, title } = cards.collapsibleSelectors();
+  const collapsible = cards.types().filter((t) => cards.titleClass(t));
+
+  assert.deepEqual(
+    new Set(collapsible.map((t) => cards.cssClass(t))),
+    new Set([...card.matchAll(/\.([\w-]+)/g)].map((m) => m[1])));
+  assert.deepEqual(
+    new Set(collapsible.map((t) => cards.titleClass(t))),
+    new Set([...title.matchAll(/:scope > \.([\w-]+)/g)].map((m) => m[1])));
+
+  // Types that deliberately do not collapse must stay out of both selectors.
+  ["std", "narrative", "manifest", "picture", "audio", "transition"].forEach((type) => {
+    assert.equal(cards.titleClass(type), null, type + " must not declare a titleClass");
+    assert.ok(!card.includes("." + cards.cssClass(type)),
+      type + " must not appear in the collapse card selector");
+  });
 });

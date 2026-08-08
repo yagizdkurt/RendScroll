@@ -265,12 +265,13 @@
   }
 
   /* --- Page-break hygiene: keep atoms whole (the fallback for events taller
-         than one page); don't strand headings --- */
+         than one page); don't strand headings ---
+         Card divs are NOT listed here: printer.js's dynamic style
+         (#printer-dynamic-style, seeded at init and appended last) emits the same
+         break-inside rule for the registry's card classes, so the list stays in
+         one place (cards/shared/cardRegistry.js). */
   #page p, #page li, #page blockquote,
-  #page .npc-stat-row, #page .sc-row,
-  .sc-card, .npc-card, .item-card, .ability-card,
-  .obj-card, .combat-card, .std-card, .unexpected-card,
-  .narrative-card, .manifest-card, .picture-card, .audio-card{
+  #page .npc-stat-row, #page .sc-row{
     break-inside:avoid;
     page-break-inside:avoid;
   }

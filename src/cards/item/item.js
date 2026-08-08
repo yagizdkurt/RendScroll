@@ -3,14 +3,6 @@
    It never fetches files, never touches the sidebar, and never calls
    another renderer. */
 
-/* A node ends the current section if it's a new heading/separator OR a card that
-   another renderer already produced (e.g. an NPC card placed right before this
-   Item). Without the card check the collector would swallow the next card. */
-function itemIsBoundary(n) {
-  if (/^(H[23]|HR)$/.test(n.tagName)) return true;
-  return isRenderedCard(n);
-}
-
 const ITEM_RARITIES = {
   "1": "Common",
   "2": "Rare",
@@ -331,6 +323,6 @@ if (typeof module !== "undefined" && module.exports) module.exports = { ItemData
    sourceitem (library base item) renders through the same builder. No normalizer:
    the builder reads directives/body from the parsed AST node (via ItemData.parse). */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("item", { build: buildItemCard, cssClass: "item-card" });
-  RendScrollCards.register("sourceitem", { build: buildSourceItemCard, cssClass: "item-card" });
+  RendScrollCards.register("item", { build: buildItemCard, cssClass: "item-card", titleClass: "item-title" });
+  RendScrollCards.register("sourceitem", { build: buildSourceItemCard, cssClass: "item-card", titleClass: "item-title" });
 }

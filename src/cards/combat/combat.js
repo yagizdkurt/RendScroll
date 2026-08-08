@@ -632,7 +632,7 @@ function buildHpRow(state, onChange) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: both builders read directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("combat", { build: buildCombatCard, cssClass: "combat-card" });
+  RendScrollCards.register("combat", { build: buildCombatCard, cssClass: "combat-card", titleClass: "combat-title" });
   // Root carries "combat-card sourceenemy-card"; combat-card is the identifying one
   // (layout's cardTypeOf reads the first *-card class).
   RendScrollCards.register("sourceenemy", { build: buildSourceEnemyCard, cssClass: "combat-card" });
