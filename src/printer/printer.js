@@ -226,6 +226,27 @@
     caption.textContent = "Export";
     group.appendChild(caption);
 
+    // --- Export Campaign Package button ---
+    // Bundles the whole campaign (scenes + referenced items/enemies + assets)
+    // into a zip via CampaignExporter. Independent of the print path below.
+    const pkgBtn = document.createElement("button");
+    pkgBtn.type = "button";
+    pkgBtn.className = "printer-export-btn printer-package-btn";
+    pkgBtn.textContent = "📦 Export Package";
+    pkgBtn.title = "Bundle scenes + referenced items, enemies, and assets into a shareable zip";
+    group.appendChild(pkgBtn);
+
+    // Inline status line for the package export (success summary or error).
+    const status = document.createElement("div");
+    status.className = "printer-export-status";
+    status.hidden = true;
+    group.appendChild(status);
+
+    const separator = document.createElement("div");
+    separator.className = "printer-export-separator";
+    separator.setAttribute("aria-hidden", "true");
+    group.appendChild(separator);
+
     group.appendChild(mountSegmentedChoice(
       "Orientation",
       [
@@ -293,22 +314,6 @@
       window.print();
     });
     group.appendChild(btn);
-
-    // --- Export Campaign Package button ---
-    // Bundles the whole campaign (scenes + referenced items/enemies + assets)
-    // into a zip via CampaignExporter. Independent of the print path above.
-    const pkgBtn = document.createElement("button");
-    pkgBtn.type = "button";
-    pkgBtn.className = "printer-export-btn";
-    pkgBtn.textContent = "📦 Export Package";
-    pkgBtn.title = "Bundle scenes + referenced items, enemies, and assets into a shareable zip";
-    group.appendChild(pkgBtn);
-
-    // Inline status line for the package export (success summary or error).
-    const status = document.createElement("div");
-    status.className = "printer-export-status";
-    status.hidden = true;
-    group.appendChild(status);
 
     function setStatus(text, kind) {
       status.hidden = !text;

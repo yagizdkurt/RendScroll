@@ -95,6 +95,12 @@
 }
 .printer-export-btn:hover{ filter:brightness(1.1); }
 .printer-export-btn:disabled{ opacity:.6; cursor:default; filter:none; }
+.printer-package-btn{ margin-top:0; }
+.printer-export-separator{
+  height:1px;
+  margin:.25rem 0;
+  background:rgba(201,173,106,.35);
+}
 
 /* Inline status line for the package export (summary / warning / error). */
 .printer-export-status{
