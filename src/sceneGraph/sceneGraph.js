@@ -1159,7 +1159,7 @@ const SceneGraphPanel = (() => {
       document.getElementById("sidebar");
     if (!host || document.getElementById("rs-scenegraph-toggle")) return;
 
-    const btn = el("button", "rsg-toggle-btn print-hide", "🗺 Map");
+    const btn = el("button", "rsg-toggle-btn print-hide", "🗺 Scene Graph");
     btn.id = "rs-scenegraph-toggle";
     btn.type = "button";
     btn.setAttribute("aria-label", "Open the scene progression map");
