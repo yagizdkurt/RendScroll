@@ -56,12 +56,16 @@ test("non-derivable css classes are registered explicitly", () => {
 
 test("cardSelector() covers every registered class exactly once", () => {
   const selector = cards.cardSelector();
-  cards.types().forEach((type) => {
+  // Types that render no card element (cssClass: null, e.g. "echo") must stay out
+  // of the selector entirely — there is nothing to select.
+  cards.types().filter((type) => cards.cssClass(type)).forEach((type) => {
     assert.ok(selector.includes("." + cards.cssClass(type)),
       "cardSelector() must include ." + cards.cssClass(type));
   });
   const parts = selector.split(",");
   assert.equal(new Set(parts).size, parts.length, "cardSelector() must not repeat classes");
+  assert.ok(!/\.(null|undefined)\b/.test(selector),
+    "cardSelector() leaked a null cssClass: " + selector);
 });
 
 // cardCollapse.js derives BOTH of its selectors from the registry's titleClass,

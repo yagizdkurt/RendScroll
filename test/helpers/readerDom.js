@@ -72,6 +72,7 @@ const READER_SCRIPTS = [
   "src/cards/picture/picture.js",
   "src/cards/audio/audio.js",
   "src/cards/transition/transition.js",
+  "src/cards/echo/echo.js",
   "src/cards/shared/cardCollapse.js",
   "src/app/renderCard.js",
 ];
@@ -111,6 +112,7 @@ const CARD_LAYER_SCRIPTS = [
   "src/cards/picture/picture.js",
   "src/cards/audio/audio.js",
   "src/cards/transition/transition.js",
+  "src/cards/echo/echo.js",
 ];
 
 // app.js's init() calls into the sidebar/campaign/options layers and touches

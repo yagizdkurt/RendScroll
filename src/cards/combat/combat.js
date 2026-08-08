@@ -24,11 +24,6 @@
    The card renders in the left column by default; a "Side: R" line moves it to
    the right column. */
 
-// True only for a combat heading (colon form).
-function isCombatHead(h) {
-  return /^\s*combat\s*:/.test(rsLower(h.textContent).trim());
-}
-
 // A bare "Label:" line (letters/spaces only, ending in a colon) opens a combat
 // sub-section. Canonical regex lives in the parser; reuse it so the rule is not
 // restated. Read-aloud (">") and list ("-") lines never match.
@@ -632,7 +627,7 @@ function buildHpRow(state, onChange) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: both builders read directives/checkGroups/body from the AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("combat", { build: buildCombatCard, cssClass: "combat-card", titleClass: "combat-title" });
+  RendScrollCards.register("combat", { build: buildCombatCard, cssClass: "combat-card", titleClass: "combat-title", accentClass: "combat-section" });
   // Root carries "combat-card sourceenemy-card"; combat-card is the identifying one
   // (layout's cardTypeOf reads the first *-card class).
   RendScrollCards.register("sourceenemy", { build: buildSourceEnemyCard, cssClass: "combat-card" });

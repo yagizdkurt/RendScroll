@@ -154,5 +154,5 @@ function buildSkillChecksCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads checkGroups from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("skillchecks", { build: buildSkillChecksCard, cssClass: "sc-card", titleClass: "sc-card-title" });
+  RendScrollCards.register("skillchecks", { build: buildSkillChecksCard, cssClass: "sc-card", titleClass: "sc-card-title", accentClass: "skill-section" });
 }

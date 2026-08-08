@@ -7,11 +7,6 @@
    the right column. It never fetches files, never touches the sidebar, and
    never calls another renderer. */
 
-// True only for a "### STD:" heading (colon form).
-function isStdHead(h) {
-  return /^std\s*:/.test(rsLower(h.textContent).trim());
-}
-
 // Build one STD card from its parsed AST node. Image/Side come from the resolved
 // directives; the body renders unchanged through marked.
 function buildStdCard(cardNode, head, nodes) {

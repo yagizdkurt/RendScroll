@@ -14,17 +14,6 @@
    goes through ReaderState / ReaderDom. See that file for why.
    ============================================================ */
 
-/* Card type -> heading accent class. The parser owns classification (card.type);
-   this map is the renderer's presentation choice for each type. Only level-3 card
-   types are listed, matching the `h3.*-section` rules in base.css. */
-const ACCENT_BY_TYPE = {
-  skillchecks: "skill-section",
-  npc: "npc-section",
-  combat: "combat-section",
-  unexpected: "contingency-section",
-  echo: "echo-section",
-};
-
 /* Base styling shared by every scene (not tied to one feature). Heading accents
    are stamped per-card from the parsed card.type (see stampAccentClass), not
    re-sniffed from DOM text here. */
@@ -33,11 +22,13 @@ function enhanceBaseStyling(root) {
   root.querySelectorAll("blockquote").forEach((bq) => bq.classList.add("read-aloud"));
 }
 
-// Stamp a card's heading accent from its parser type. Finds the first heading in
-// the produced nodes (the builder's card subtree, or the raw block elements for a
-// builderless type like echo) and adds ACCENT_BY_TYPE[type].
+// Stamp a card's heading accent from its parser type. The class comes from the
+// card registry (accentClass, declared in each cards/<type>/<type>.js), so the
+// accent is not a second per-type table here. Finds the first heading in the
+// produced nodes — the builder's card subtree, or the raw block elements for a
+// builderless type like echo.
 function stampAccentClass(nodes, type) {
-  const cls = ACCENT_BY_TYPE[type];
+  const cls = RendScrollCards.accentClass(type);
   if (!cls) return;
   for (const n of nodes) {
     if (!n) continue;

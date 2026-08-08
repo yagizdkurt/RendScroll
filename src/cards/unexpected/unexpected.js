@@ -8,11 +8,6 @@
    NOT restructure the content. It never fetches files, never touches the
    sidebar, and never calls another renderer. */
 
-// True only for a "### Unexpected:" heading (colon form).
-function isUnexpectedHead(h) {
-  return /^unexpected\s*:/.test(rsLower(h.textContent).trim());
-}
-
 // Build one Unexpected card from its parsed AST node. Image/Side come
 // from the resolved directives; the body renders unchanged through marked.
 function buildUnexpectedCard(cardNode, head, nodes) {
@@ -40,5 +35,5 @@ function buildUnexpectedCard(cardNode, head, nodes) {
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */
 if (typeof RendScrollCards !== "undefined") {
-  RendScrollCards.register("unexpected", { build: buildUnexpectedCard, cssClass: "unexpected-card", titleClass: "unexpected-title" });
+  RendScrollCards.register("unexpected", { build: buildUnexpectedCard, cssClass: "unexpected-card", titleClass: "unexpected-title", accentClass: "contingency-section" });
 }

@@ -6,8 +6,9 @@
    and assert the produced element — no re-implementation to drift from app.js.
 
    This also hosts the manifest<->registry guard: every classifiable card type in the
-   parser's CARD_TYPES (except the builder-less "echo") must have a registered builder,
-   so a forgotten registration fails loudly here instead of silently at render time. */
+   parser's CARD_TYPES must be registered, so a forgotten registration fails loudly
+   here instead of silently at render time — plus the accentClass guards, which are
+   the only thing keeping the JS accent declarations and the base.css rules in step. */
 
 const { test, before } = require("node:test");
 const assert = require("node:assert");
@@ -33,32 +34,55 @@ before(async () => {
   };
 });
 
-test("every classifiable card type (except echo) registers a builder", () => {
+test("every classifiable card type is registered", () => {
   assert.ok(T && T.cards, "harness failed to load (RendScrollCards missing)");
   // Build a plain Node array (cardTypeList runs in jsdom's realm; copying avoids a
   // cross-realm prototype mismatch in the assertion).
-  const missing = Array.from(T.parser.cardTypeList())
-    .filter((type) => type !== "echo")
-    .filter((type) => typeof T.cards.builder(type) !== "function");
-  assert.strictEqual(missing.length, 0, "card types with no registered builder: " + missing.join(", "));
+  const unregistered = Array.from(T.parser.cardTypeList())
+    .filter((type) => !T.cards.get(type));
+  assert.strictEqual(unregistered.length, 0,
+    "card types missing from the registry: " + unregistered.join(", "));
+
+  // Every registered type either builds a card, or declares itself builder-less
+  // on purpose (build: null + cssClass: null) — no silent third state.
+  Array.from(T.parser.cardTypeList()).forEach((type) => {
+    const entry = T.cards.get(type);
+    if (typeof entry.build === "function") {
+      assert.ok(entry.cssClass, type + " builds a card, so it needs a cssClass");
+    } else {
+      assert.strictEqual(entry.build, null, type + " must declare build: null explicitly");
+      assert.strictEqual(entry.cssClass, null,
+        type + " has no builder, so it must declare cssClass: null (no card element)");
+    }
+  });
+
   // sourceitem/sourceenemy are library variants not in cardTypeList but must build too.
   assert.strictEqual(typeof T.cards.builder("sourceitem"), "function");
   assert.strictEqual(typeof T.cards.builder("sourceenemy"), "function");
 });
 
-test("app.js ACCENT_BY_TYPE keys are all real parser card types", () => {
-  // Heading accents are stamped from card.type (app.js renderCardBlock), so the
-  // presentation map must not drift from the parser's classification. Read the map
-  // out of app.js source (app.js itself isn't loaded in this harness) and check its
-  // keys against the parser's type list, so a renamed/typo'd type fails loudly here.
-  const appSrc = fs.readFileSync(path.join(ROOT, "src/app/app.js"), "utf8");
-  const block = appSrc.match(/const ACCENT_BY_TYPE\s*=\s*\{([\s\S]*?)\}/);
-  assert.ok(block, "ACCENT_BY_TYPE map not found in app.js");
-  const keys = Array.from(block[1].matchAll(/(\w+)\s*:/g)).map((m) => m[1]);
-  assert.ok(keys.length > 0, "ACCENT_BY_TYPE has no entries");
+test("every declared accentClass belongs to a real parser card type", () => {
+  // Heading accents are stamped from card.type (app.js stampAccentClass) and the
+  // class now comes from the registry, so a renamed/typo'd type fails loudly here.
+  const accented = T.cards.types().filter((type) => T.cards.accentClass(type));
+  assert.ok(accented.length > 0, "no type declares an accentClass");
   const types = new Set(Array.from(T.parser.cardTypeList()));
-  const unknown = keys.filter((k) => !types.has(k));
-  assert.strictEqual(unknown.length, 0, "ACCENT_BY_TYPE keys not in parser types: " + unknown.join(", "));
+  const unknown = accented.filter((type) => !types.has(type));
+  assert.strictEqual(unknown.length, 0,
+    "accentClass declared for types the parser does not classify: " + unknown.join(", "));
+});
+
+test("every declared accentClass has a matching h3 rule in base.css", () => {
+  // The JS half and the CSS half of an accent are separate files by necessity;
+  // this is what keeps them from drifting (declare a class, forget the rule, and
+  // the heading silently renders unstyled).
+  const css = fs.readFileSync(path.join(ROOT, "src/styles/base.css"), "utf8");
+  const missing = T.cards.types()
+    .map((type) => T.cards.accentClass(type))
+    .filter(Boolean)
+    .filter((cls) => !new RegExp("h3\\." + cls + "\\b").test(css));
+  assert.strictEqual(missing.length, 0,
+    "accent classes with no h3 rule in base.css: " + missing.join(", "));
 });
 
 test("narrative: builds a narrative-card and routes Side: R to the right column", () => {
