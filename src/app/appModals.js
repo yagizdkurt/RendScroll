@@ -148,13 +148,10 @@ function normalizeManifestValues(v) {
 }
 
 // Serialize manifest field values to a "### Manifest" markdown block, reusing the
-// editor's schema serializer so the on-disk format is owned in exactly one place.
-// Returns "" when every field is blank.
+// manifest card's own serializer (cards/manifest/manifest.js) so the on-disk format
+// is owned in exactly one place. Returns "" when every field is blank.
 function serializeManifestValues(v) {
-  v = normalizeManifestValues(v);
-  if (!manifestValuesHaveContent(v) || typeof EditorSchemas === "undefined") return "";
-  const schema = EditorSchemas.get("manifest");
-  return schema ? EditorSchemas.serialize(schema, v) : "";
+  return serializeManifestBody(normalizeManifestValues(v));
 }
 
 const EDIT_MANIFEST_DRAFT_PREFIX = "rendscroll-draft:edit-manifest:";
@@ -346,15 +343,12 @@ async function openNewPageDialog() {
 
 // Edit (or add) a scene's Scene Manifest from the sidebar, without opening the full
 // editor. Loads the scene off disk, prefills from its existing "### Manifest" card (if
-// any), and on save replaces / inserts / removes that block via the editor's outline
-// primitives (EOL-safe), writes through POST /__save, and reloads if it's on screen.
+// any), and on save replaces / inserts / removes that block via SceneManifest (which
+// works straight off the parser AST and is EOL-safe), writes through POST /__save,
+// and reloads if it's on screen. Deliberately free of any editor-layer dependency:
+// this is a reader feature and must work with editor mode off.
 async function openEditManifestDialog(entry) {
   if (!entry || document.querySelector(".edit-manifest-backdrop")) return;
-  if (typeof EditorSchemas === "undefined" || typeof EditorOutline === "undefined"
-      || typeof EditorSave === "undefined" || typeof fetchMarkdown === "undefined") {
-    alert("Editing the manifest needs the editor layer and the launcher's server.");
-    return;
-  }
 
   let text;
   try {
@@ -364,12 +358,7 @@ async function openEditManifestDialog(entry) {
     return;
   }
 
-  const schema = EditorSchemas.get("manifest");
-  const model = EditorOutline.parse(text);
-  let manifestCard = null;
-  model.events.forEach((ev) => ev.cards.forEach((c) => {
-    if (!manifestCard && c.type === "manifest") manifestCard = c;
-  }));
+  const existing = SceneManifest.read(text);
 
   let manifestFields = null;
   let saveDraftOnClose = true;
@@ -379,7 +368,7 @@ async function openEditManifestDialog(entry) {
     backdropClass: "edit-manifest-backdrop",
     modalClass: "new-page-modal",
     modalTag: "form",
-    titleText: draftValues ? "Edit Scene Manifest Draft" : manifestCard ? "Edit Scene Manifest" : "Add Scene Manifest",
+    titleText: draftValues ? "Edit Scene Manifest Draft" : existing.node ? "Edit Scene Manifest" : "Add Scene Manifest",
     backdropEvent: "click",
     allowBackdropClose: () => !saveBtn.disabled,
     onKeydown: (e) => { if (e.key === "Escape" && !saveBtn.disabled) closeModal(); },
@@ -392,7 +381,7 @@ async function openEditManifestDialog(entry) {
   manifestFields = createManifestFields();
   body.appendChild(manifestFields.wrap);
   if (draftValues) manifestFields.fill(draftValues);
-  else if (manifestCard) manifestFields.fill(EditorSchemas.parse(schema, EditorOutline.cardSource(model, manifestCard)));
+  else if (existing.node) manifestFields.fill(existing.values);
   manifestFields.wrap.addEventListener("input", () => {
     draftDirty = true;
     saveEditManifestDraft(entry.path, manifestFields.read());
@@ -443,29 +432,22 @@ async function openEditManifestDialog(entry) {
     e.preventDefault();
     error.textContent = "";
 
-    const block = serializeManifestValues(manifestFields.read());
-    let newModel;
-    if (manifestCard) {
-      // Replace the existing manifest, or drop it entirely when cleared out.
-      newModel = block
-        ? EditorOutline.replaceCard(model, manifestCard, block)
-        : EditorOutline.deleteCard(model, manifestCard);
-    } else {
-      if (!block) {
-        clearEditManifestDraft(entry.path);
-        saveDraftOnClose = false;
-        closeModal();
-        return;
-      } // nothing to add
-      // Insert just under the "# Title" header so it renders pinned at the top.
-      const header = model.events[0];
-      const insertLine = header && header.headingStart >= 0 ? header.headingStart + 1 : 0;
-      newModel = EditorOutline.insertAtLine(model, insertLine, block);
+    const values = normalizeManifestValues(manifestFields.read());
+    // Nothing on disk and nothing typed: there is nothing to write.
+    if (!existing.node && !manifestValuesHaveContent(values)) {
+      clearEditManifestDraft(entry.path);
+      saveDraftOnClose = false;
+      closeModal();
+      return;
     }
+
+    // Replaces / removes / inserts the "### Manifest" block; everything else in
+    // the file is copied through unchanged.
+    const updated = SceneManifest.apply(text, values);
 
     setBusy(true);
     try {
-      await EditorSave.save(entry.path, EditorOutline.serialize(newModel));
+      await SceneSave.save(entry.path, updated);
       clearEditManifestDraft(entry.path);
       saveDraftOnClose = false;
       closeModal();

@@ -9,7 +9,18 @@ const { JSDOM } = require("jsdom");
 const ROOT = path.join(__dirname, "..");
 const DRAFT_KEY = "rendscroll-draft:edit-manifest:campaigns/Test/scenes/1.md";
 
-function loadHarness() {
+// The real modules the manifest dialogs read/write through. Loading these (rather
+// than faking them) is the point: the dialog is a READER feature and must work with
+// the editor layer absent — no Editor* global is defined in this window.
+const SCRIPTS = [
+  "src/utils/text.js",
+  "src/parser/rendscrollParser.js",
+  "src/cards/shared/cardDirectives.js",
+  "src/cards/manifest/manifest.js",
+  "src/app/sceneManifest.js",
+];
+
+function loadHarness(sceneText) {
   const dom = new JSDOM("<!DOCTYPE html><body></body>", {
     runScripts: "dangerously",
     url: "http://localhost/",
@@ -19,59 +30,30 @@ function loadHarness() {
   win.alert = (msg) => { throw new Error(msg); };
   win.currentPath = "";
   win.load = async (p) => { win.__loaded = p; };
-  win.fetchMarkdown = async () => "# Scene\n";
-  win.EditorSchemas = {
-    get(type) {
-      assert.equal(type, "manifest");
-      return { type };
-    },
-    parse() {
-      return {
-        duration: "10 min",
-        summary: "Saved summary",
-        goals: [],
-        keyNpcs: [],
-        rewards: [],
-      };
-    },
-    serialize(schema, values) {
-      const lines = ["### Manifest"];
-      if (values.duration) lines.push("Duration: " + values.duration);
-      if (values.summary) lines.push("Summary: " + values.summary);
-      return lines.join("\n") + "\n";
-    },
-  };
-  win.EditorOutline = {
-    parse() {
-      return { events: [{ headingStart: 0, cards: [] }] };
-    },
-    cardSource() {
-      return "### Manifest\nSummary: Saved summary\n";
-    },
-    insertAtLine(model, line, block) {
-      win.__insert = { line, block };
-      return { raw: "# Scene\n" + block };
-    },
-    replaceCard(model, card, block) {
-      return { raw: block };
-    },
-    deleteCard() {
-      return { raw: "# Scene\n" };
-    },
-    serialize(model) {
-      return model.raw;
-    },
-  };
-  win.EditorSave = {
+  win.fetchMarkdown = async () => (sceneText === undefined ? "# Scene\n" : sceneText);
+  // The only stub: we assert what would be written, without touching the network.
+  win.SceneSave = {
     save: async (p, text) => { win.__saved = { path: p, text }; },
   };
 
-  const script = win.document.createElement("script");
-  script.textContent = fs.readFileSync(path.join(ROOT, "src", "app", "appModals.js"), "utf8") +
-    "\nwindow.__openEditManifestDialog = openEditManifestDialog;\n";
-  win.document.body.appendChild(script);
+  const add = (code) => {
+    const el = win.document.createElement("script");
+    el.textContent = code;
+    win.document.body.appendChild(el);
+  };
+  SCRIPTS.forEach((rel) => add(fs.readFileSync(path.join(ROOT, rel), "utf8")));
+  add(fs.readFileSync(path.join(ROOT, "src", "app", "appModals.js"), "utf8") +
+    "\nwindow.__openEditManifestDialog = openEditManifestDialog;\n");
   return { win };
 }
+
+// The reader must not reach into the editor layer for its own dialogs (see
+// MODULARITY_REPORT.md B3). Guards the regression directly at the source.
+test("appModals.js references no editor-layer global", () => {
+  const src = fs.readFileSync(path.join(ROOT, "src", "app", "appModals.js"), "utf8");
+  const hits = [...src.matchAll(/\bEditor[A-Z]\w*/g)].map((m) => m[0]);
+  assert.deepEqual([...new Set(hits)], [], "appModals.js must stay free of Editor* globals");
+});
 
 function clickButton(win, label) {
   const btn = [...win.document.querySelectorAll("button")]
@@ -118,8 +100,9 @@ test("edit manifest save clears the cached draft", async () => {
   }));
   await flush();
 
-  assert.equal(win.__insert.line, 1);
-  assert.match(win.__saved.text, /Summary: Draft summary/);
+  // Written through the real SceneManifest: inserted under the "# Scene" header.
+  assert.equal(win.__saved.path, "campaigns/Test/scenes/1.md");
+  assert.equal(win.__saved.text, "# Scene\n\n### Manifest\nSummary: Draft summary\n\n");
   assert.equal(win.localStorage.getItem(DRAFT_KEY), null);
 });
 
@@ -131,4 +114,41 @@ test("opening and canceling an unchanged manifest does not create a draft", asyn
   clickButton(win, "Cancel");
 
   assert.equal(win.localStorage.getItem(DRAFT_KEY), null);
+});
+
+test("an existing manifest prefills the form and is replaced in place on save", async () => {
+  const scene = "# Scene\n\n### Manifest\nDuration: 10 min\nSummary: Saved summary\n\n## Event\n\nBody.\n";
+  const { win } = loadHarness(scene);
+  const entry = { path: "campaigns/Test/scenes/1.md" };
+
+  await win.__openEditManifestDialog(entry);
+  assert.equal(win.document.getElementById("manifest-duration").value, "10 min");
+  assert.equal(win.document.getElementById("manifest-summary").value, "Saved summary");
+
+  const summary = win.document.getElementById("manifest-summary");
+  summary.value = "Rewritten";
+  summary.dispatchEvent(new win.Event("input", { bubbles: true }));
+  win.document.querySelector("form").dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
+  await flush();
+
+  assert.equal(
+    win.__saved.text,
+    "# Scene\n\n### Manifest\nDuration: 10 min\nSummary: Rewritten\n\n## Event\n\nBody.\n");
+});
+
+test("clearing every field removes the manifest block from the scene", async () => {
+  const scene = "# Scene\n\n### Manifest\nDuration: 10 min\nSummary: Saved summary\n\n## Event\n\nBody.\n";
+  const { win } = loadHarness(scene);
+  const entry = { path: "campaigns/Test/scenes/1.md" };
+
+  await win.__openEditManifestDialog(entry);
+  ["manifest-duration", "manifest-summary"].forEach((id) => {
+    const el = win.document.getElementById(id);
+    el.value = "";
+    el.dispatchEvent(new win.Event("input", { bubbles: true }));
+  });
+  win.document.querySelector("form").dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
+  await flush();
+
+  assert.equal(win.__saved.text, "# Scene\n\n## Event\n\nBody.\n");
 });

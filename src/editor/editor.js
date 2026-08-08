@@ -296,7 +296,7 @@ const Editor = (() => {
     const path = entry.path;
     EditorForm.openEdit(libCard, libModel, async (block) => {
       try {
-        await EditorSave.save(path, ensureTrailingNewline(block));
+        await SceneSave.save(path, ensureTrailingNewline(block));
         await RefLibrary.refresh(type, name);
         // app.js re-renders the right view (scene with decorations, or the
         // library view) in response to this; don't rerender the scene here.
@@ -395,7 +395,7 @@ const Editor = (() => {
     opts = opts || {};
     if (!state.path || !state.model) return true;
     try {
-      await EditorSave.save(state.path, EditorOutline.serialize(state.model));
+      await SceneSave.save(state.path, EditorOutline.serialize(state.model));
       markDirty(false);
       if (!opts.silent) toast("Saved " + state.path);
       return true;

@@ -64,6 +64,30 @@ function parseManifestBody(cardNode) {
   return out;
 }
 
+// The exact inverse of parseManifestBody: manifest model -> the "### Manifest"
+// markdown block, driven by the SAME label tables, so the on-disk field names live
+// in one place. Returns "" when every field is blank (callers treat that as "no
+// manifest"). Always emits "\n"; callers re-map to the file's EOL.
+function serializeManifestBody(model) {
+  const m = model || {};
+  const text = (v) => String(v == null ? "" : v).trim();
+  const items = (v) => (Array.isArray(v) ? v : []).map(text).filter(Boolean);
+
+  let out = "";
+  MANIFEST_SCALARS.forEach((f) => {
+    const v = text(m[f.key]);
+    if (v) out += f.label + ": " + v + "\n";
+  });
+  MANIFEST_LISTS.forEach((f) => {
+    const list = items(m[f.key]);
+    if (!list.length) return;
+    out += f.label + ":\n";
+    list.forEach((it) => { out += "- " + it + "\n"; });
+  });
+
+  return out ? "### Manifest\n" + out : "";
+}
+
 // One compact "Label: value" row.
 function manifestRow(label, value) {
   const row = document.createElement("div");
@@ -131,8 +155,13 @@ function buildManifestCard(cardNode, head, nodes) {
   return card;
 }
 
-if (typeof window !== "undefined") window.parseManifestBody = parseManifestBody;
-if (typeof module !== "undefined" && module.exports) module.exports = { parseManifestBody };
+if (typeof window !== "undefined") {
+  window.parseManifestBody = parseManifestBody;
+  window.serializeManifestBody = serializeManifestBody;
+}
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { parseManifestBody, serializeManifestBody };
+}
 
 /* Self-register with the runtime card registry (cards/shared/cardRegistry.js).
    No normalizer: the builder reads directives/body from the parsed AST node. */

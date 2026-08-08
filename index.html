@@ -54,6 +54,9 @@
   <!-- Campaign-stamping request helpers: appends the active campaign to the
        stateless /__ endpoints. Must load before refLibrary.js and the app. -->
   <script src="src/utils/serverApi.js"></script>
+  <!-- POST /__save wrapper. Reader-owned: the New Page / Edit Manifest dialogs
+       and the editor both write scene markdown through it. -->
+  <script src="src/utils/sceneSave.js"></script>
   <!-- Shared runtime warning sink. Loaded early so startup, library, campaign,
        and options failures can be surfaced later by the debug panel. -->
   <script src="src/debug/rsLog.js"></script>
@@ -106,6 +109,9 @@
        tested against real code. Declaration-only; must load before the app
        subsystems (appLibrary / refNavigation) and app.js that call it. -->
   <script src="src/app/renderCard.js"></script>
+  <!-- Scene Manifest read/write over the parser AST (no editor dependency).
+       Used by the New Page / Edit Manifest dialogs in appModals.js. -->
+  <script src="src/app/sceneManifest.js"></script>
   <!-- Multi-campaign manager: lists/creates/switches/imports/exports campaigns and
        owns the start screen. Needs refLibrary.js; used by app.js boot, so load it
        before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
@@ -122,7 +128,6 @@
   <script src="src/app/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
   <script src="src/editor/outline.js"></script>
-  <script src="src/editor/save.js"></script>
   <script src="src/editor/cardSchemas.js"></script>
   <script src="src/editor/anchors.js"></script>
   <script src="src/editor/dragDrop.js"></script>

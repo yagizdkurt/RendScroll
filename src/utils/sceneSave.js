@@ -1,8 +1,9 @@
-/* Persistence: send edited scene markdown back to disk via the launcher's
-   POST /__save endpoint. Knows nothing about the outline model or the DOM —
-   it just ships {path, content} and reports success/failure. */
+/* Persistence: send scene / library markdown back to disk via the launcher's
+   POST /__save endpoint. Knows nothing about the outline model, the editor, or
+   the DOM — it just ships {path, content} and reports success/failure. Both the
+   reader (app/appModals.js) and the editor (editor/editor.js) write through it. */
 
-const EditorSave = (() => {
+const SceneSave = (() => {
   // POST the markdown for `path` (e.g. "Campaigns/Legacy/Scenes/1_1.md"). Resolves to
   // { ok: true } or throws an Error carrying the server message.
   async function save(path, content) {
