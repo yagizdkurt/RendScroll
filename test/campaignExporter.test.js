@@ -134,3 +134,52 @@ test("collect de-dupes references by normalized name", () => {
   assert.deepEqual(files.sort(),
     ["campaigns/Legacy/graph.json", "campaigns/Legacy/scenes/1.md", "items/Kazma.md"]);
 });
+
+/* --- lore in the package ---------------------------------------------------
+   Lore is reference material a scene may never link to, so the collector cannot
+   discover it by walking references — every lore page in the campaign ships. */
+
+function fakeRefLibWithLore(items, lorePages) {
+  const base = fakeRefLib(items);
+  const lore = (lorePages || []).map((name) => ({
+    name, path: "campaigns/T/lore/" + name + ".md", source: "# Lore: " + name + "\n",
+  }));
+  return Object.assign({}, base, {
+    entries: (type) => (type === "lore" ? lore : []),
+  });
+}
+
+const SCENE = {
+  path: "campaigns/T/scenes/1.md",
+  text: "# Scene\n\n## Event\n\n[item=Rope]\n",
+};
+
+test("every lore page in the campaign is exported, referenced or not", () => {
+  const refLib = fakeRefLibWithLore(
+    { Rope: "### SourceItem: Rope\n" },
+    ["The Gate", "Unlinked Page"]);
+  const { files } = collect([SCENE], refLib);
+
+  assert.ok(files.includes("campaigns/T/lore/The Gate.md"));
+  assert.ok(files.includes("campaigns/T/lore/Unlinked Page.md"),
+    "a lore page nothing links to must still travel with the campaign");
+  assert.ok(files.includes("items/Rope.md"), "referenced items must still be collected");
+  assert.ok(files.includes("campaigns/T/scenes/1.md"));
+});
+
+test("the exported file list has no duplicates", () => {
+  const refLib = fakeRefLibWithLore({ Rope: "### SourceItem: Rope\n" }, ["A", "A"]);
+  const { files } = collect([SCENE], refLib);
+  assert.equal(new Set(files).size, files.length);
+});
+
+test("a campaign with no lore exports exactly what it did before", () => {
+  const refLib = fakeRefLibWithLore({ Rope: "### SourceItem: Rope\n" }, []);
+  const { files } = collect([SCENE], refLib);
+  assert.ok(!files.some((f) => f.includes("/lore/")));
+});
+
+test("collect tolerates a RefLibrary with no entries() (older callers)", () => {
+  const { files } = collect([SCENE], fakeRefLib({ Rope: "### SourceItem: Rope\n" }));
+  assert.ok(files.includes("campaigns/T/scenes/1.md"));
+});

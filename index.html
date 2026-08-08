@@ -24,6 +24,8 @@
     <div class="nav-campaign-name" id="nav-campaign-name"></div>
     <div class="nav-section-title" id="nav-campaign-title">Scenes</div>
     <nav id="nav"></nav>
+    <div class="nav-section-title" id="nav-lore-title">Lore</div>
+    <nav id="lore-nav" aria-label="Lore"></nav>
     <div class="nav-section-title" id="nav-library-title">Items</div>
     <nav id="library-nav" aria-label="Items"></nav>
     <div class="nav-section-title" id="nav-enemies-title">Enemies</div>
@@ -119,6 +121,10 @@
   <!-- Scene Manifest read/write over the parser AST (no editor dependency).
        Used by the New Page / Edit Manifest dialogs in appModals.js. -->
   <script src="src/app/sceneManifest.js"></script>
+  <!-- Lore: campaign-scoped multi-entry pages. loreModel.js is pure; loreView.js
+       renders a page and is reader-only (the editor half loads with the editor). -->
+  <script src="src/lore/loreModel.js"></script>
+  <script src="src/lore/loreView.js"></script>
   <!-- Multi-campaign manager: lists/creates/switches/imports/exports campaigns and
        owns the start screen. Needs refLibrary.js; used by app.js boot, so load it
        before app.js. (Export uses CampaignExporter lazily, which loads later.) -->
@@ -136,6 +142,9 @@
   <script src="src/assets/assetInventory.js"></script>
   <script src="src/app/app.js"></script>
   <!-- Editor mode (optional layer; reader is untouched when disabled) -->
+  <!-- One editing session (undo / dirty / Save / navigation guard / toolbar)
+       shared by the scene editor and the Lore editor. -->
+  <script src="src/editor/docSession.js"></script>
   <script src="src/editor/outline.js"></script>
   <script src="src/editor/cardSchemas.js"></script>
   <script src="src/editor/anchors.js"></script>
@@ -152,6 +161,8 @@
   <!-- Item Library picker: choose an existing library item (or create a new one)
        when inserting a SourceItem-backed scene Item. Needs form.js + refLibrary.js. -->
   <script src="src/editor/libraryPicker.js"></script>
+  <!-- Lore document editing: registers a lore page with EditorDocSession. -->
+  <script src="src/lore/loreEditor.js"></script>
   <script src="src/editor/editor.js"></script>
   <!-- Campaign package exporter: bundles scenes + referenced items/enemies +
        assets into a zip. Needs refLibrary.js + the card asset rules; used by the

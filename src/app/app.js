@@ -185,10 +185,10 @@ async function load(path) {
   ReaderState.setSceneView(path);
   renderPage(text);
   ReaderDom.page().parentElement.scrollTop = 0;
-  document.querySelectorAll("#nav button").forEach((b) =>
+  clearNavSelection();
+  ReaderDom.nav().querySelectorAll("button").forEach((b) =>
     b.classList.toggle("active", b.dataset.path === path)
   );
-  document.querySelectorAll("#library-nav button, #enemies-nav button").forEach((b) => b.classList.remove("active"));
   // Editor mode (editor/*.js) listens for this to cache the scene's raw source.
   // No-op when the editor isn't loaded.
   document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path, text } }));

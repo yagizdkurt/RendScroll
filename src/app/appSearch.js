@@ -64,10 +64,16 @@ const CampaignSearch = (() => {
     })).filter((entry) => entry.name || entry.path);
   }
 
+  function refTypes() {
+    return (typeof RefLibrary !== "undefined" && RefLibrary.REF_TYPES) || {};
+  }
+
+  // Badge wording comes from the ref registry, so a new library kind needs no
+  // change here.
   function resultTypeLabel(kind) {
     if (kind === "scene") return "Scene";
-    if (kind === "enemy") return "Enemy";
-    return "Item";
+    const def = refTypes()[kind];
+    return (def && def.label) || "Item";
   }
 
   function makeSnippet(line, query, maxLen) {
@@ -114,6 +120,58 @@ const CampaignSearch = (() => {
     return { results, overflow };
   }
 
+  /* --- "key:" lore keyword mode -------------------------------------------
+
+     A query beginning with "key:" (any case) is a KEYWORD lookup, not a text
+     search. Everything after the prefix is taken as ONE keyword, and both sides
+     are put through LoreModel.keywordKey (lowercase, all whitespace removed)
+     before an EXACT comparison — never a prefix or substring, so "key:ancient"
+     does not find "Ancient God".
+
+     A page keyword and an entry keyword are separate hits: matching the page
+     does not pull in its entries. */
+
+  const KEY_PREFIX = /^key\s*:\s*/i;
+
+  function keywordQuery(query) {
+    const raw = String(query || "");
+    if (!KEY_PREFIX.test(raw)) return null;
+    const keyword = raw.replace(KEY_PREFIX, "").trim();
+    return keyword ? keyword : "";
+  }
+
+  function searchKeywords(keyword, opts) {
+    const limit = opts && opts.limit != null ? Number(opts.limit) : DEFAULT_LIMIT;
+    const results = [];
+    let overflow = 0;
+    if (!keyword || typeof RefLibrary === "undefined" || typeof LoreModel === "undefined") {
+      return { results, overflow };
+    }
+
+    RefLibrary.entries("lore").forEach((entry) => {
+      const parsed = LoreModel.parse(entry.source);
+      LoreModel.matchKeyword(parsed.page, keyword).forEach((hit) => {
+        const result = {
+          kind: "lore",
+          label: entry.name,
+          name: entry.name,
+          path: entry.path,
+          loreEntry: hit.entryName,
+          lineIndex: 0,
+          lineNumber: 1,
+          query: keyword,
+          keyword: true,
+          snippet: hit.kind === "page"
+            ? "Page keyword"
+            : "Entry: " + hit.entryName,
+        };
+        if (results.length < limit) results.push(result);
+        else overflow++;
+      });
+    });
+    return { results, overflow };
+  }
+
   async function fetchJSON(url) {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -152,10 +210,13 @@ const CampaignSearch = (() => {
     cachePromise = null;
   }
 
+  // Every registered library kind, straight from the registry — lore included,
+  // so its page/entry names, "Keywords:" lines and bodies are literal-searchable
+  // like any other file.
   function librarySearchSources() {
     if (typeof RefLibrary === "undefined" || !RefLibrary.entries) return [];
-    return librarySources("item", RefLibrary.entries("item"))
-      .concat(librarySources("enemy", RefLibrary.entries("enemy")));
+    return Object.keys(refTypes())
+      .reduce((all, kind) => all.concat(librarySources(kind, RefLibrary.entries(kind))), []);
   }
 
   function allSources() {
@@ -221,7 +282,9 @@ const CampaignSearch = (() => {
 
     const line = document.createElement("span");
     line.className = "campaign-search-line";
-    line.textContent = "L" + result.lineNumber;
+    line.textContent = result.keyword
+      ? (result.loreEntry || "Page")
+      : "L" + result.lineNumber;
     meta.appendChild(line);
 
     const snippet = document.createElement("span");
@@ -246,13 +309,18 @@ const CampaignSearch = (() => {
       return;
     }
 
-    const found = searchSources(allSources(), query, { limit: DEFAULT_LIMIT });
+    // "key:" routes to the lore keyword lookup instead of the literal search.
+    const keyword = keywordQuery(query);
+    if (keyword === "") { renderMessage("Type a keyword after \"key:\"."); return; }
+    const found = keyword === null
+      ? searchSources(allSources(), query, { limit: DEFAULT_LIMIT })
+      : searchKeywords(keyword, { limit: DEFAULT_LIMIT });
     currentResults = found.results;
     currentOverflow = found.overflow;
     popoverEl.innerHTML = "";
 
     if (!currentResults.length) {
-      renderMessage("No results.");
+      renderMessage(keyword ? "No lore carries that keyword." : "No results.");
       return;
     }
 
@@ -378,12 +446,41 @@ const CampaignSearch = (() => {
     revealAndFlash(findSceneTarget(pageEl, result.lineIndex), result, pageEl);
   }
 
+  /* Where a hit lands inside an opened lore page: the named entry when we know
+     one (a keyword hit), otherwise the entry whose source line the literal match
+     fell on, otherwise the page itself. Lore files are small, so the line is
+     resolved by re-parsing rather than by carrying stamps through the render. */
+  function findLoreTarget(pageEl, result) {
+    const root = pageEl.querySelector(".lore-page");
+    if (!root) return pageEl.querySelector(".library-view") || pageEl;
+
+    let entryName = result.loreEntry || "";
+    if (!entryName && typeof RefLibrary !== "undefined" && typeof LoreModel !== "undefined") {
+      const source = RefLibrary.lookup("lore", result.name);
+      if (source) {
+        const lines = splitLines(source.source);
+        for (let i = Math.min(result.lineIndex, lines.length - 1); i >= 0; i--) {
+          const m = lineText(lines[i]).trim().match(/^##\s+entry\s*:\s*(.+)$/i);
+          if (m) { entryName = m[1].trim(); break; }
+        }
+      }
+    }
+    return (entryName && LoreView.findEntry(root, entryName)) || root;
+  }
+
   async function openLibraryResult(result) {
     if (typeof openLibrary !== "function") return;
     const opened = await openLibrary(result.kind, result.name);
     if (opened === false) return;
     const pageEl = document.getElementById("page");
     if (!pageEl) return;
+
+    if (result.kind === "lore") {
+      const target = findLoreTarget(pageEl, result);
+      revealAndFlash(target, result.keyword ? {} : result, target);
+      return;
+    }
+
     const selector = RendScrollCards.cardSelector();
     const target = pageEl.querySelector(".library-view " + selector) ||
       pageEl.querySelector(".library-view") ||
@@ -487,8 +584,12 @@ const CampaignSearch = (() => {
     refreshScenes,
     invalidateScenes,
     searchSources,
+    searchKeywords,
+    keywordQuery,
     sceneSources,
     librarySources,
+    librarySearchSources,
+    resultTypeLabel,
     makeSnippet,
     findSceneTarget,
     highlightRenderedMatch,

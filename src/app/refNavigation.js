@@ -101,8 +101,42 @@ function showRefPreview(anchor, type, name) {
   }, 0);
 }
 
+/* A TYPED link addresses one library kind explicitly: "[link=lore:Page]" or
+   "[link=lore:Page/Entry]". Only lore uses this today — items and enemies stay
+   on the untyped "[link=Name]" form, whose behaviour is unchanged.
+
+   Nothing had to change in inlineFormatting.js: it already lowercases the whole
+   value into data-ref-name, and lore resolves case-insensitively while "/"
+   survives lowercasing untouched. */
+async function activateLoreLink(a, address) {
+  const entry = (typeof RefLibrary !== "undefined")
+    ? RefLibrary.lookup("lore", address.page)
+    : null;
+  if (!entry) { flashBrokenLink(a); return; }
+
+  // A named entry that does not exist is a broken link, not a page jump.
+  if (address.entry) {
+    const parsed = LoreModel.parse(entry.source);
+    if (LoreModel.findEntryIndex(parsed.page, address.entry) < 0) { flashBrokenLink(a); return; }
+  }
+
+  // Goes through the navigation guard, exactly like clicking the sidebar.
+  if ((await openLibrary("lore", entry.name)) === false) return;
+
+  const root = ReaderDom.page().querySelector(".lore-page");
+  const target = (address.entry && root && LoreView.findEntry(root, address.entry)) || root;
+  if (!target) return;
+  revealElement(target);
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  flashCard(target);
+}
+
 function activateRefLink(a) {
   const name = a.dataset.refName || "";
+
+  const address = (typeof LoreModel !== "undefined") ? LoreModel.parseAddress(name) : null;
+  if (address) { activateLoreLink(a, address); return; }
+
   const target = findCardByRefName(name);
   if (target) {
     revealElement(target);

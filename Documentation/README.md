@@ -348,6 +348,82 @@ Example:
 
 Failed checks belong in `Unexpected:`, not in the check list. Failure should change texture, cost, or clarity. It should not block progress.
 
+## Lore Pages
+
+Lore is background the party can learn but no single scene owns: pantheons,
+history, factions, prophecies. It lives beside the campaign, not inside a scene.
+
+Lore pages belong to **one campaign** — there is no shared library — and appear in
+the sidebar under **Lore**, between Scenes and Items, listed alphabetically. Create
+one with **+ → Add Lore page**.
+
+A page is one file with any number of named entries:
+
+```md
+# Lore: The Sunken Choir
+Keywords: ancient history, lost city
+
+## Entry: The Drowned God
+Keywords: deity, Ancient God
+
+Worshipped beneath the tide-locked gate for nine centuries.
+
+> Its name is not spoken above water.
+
+## Entry: The Fall
+Keywords: collapse
+
+The choir sank in a single night. No one agrees why.
+```
+
+- **Page name and entry names are required.** Keywords and entry bodies may be empty.
+- **Keywords** are comma-separated. Case and spacing do not matter — `Ancient God`,
+  `ancient god` and `AncientGod` are the same keyword — and duplicates are dropped.
+  They render as small blue chips.
+- Entry names must be unique within a page, and **names cannot contain `/` or `\`**
+  (those separate a page from an entry in a link).
+- Entry bodies are ordinary Markdown, including read-aloud `>` blocks.
+
+Editing works like a scene: turn on **✎ Edit** and each entry gets edit, move
+up/down and delete buttons, with a pencil on the page title for its name and
+keywords. Changes are held in memory — `Ctrl+Z` undoes up to 50 steps, and nothing
+reaches disk until you press **Save**. Leaving the page with unsaved edits prompts
+you first. Renaming the page renames its file when you save; if that name is
+already taken the save is refused and your edits are kept.
+
+If a lore file does not follow the contract above, RendScroll shows what is wrong
+and **does not rewrite the file**.
+
+### Finding lore
+
+Two ways, both from the top-bar search:
+
+- **`key:` search.** Typing `key:Ancient God` finds only pages and entries that
+  carry exactly that keyword. It is an exact match, not a text search: `key:ancient`
+  will *not* find `Ancient God`. A page's own keywords do not carry down to its
+  entries — each match is reported separately.
+- **Normal search** scans lore page names, entry names, keyword lines and bodies
+  along with your scenes, and jumps to the entry it matched.
+
+### Linking to lore
+
+From any scene, link to a page or straight to one of its entries:
+
+```md
+The bridge predates the [link=lore:The Sunken Choir]drowning[/link].
+She swears by [link=lore:The Sunken Choir/The Drowned God]the old name[/link].
+```
+
+Page and entry names are matched ignoring case. A broken lore link is reported in
+the Debug panel with its file and line. Renaming a page does **not** rewrite links
+in other files — fix those yourself.
+
+Plain `[link=Name]` still means an item or enemy; lore is only reachable through
+the `lore:` form.
+
+Lore travels with the campaign: exporting a campaign package includes every lore
+page, whether or not anything links to it.
+
 ## Item Cards
 
 Use `### Item: Name` for a scene item. Library/base items in `Items/` use

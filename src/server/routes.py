@@ -70,6 +70,7 @@ ROUTES = {
     ("POST", "/__delete_campaign_file"): Route(endpoints_files.delete_campaign_file, "json", False),
     ("POST", "/__save"): Route(endpoints_files.save_file, "json", False),
     ("POST", "/__create_library_file"): Route(endpoints_library.create_library_file, "json", True),
+    ("POST", "/__save_library_file"): Route(endpoints_library.save_library_file, "json", True),
     ("POST", "/__move_library_file"): Route(endpoints_library.move_library_file, "json", True),
     ("POST", "/__save_options"): Route(endpoints_options.save_options, "json", False),
     ("POST", "/__save_scene_graph"): Route(endpoints_scene_graph.save_scene_graph, "json", True),

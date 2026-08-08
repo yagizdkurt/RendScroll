@@ -12,8 +12,18 @@
 
    Library enemies differ from items only in this config: they are concrete stat
    blocks referenced from combat cards (not inserted as standalone scene cards), and
-   their view state is ReaderState.view() === "enemy" instead of "library". */
+   their view state is ReaderState.view() === "enemy" instead of "library".
+
+   `render(kind, name, viewEl)` is optional. Kinds that leave it out (item, enemy)
+   resolve to a single card and go through renderCardFromSource; a kind with its
+   own renderer (lore) supplies it and owns everything below the toolbar. */
 const LIBRARY_VIEWS = {
+  lore: {
+    view: "lore", kicker: "Lore", noun: "lore page", nameAttr: "loreName",
+    nav: () => ReaderDom.loreNav(),
+    create: (cb) => LoreEditor.createPage && LoreEditor.createPage(cb),
+    render: (kind, name, viewEl) => renderLoreView(kind, name, viewEl),
+  },
   item: {
     view: "library", kicker: "Items", noun: "item", nameAttr: "itemName",
     nav: () => ReaderDom.libraryNav(),
@@ -27,6 +37,16 @@ const LIBRARY_VIEWS = {
 };
 
 function libraryConfig(kind) { return LIBRARY_VIEWS[kind]; }
+
+// Drop the "active" mark from the scene list and every library nav. Derived from
+// LIBRARY_VIEWS so a new kind's nav is covered without editing a selector string.
+function clearNavSelection() {
+  const navs = [ReaderDom.nav()].concat(
+    Object.keys(LIBRARY_VIEWS).map((kind) => LIBRARY_VIEWS[kind].nav()));
+  navs.forEach((navEl) => {
+    if (navEl) navEl.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+  });
+}
 
 // The kind's files (via RefLibrary, loaded at boot), as [{ name, path, origin }].
 function libraryEntries(kind) {
@@ -127,14 +147,16 @@ async function openLibrary(kind, name) {
   const isCurrent = ReaderState.view() === cfg.view && ReaderState.libraryName() === name;
   if (!isCurrent && typeof confirmReaderNavigation === "function" && !(await confirmReaderNavigation())) return false;
   ReaderState.setLibraryView(cfg.view, name);
-  document.querySelectorAll("#nav button, #library-nav button, #enemies-nav button")
-    .forEach((b) => b.classList.remove("active"));
+  clearNavSelection();
   cfg.nav().querySelectorAll("button").forEach((b) =>
     b.classList.toggle("active", b.dataset[cfg.nameAttr] === name)
   );
+  // Tell the editor no scene is on screen. Kinds with their own renderer register
+  // their own document from inside render() (see LoreEditor.attach); the rest
+  // leave the session empty and edit through one-shot forms.
+  if (typeof Editor !== "undefined" && Editor.closeScene) Editor.closeScene();
   renderLibraryView(kind, name);
   ReaderDom.page().parentElement.scrollTop = 0;
-  document.dispatchEvent(new CustomEvent("scene:loaded", { detail: { path: null, text: "" } }));
   return true;
 }
 
@@ -168,11 +190,15 @@ function renderLibraryView(kind, name) {
 
   const toolbar = document.createElement("div");
   toolbar.className = "library-view-toolbar";
-  toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this " + cfg.noun, () => {
-    if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
-      Editor.editLibraryItem(kind, name);
-    }
-  }));
+  // A kind with its own renderer runs a full edit session (dirty / undo / Save)
+  // instead of the one-shot card form, so it gets no "✎ Edit" button here.
+  if (!cfg.render) {
+    toolbar.appendChild(libraryToolbarButton("✎ Edit", "Edit this " + cfg.noun, () => {
+      if (typeof Editor !== "undefined" && Editor.editLibraryItem) {
+        Editor.editLibraryItem(kind, name);
+      }
+    }));
+  }
   toolbar.appendChild(libraryToolbarButton("⟳ Refresh", "Reload from disk", async () => {
     if (typeof RefLibrary !== "undefined") await RefLibrary.refresh(kind, name);
     renderLibraryView(kind, name);
@@ -181,6 +207,12 @@ function renderLibraryView(kind, name) {
 
   view.appendChild(head);
   view.appendChild(toolbar);
+
+  if (cfg.render) {
+    cfg.render(kind, name, view);
+    page.appendChild(view);
+    return;
+  }
 
   const resolved = (typeof RefLibrary !== "undefined") ? RefLibrary.resolve(kind, name) : { ok: false };
   if (resolved.ok) {
@@ -224,16 +256,13 @@ function installLibraryChangeHandler() {
   document.addEventListener("library:changed", () => {
     refreshLibrarySidebars();
     const libraryName = ReaderState.libraryName();
-    if (ReaderState.view() === "library" && libraryName) {
-      // The edited/deleted item may be the one on screen.
-      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("item", libraryName)) {
-        renderLibraryView("item", libraryName);
-      }
-      return;
-    }
-    if (ReaderState.view() === "enemy" && libraryName) {
-      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup("enemy", libraryName)) {
-        renderLibraryView("enemy", libraryName);
+    // Whichever library view is open, the edited/deleted entry may be the one on
+    // screen. Resolve the kind from LIBRARY_VIEWS rather than naming each one.
+    const openKind = Object.keys(LIBRARY_VIEWS)
+      .find((k) => LIBRARY_VIEWS[k].view === ReaderState.view());
+    if (openKind && libraryName) {
+      if (typeof RefLibrary !== "undefined" && RefLibrary.lookup(openKind, libraryName)) {
+        renderLibraryView(openKind, libraryName);
       }
       return;
     }

@@ -29,6 +29,7 @@ const ReaderDom = (() => {
 
   return {
     nav: () => el("nav"),
+    loreNav: () => el("lore-nav"),
     libraryNav: () => el("library-nav"),
     enemiesNav: () => el("enemies-nav"),
     page: () => el("page"),

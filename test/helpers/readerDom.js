@@ -77,6 +77,8 @@ const READER_SCRIPTS = [
   "src/cards/echo/echo.js",
   "src/cards/shared/cardCollapse.js",
   "src/app/renderCard.js",
+  "src/lore/loreModel.js",
+  "src/lore/loreView.js",
 ];
 
 /* Card layer only: enough for every card file to load and self-register into

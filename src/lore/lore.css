@@ -1,0 +1,134 @@
+/* Lore page view. Prose, not cards — no card frame, no collapse chrome.
+   Keyword chips are the one piece of colour: small blue pills under the page
+   title and under each entry title. */
+
+.lore-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* ---------- keyword chips ---------- */
+
+.lore-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+
+.lore-chip {
+  display: inline-block;
+  padding: .12rem .5rem;
+  border: 1px solid rgba(58, 96, 158, .45);
+  border-radius: 999px;
+  background: rgba(88, 132, 196, .14);
+  color: #2f5590;
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.lore-page-chips {
+  margin-top: -.4rem;
+}
+
+/* ---------- entries ---------- */
+
+.lore-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.lore-entry {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  padding-left: .7rem;
+  border-left: 3px solid rgba(156, 126, 60, .5);
+}
+
+.lore-entry-head {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
+
+.lore-entry-title {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.lore-entry-body > :first-child { margin-top: 0; }
+.lore-entry-body > :last-child { margin-bottom: 0; }
+
+.lore-entry-empty,
+.lore-empty {
+  opacity: .6;
+  font-style: italic;
+}
+
+/* ---------- malformed file report ---------- */
+
+.lore-errors {
+  padding: .7rem .9rem;
+  border: 1px solid rgba(140, 40, 30, .5);
+  border-left-width: 4px;
+  border-radius: 4px;
+  background: rgba(190, 80, 60, .09);
+}
+
+.lore-errors-title {
+  font-weight: 700;
+  margin-bottom: .35rem;
+}
+
+.lore-error-list {
+  margin: 0 0 .4rem;
+  padding-left: 1.2rem;
+}
+
+.lore-errors-hint {
+  font-size: .82rem;
+  opacity: .75;
+}
+
+/* ---------- editor decorations (inert when editor mode is off) ---------- */
+
+.lore-entry-tools,
+.lore-page-tools {
+  display: none;
+  gap: .25rem;
+}
+
+body.editor-on .lore-entry-tools,
+body.editor-on .lore-page-tools {
+  display: inline-flex;
+}
+
+.lore-tool {
+  padding: .05rem .4rem;
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .5);
+  font-size: .78rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.lore-tool:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.lore-add-entry {
+  align-self: flex-start;
+  display: none;
+}
+
+body.editor-on .lore-add-entry {
+  display: inline-block;
+}

@@ -27,10 +27,16 @@ function loadEditor() {
   };
   win.clearTimeout = () => {};
 
-  const script = win.document.createElement("script");
-  script.textContent = fs.readFileSync(path.join(ROOT, "src", "editor", "editor.js"), "utf8") +
-    "\nwindow.__Editor = Editor;\n";
-  win.document.body.appendChild(script);
+  // The undo stack, the dirty flag and the toolbar live in the shared document
+  // session; editor.js registers the open scene with it.
+  ["docSession.js", "editor.js"].forEach((file) => {
+    const script = win.document.createElement("script");
+    script.textContent = fs.readFileSync(path.join(ROOT, "src", "editor", file), "utf8");
+    win.document.body.appendChild(script);
+  });
+  const expose = win.document.createElement("script");
+  expose.textContent = "window.__Editor = Editor;";
+  win.document.body.appendChild(expose);
   return { dom, win, Editor: win.__Editor };
 }
 
@@ -38,7 +44,9 @@ function loadScene(win, text) {
   win.document.dispatchEvent(new win.CustomEvent("scene:loaded", {
     detail: { path: "campaigns/Test/scenes/1.md", text },
   }));
-  win.__Editor.getState().enabled = true;
+  // Turn edit mode on the way a user does — through the toolbar toggle.
+  const toggle = win.document.querySelector(".editor-toggle");
+  if (!toggle.classList.contains("is-on")) toggle.click();
 }
 
 function firstCardId(Editor) {

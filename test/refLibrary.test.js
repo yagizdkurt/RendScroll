@@ -211,3 +211,81 @@ test("scene diagnostics flag broken links but ignore deprecated item blocks", as
   // A link to an on-page / library item is NOT broken.
   assert.equal(codes.filter((c) => c === "broken-link").length, 1);
 });
+
+/* --- typed lore links ------------------------------------------------------
+   "[link=lore:Page]" / "[link=lore:Page/Entry]" resolve against the lore
+   library, and a missing page OR a missing entry is reported. Untyped
+   "[link=Name]" must keep resolving to items/enemies exactly as before. */
+
+const LoreModel = require("../src/lore/loreModel.js");
+
+const LORE_PAGE = [
+  "# Lore: The Gate",
+  "",
+  "## Entry: Ancient God",
+  "",
+  "Body.",
+  "",
+].join("\n");
+
+async function stubLibraryWithLore() {
+  await stubLibrary(ITEMS);
+  global.LoreModel = LoreModel;
+  const inner = RefLibrary.lookup;
+  RefLibrary.lookup = (type, name) => (type === "lore"
+    ? (LoreModel.nameKey(name) === "the gate"
+      ? { name: "The Gate", path: "campaigns/L/lore/The Gate.md", source: LORE_PAGE }
+      : null)
+    : inner.call(RefLibrary, type, name));
+  return () => { RefLibrary.lookup = inner; delete global.LoreModel; };
+}
+
+function loreLinkCodes(src) {
+  const parsed = RendScrollDiagnostics.parseScene(src, "campaigns/L/scenes/1.md");
+  return RendScrollDiagnostics
+    .computeSceneDiagnostics(parsed.doc, { file: "campaigns/L/scenes/1.md" })
+    .map((i) => ({ code: i.code, message: i.message, line: i.line }));
+}
+
+test("a lore page is never reachable through an untyped [link=Name]", async () => {
+  const restore = await stubLibraryWithLore();
+  // The registry opts lore out of lookupAny, so a bare link to a lore page name
+  // is a broken link, not a silent cross-kind resolution.
+  assert.equal(RefLibrary.lookupAny("The Gate"), null);
+  assert.ok(RefLibrary.lookupAny("Calamity"), "items must still resolve untyped");
+  restore();
+});
+
+test("typed lore links resolve to a page and to an entry", async () => {
+  const restore = await stubLibraryWithLore();
+  const issues = loreLinkCodes([
+    "# Scene", "", "## Event", "",
+    "See [link=lore:The Gate]the gate[/link].",
+    "See [link=lore:the gate/ancient god]the god[/link].",
+  ].join("\n"));
+  assert.deepEqual(issues, [], "both links resolve: " + JSON.stringify(issues));
+  restore();
+});
+
+test("a lore link to a missing page or entry is reported with its line", async () => {
+  const restore = await stubLibraryWithLore();
+  const issues = loreLinkCodes([
+    "# Scene", "", "## Event", "",
+    "[link=lore:No Such Page]x[/link]",
+    "[link=lore:The Gate/No Such Entry]y[/link]",
+  ].join("\n"));
+  assert.equal(issues.length, 2);
+  assert.ok(issues.every((i) => i.code === "broken-lore-link"));
+  assert.match(issues[0].message, /no page "No Such Page"/);
+  assert.equal(issues[0].line, 5);
+  assert.match(issues[1].message, /has no entry "No Such Entry"/);
+  assert.equal(issues[1].line, 6);
+  restore();
+});
+
+test("a typed lore link is never reported as an ordinary broken link", async () => {
+  const restore = await stubLibraryWithLore();
+  const issues = loreLinkCodes("# Scene\n\n## Event\n\n[link=lore:No Such Page]x[/link]\n");
+  assert.ok(!issues.some((i) => i.code === "broken-link"));
+  restore();
+});

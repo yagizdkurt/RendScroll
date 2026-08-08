@@ -1,62 +1,39 @@
-/* Editor mode controller.
-   Owns editor state (on/off, current scene path, the outline model, dirty flag),
-   mounts the editor controls, and orchestrates re-render + save. All markdown
-   manipulation goes through EditorOutline; all card<->source mapping through
-   EditorAnchors; forms/menus through EditorForm / EditorContextMenu.
+/* Editor mode controller — the SCENE document.
+   Mounts the editor controls, registers the open scene with EditorDocSession,
+   and owns every scene-specific operation. All markdown manipulation goes
+   through EditorOutline; all card<->source mapping through EditorAnchors;
+   forms/menus through EditorForm / EditorContextMenu.
+
+   The session itself — 50-step undo, the dirty flag, Save, the navigation guard,
+   the toolbar and the toast — lives in editor/docSession.js, shared with the
+   Lore editor. This file no longer owns any of that; it hands the session a
+   scene document and reacts to its callbacks.
 
    The reader pipeline (renderPage, from src/app/app.js) is reused verbatim:
    after every model change we re-render from the serialized model and re-decorate.
    When editor mode is OFF nothing here runs beyond caching the scene source. */
 
 const Editor = (() => {
-  const UNDO_LIMIT = 50;
+  const S = EditorDocSession;
+  // Mirrors the session so existing readers of Editor.getState() (appLibrary,
+  // debugPanel) keep working; `path`/`model` stay scene-specific.
   const state = { enabled: false, path: null, model: null, dirty: false };
   let page = null;
-  let navigationPrompt = null;
-  let undoStack = [];
 
   // --- model edit ops (operate on the CURRENT model only; ids are not stable
   //     across re-parse, so never carry an id across a mutation) ------------
 
-  function modelRaw(model) {
-    return model && typeof model.raw === "string" ? model.raw : EditorOutline.serialize(model);
+  function syncState() {
+    state.enabled = S.isEnabled();
+    state.dirty = S.isDirty();
+    if (S.kind() === "scene") state.model = S.model();
   }
 
-  function pushUndoSnapshot() {
-    if (!state.model) return;
-    const raw = modelRaw(state.model);
-    if (undoStack.length && undoStack[undoStack.length - 1] === raw) return;
-    undoStack.push(raw);
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
-  }
-
+  // Every scene mutation goes through the session, which snapshots for undo,
+  // marks dirty and calls back into rerender().
   function applyModel(newModel, opts) {
-    if (!opts || !opts.skipUndo) pushUndoSnapshot();
-    state.model = newModel;
-    markDirty(true);
-    rerender();
-  }
-
-  function undo() {
-    if (!state.enabled || !state.model || !undoStack.length) return false;
-    const raw = undoStack.pop();
-    applyModel(EditorOutline.parse(raw), { skipUndo: true });
-    return true;
-  }
-
-  function isEditableTarget(target) {
-    for (let el = target; el && el !== document; el = el.parentNode) {
-      const tag = el.tagName ? el.tagName.toLowerCase() : "";
-      if (tag === "input" || tag === "textarea" || tag === "select") return true;
-      if (el.isContentEditable || el.getAttribute && el.getAttribute("contenteditable") === "true") return true;
-    }
-    return false;
-  }
-
-  function onUndoKeydown(e) {
-    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || String(e.key).toLowerCase() !== "z") return;
-    if (isEditableTarget(e.target)) return;
-    if (undo()) e.preventDefault();
+    S.apply(newModel, opts);
+    syncState();
   }
 
   function deleteCard(id) {
@@ -392,155 +369,21 @@ const Editor = (() => {
   }
 
   async function save(opts) {
-    opts = opts || {};
-    if (!state.path || !state.model) return true;
-    try {
-      await SceneSave.save(state.path, EditorOutline.serialize(state.model));
-      markDirty(false);
-      if (!opts.silent) toast("Saved " + state.path);
-      return true;
-    } catch (err) {
-      toast(err.message, true);
-      return false;
-    }
+    return S.save(opts);
   }
 
-  function fallbackNavigationPrompt() {
-    if (window.confirm("You have unsaved edits. Save changes before leaving this page?")) {
-      return Promise.resolve("save");
-    }
-    if (window.confirm("Discard unsaved changes and leave this page?")) {
-      return Promise.resolve("discard");
-    }
-    return Promise.resolve("cancel");
-  }
-
-  function openNavigationPrompt(opts) {
-    if (navigationPrompt) return navigationPrompt;
-    opts = opts || {};
-    const titleText = opts.titleText || "Unsaved Changes";
-    const messageText = opts.messageText ||
-      "You have unsaved edits on this page. Save them before switching pages?";
-
-    navigationPrompt = new Promise((resolve) => {
-      if (typeof makeModal !== "function") {
-        fallbackNavigationPrompt().then((choice) => {
-          navigationPrompt = null;
-          resolve(choice);
-        });
-        return;
-      }
-
-      let result = "cancel";
-      const settle = (value) => {
-        result = value;
-        close();
-      };
-
-      const { modal, head, body, foot, close } = makeModal({
-        backdropClass: "editor-unsaved-backdrop",
-        modalClass: "nav-delete-modal",
-        titleText,
-        onClose: () => {
-          navigationPrompt = null;
-          resolve(result);
-        },
-        onKeydown: (e) => {
-          if (e.key === "Escape") settle("cancel");
-          if (e.key === "Enter") settle("save");
-        },
-      });
-
-      modal.setAttribute("role", "dialog");
-      modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-labelledby", "editor-unsaved-title");
-      head.id = "editor-unsaved-title";
-
-      const text = document.createElement("p");
-      text.className = "nav-delete-message";
-      text.textContent = messageText;
-      body.appendChild(text);
-
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.className = "editor-btn";
-      cancel.textContent = "Cancel";
-      cancel.addEventListener("click", () => settle("cancel"));
-
-      const discard = document.createElement("button");
-      discard.type = "button";
-      discard.className = "editor-btn danger";
-      discard.textContent = "Discard";
-      discard.addEventListener("click", () => settle("discard"));
-
-      const saveBtn = document.createElement("button");
-      saveBtn.type = "button";
-      saveBtn.className = "editor-btn primary";
-      saveBtn.textContent = "Save";
-      saveBtn.addEventListener("click", () => settle("save"));
-
-      foot.appendChild(cancel);
-      foot.appendChild(discard);
-      foot.appendChild(saveBtn);
-      saveBtn.focus();
-    });
-
-    return navigationPrompt;
-  }
-
-  async function confirmNavigation(opts) {
-    if (!state.dirty) return true;
-    const action = await openNavigationPrompt(opts);
-    if (action === "save") return save({ silent: true });
-    return action === "discard";
+  function confirmNavigation(opts) {
+    return S.confirmNavigation(opts);
   }
 
   // --- UI ----------------------------------------------------------------
 
-  let toggleBtn, saveBtn, dirtyDot, toastEl;
-
-  function mountControls() {
-    const host = document.getElementById("topbar-primary") ||
-      document.getElementById("topbar-tools") ||
-      document.getElementById("options") || document.getElementById("sidebar");
-    const box = document.createElement("div");
-    box.className = "editor-controls";
-
-    toggleBtn = document.createElement("button");
-    toggleBtn.type = "button";
-    toggleBtn.className = "editor-toggle";
-    toggleBtn.textContent = "✎ Edit";
-    toggleBtn.addEventListener("click", () => setEnabled(!state.enabled));
-
-    saveBtn = document.createElement("button");
-    saveBtn.type = "button";
-    saveBtn.className = "editor-save";
-    saveBtn.textContent = "Save";
-    saveBtn.addEventListener("click", save);
-
-    dirtyDot = document.createElement("span");
-    dirtyDot.className = "editor-dirty";
-    dirtyDot.title = "Unsaved changes";
-
-    box.appendChild(toggleBtn);
-    box.appendChild(saveBtn);
-    box.appendChild(dirtyDot);
-    host.appendChild(box);
-
-    toastEl = document.createElement("div");
-    toastEl.className = "editor-toast";
-    document.body.appendChild(toastEl);
-
-    updateUi();
-  }
-
   function setEnabled(on) {
     if (!on && typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
-    state.enabled = on;
-    document.body.classList.toggle("editor-on", on);
+    S.setEnabled(on);
+    syncState();
     if (on) decorate();
     else if (page) clearDecorations();
-    updateUi();
   }
 
   function clearDecorations() {
@@ -557,19 +400,6 @@ const Editor = (() => {
     });
   }
 
-  function markDirty(on) {
-    state.dirty = on;
-    updateUi();
-  }
-
-  function updateUi() {
-    if (!toggleBtn) return;
-    toggleBtn.classList.toggle("is-on", state.enabled);
-    toggleBtn.setAttribute("aria-pressed", String(state.enabled));
-    saveBtn.disabled = !state.dirty;
-    dirtyDot.classList.toggle("is-visible", state.dirty);
-  }
-
   function installReaderContextMenu() {
     if (!page) return;
     page.addEventListener("contextmenu", (e) => {
@@ -582,39 +412,55 @@ const Editor = (() => {
     });
   }
 
-  let toastTimer = null;
   function toast(msg, isError) {
-    if (!toastEl) return;
-    toastEl.textContent = msg;
-    toastEl.classList.toggle("is-error", !!isError);
-    toastEl.classList.add("is-visible");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove("is-visible"), 2600);
+    S.toast(msg, isError);
+  }
+
+  // Register the scene that just loaded as the session's document. A scene with
+  // no path (the reader showing a library page) clears the session instead.
+  function openScene(path, text) {
+    if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
+    state.path = path;
+    if (!path) {
+      state.model = null;
+      S.clear();
+      syncState();
+      return;
+    }
+    state.model = EditorOutline.parse(text);
+    S.setDocument({
+      kind: "scene",
+      path,
+      model: state.model,
+      serialize: (m) => EditorOutline.serialize(m),
+      parse: (raw) => EditorOutline.parse(raw),
+      onChange: () => { syncState(); rerender(); },
+      save: (m) => SceneSave.save(path, EditorOutline.serialize(m)),
+    });
+    syncState();
+    decorate();
+  }
+
+  // The reader left the scene view (a library page is on screen). Drop the scene
+  // document so its model can never be saved over, or undone into, from there.
+  function closeScene() {
+    if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
+    state.path = null;
+    state.model = null;
+    S.clear();
+    syncState();
   }
 
   function init() {
     page = document.getElementById("page");
-    mountControls();
+    S.init(setEnabled);
     installReaderContextMenu();
-    window.addEventListener("beforeunload", (e) => {
-      if (!state.dirty) return;
-      e.preventDefault();
-      e.returnValue = "";
-    });
-    document.addEventListener("keydown", onUndoKeydown);
-    document.addEventListener("scene:loaded", (e) => {
-      if (typeof EditorDragDrop !== "undefined") EditorDragDrop.cancel();
-      state.path = e.detail.path;
-      state.model = EditorOutline.parse(e.detail.text);
-      undoStack = [];
-      markDirty(false);
-      decorate();
-    });
+    document.addEventListener("scene:loaded", (e) => openScene(e.detail.path, e.detail.text));
   }
 
   return {
     init,
-    getState: () => state,
+    getState: () => { syncState(); return state; },
     // Re-render the current scene with editing decorations (used by app.js after
     // a library change while the editor is on).
     rerender,
@@ -623,15 +469,17 @@ const Editor = (() => {
     editLibraryItem,
     confirmNavigation,
     save,
-    hasUnsavedChanges: () => !!state.dirty,
+    // Called by the library reader when it takes the scene off screen.
+    closeScene,
+    hasUnsavedChanges: () => S.isDirty(),
     // Create a new library item with no scene instance.
     createLibraryItem,
     // Create a new enemy library file (combat picker + shared Add menu).
     createEnemyToLibrary,
     // Move one inline combat enemy into the library (combat enemy editor).
     moveEnemyToLibrary,
-    _undo: undo,
-    _undoDepth: () => undoStack.length,
+    _undo: () => S.undo(),
+    _undoDepth: () => S._undoDepth(),
     _handlers: handlers,
   };
 })();

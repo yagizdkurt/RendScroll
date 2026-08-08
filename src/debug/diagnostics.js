@@ -223,6 +223,8 @@ const RendScrollDiagnostics = (() => {
     allCards(doc).forEach((c) => onPage.add(normName(c.title)));
 
     // Inline links: broken when the name is neither on this page nor in a library.
+    // A typed lore address ("lore:Page" / "lore:Page/Entry") resolves against the
+    // lore library instead, and names a missing ENTRY as its own broken link.
     const linkRe = /\[link=([^\]\r\n]+)\]/ig;
     doc.lines.forEach((rawLine, idx) => {
       const text = p.lineText(rawLine);
@@ -230,10 +232,41 @@ const RendScrollDiagnostics = (() => {
       linkRe.lastIndex = 0;
       while ((m = linkRe.exec(text))) {
         const name = m[1].trim();
+        const address = loreAddress(name);
+        if (address) {
+          const problem = loreLinkProblem(address);
+          if (problem) issues.push(issue("warn", file, idx + 1, problem, "broken-lore-link"));
+          continue;
+        }
         const known = onPage.has(normName(name)) || (lib && lib.lookupAny(name));
         if (!known) issues.push(issue("warn", file, idx + 1, `broken link: [link=${name}]`, "broken-link"));
       }
     });
+  }
+
+  function loreModel() {
+    if (typeof LoreModel !== "undefined") return LoreModel;
+    return null;
+  }
+
+  function loreAddress(value) {
+    const model = loreModel();
+    return model ? model.parseAddress(value) : null;
+  }
+
+  // "" when the address resolves; otherwise the message to report.
+  function loreLinkProblem(address) {
+    const lib = refLib();
+    const model = loreModel();
+    if (!lib || !model) return "";
+    const entry = lib.lookup("lore", address.page);
+    if (!entry) return `broken lore link: no page "${address.page}"`;
+    if (!address.entry) return "";
+    const parsed = model.parse(entry.source);
+    if (model.findEntryIndex(parsed.page, address.entry) < 0) {
+      return `broken lore link: "${address.page}" has no entry "${address.entry}"`;
+    }
+    return "";
   }
 
   function computeSceneDiagnostics(doc, options) {

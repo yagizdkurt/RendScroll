@@ -14,13 +14,33 @@
    Generality lives in REF_TYPES: add a line there to support a new ref kind. */
 
 const RefLibrary = (() => {
-  // type -> { folder, cardType }. cardType is the existing renderer/parser card
-  // type the resolved source renders as (see the RendScrollCards registry,
-  // src/cards/shared/cardRegistry.js).
+  /* type -> behaviour. Adding a library kind is a line here (mirrored by
+     LIBRARY_DIRS / CAMPAIGN_LIBRARY_DIRS in src/server/paths.py).
+
+       folder      the .md folder name, global root and/or campaign-local
+       label       sidebar/search wording
+       cardType    the RendScrollCards type its source renders as
+                   (src/cards/shared/cardRegistry.js) — omit for a kind with its
+                   own renderer
+       view        the reader view name (appLibrary.js LIBRARY_VIEWS)
+       scope       "global" (campaign folder overrides the shared root) or
+                   "campaign" (no shared root at all)
+       untypedLink whether a bare [link=Name] may resolve to this kind. Lore is
+                   addressed only as [link=lore:Page/Entry], so it stays out of
+                   lookupAny() and the untyped behaviour is unchanged. */
   const REF_TYPES = {
-    item: { folder: "items", cardType: "sourceitem" },
-    enemy: { folder: "enemies", cardType: "sourceenemy" },
-    // future: npc / monster / location — add a line, nothing else changes.
+    item: {
+      folder: "items", label: "Item", cardType: "sourceitem",
+      view: "library", scope: "global", untypedLink: true,
+    },
+    enemy: {
+      folder: "enemies", label: "Enemy", cardType: "sourceenemy",
+      view: "enemy", scope: "global", untypedLink: true,
+    },
+    lore: {
+      folder: "lore", label: "Lore", cardType: null,
+      view: "lore", scope: "campaign", untypedLink: false,
+    },
   };
 
   // type -> Map(normalizedName -> { name, path, source, origin, shadows })
@@ -143,10 +163,13 @@ const RefLibrary = (() => {
   }
 
   // Search every registered type for a name (used by inline `[link=]`, which is
-  // type-agnostic). Returns { type, entry } or null.
+  // type-agnostic). Kinds that opted out of untyped links (lore) are skipped, so
+  // they can only be reached through their own typed address.
+  // Returns { type, entry } or null.
   function lookupAny(name) {
     const key = norm(name);
     for (const type of Object.keys(REF_TYPES)) {
+      if (!REF_TYPES[type].untypedLink) continue;
       const map = cache[type];
       if (map && map.has(key)) return { type, entry: map.get(key) };
     }
@@ -167,10 +190,12 @@ const RefLibrary = (() => {
   // immediately without a full reload. `scope` is "campaign" (active campaign's
   // folder) or "global" (the shared root) — the server routes accordingly.
   async function createFile(type, name, content, scope) {
+    // Send scope only when the caller picked one: the server defaults per type
+    // (global-backed kinds -> global root, campaign-only kinds -> the campaign).
     const res = await fetch("/__create_library_file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(apiBody({ type, name, content, scope: scope || "global" })),
+      body: JSON.stringify(apiBody(scope ? { type, name, content, scope } : { type, name, content })),
     });
     let payload = null;
     try { payload = await res.json(); } catch (err) { warn("Non-JSON create response for " + type + " \"" + name + "\".", err); }
@@ -182,6 +207,43 @@ const RefLibrary = (() => {
       name: payload.entry.name,
       path: payload.entry.path,
       origin: payload.entry.origin,
+      source: content,
+    });
+    return payload.entry;
+  }
+
+  /* Write a library file back to disk, optionally renaming it in the same
+     request, and update the cache so the entry resolves under its new name
+     immediately. `renameFrom` is the name currently on disk; pass it only when
+     the name changed. Throws on failure — a rename onto an existing name comes
+     back as 409 and nothing was written, so the caller keeps its model. */
+  async function saveFile(type, name, content, renameFrom) {
+    const def = REF_TYPES[type];
+    if (!def) throw new Error("unknown library type: " + type);
+    const payloadBody = { type, name, content };
+    if (renameFrom && norm(renameFrom) !== norm(name)) payloadBody.renameFrom = renameFrom;
+
+    const res = await fetch("/__save_library_file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(apiBody(payloadBody)),
+    });
+    let payload = null;
+    try { payload = await res.json(); } catch (err) { warn("Non-JSON save response for " + type + " \"" + name + "\".", err); }
+    if (!res.ok || !payload || !payload.ok || !payload.entry) {
+      const detail = payload && payload.error ? payload.error : "HTTP " + res.status;
+      throw new Error(detail);
+    }
+
+    const map = typeMap(type);
+    const previous = renameFrom ? map.get(norm(renameFrom)) : null;
+    if (renameFrom) map.delete(norm(renameFrom));
+    map.delete(norm(name));
+    put(type, {
+      name: payload.entry.name,
+      path: payload.entry.path,
+      origin: payload.entry.origin,
+      shadows: previous ? previous.shadows : [],
       source: content,
     });
     return payload.entry;
@@ -330,6 +392,7 @@ const RefLibrary = (() => {
     has: (type, name) => !!lookup(type, name),
     resolve,
     createFile,
+    saveFile,
     refresh,
     deleteFile,
     moveFile,

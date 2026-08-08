@@ -13,8 +13,9 @@ import time
 from src.server.paths import (
     ASSET_TYPES,
     CAMPAIGNS_DIR,
-    LIBRARY_DIRS,
     SCENES_SUBDIR,
+    is_campaign_only_library,
+    library_folder,
     atomic_write_json,
     campaign_dir_path,
     campaign_scenes_root,
@@ -158,9 +159,12 @@ def discover_campaign_files(base_dir, campaign, with_content=False):
     return entries
 
 
-def _library_sources(base_dir, folder, campaign):
+def _library_sources(base_dir, folder, campaign, campaign_only=False):
     """Resolution order for a library folder: the given campaign first (wins on a
-    filename collision), then the global root. -> [(origin, abs_root, rel_prefix)]."""
+    filename collision), then the global root. -> [(origin, abs_root, rel_prefix)].
+
+    `campaign_only` drops the global root entirely — a campaign-only library
+    (lore) has no shared counterpart, and must never read or report one."""
     sources = []
     if campaign and os.path.isdir(campaign_dir_path(base_dir, campaign)):
         sources.append((
@@ -168,7 +172,8 @@ def _library_sources(base_dir, folder, campaign):
             os.path.join(campaign_dir_path(base_dir, campaign), folder),
             f"{CAMPAIGNS_DIR}/{campaign}/{folder}",
         ))
-    sources.append(("global", os.path.join(user_root(base_dir), folder), folder))
+    if not campaign_only:
+        sources.append(("global", os.path.join(user_root(base_dir), folder), folder))
     return sources
 
 
@@ -180,12 +185,14 @@ def discover_library_files(base_dir, ref_type, campaign, with_content=False):
     file with the same filename as a global one wins; the hidden global path is
     recorded in `shadows` so the debug panel can warn about the override. Unknown
     ref types and missing folders simply contribute nothing."""
-    folder = LIBRARY_DIRS.get(ref_type)
+    folder = library_folder(ref_type)
     if not folder:
         return []
+    campaign_only = is_campaign_only_library(ref_type)
 
     seen = {}  # casefolded filename -> entry (first source wins)
-    for origin, root, rel_prefix in _library_sources(base_dir, folder, campaign):
+    for origin, root, rel_prefix in _library_sources(
+            base_dir, folder, campaign, campaign_only):
         try:
             names = os.listdir(root)
         except OSError:

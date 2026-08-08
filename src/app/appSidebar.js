@@ -213,6 +213,15 @@ function createAddMenuItems() {
   };
   return [
     { label: "Add scene", disabled: !hasCampaign, onClick: openNewPageDialog },
+    // Lore is campaign-only: there is nowhere to put a page without a campaign.
+    {
+      label: "Add Lore page",
+      disabled: !hasCampaign,
+      onClick: () => {
+        const cfg = libraryConfig("lore");
+        if (typeof LoreEditor !== "undefined") cfg.create((name) => openLibrary("lore", name));
+      },
+    },
     { separator: true },
     { label: "Add item", onClick: newLib("item", "global") },
     { label: "Add campaign-bound item", disabled: !hasCampaign, onClick: newLib("item", "campaign") },

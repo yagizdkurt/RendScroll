@@ -54,9 +54,25 @@ EXPORTS_DIR = "exports"
 # and enemies today; npc/monster/location can be added here without touching the
 # endpoints.
 LIBRARY_DIRS = {"item": "items", "enemy": "enemies"}
+# Campaign-ONLY libraries: a ref type -> the folder inside campaigns/<name>/.
+# Deliberately NOT in LIBRARY_DIRS, which would open a global content/<folder>
+# writable root (resolve_writable) and a /<folder>/… URL root
+# (USER_SPACE_URL_ROOTS). Lore has no global counterpart; its files already sit
+# under campaigns/, so they are writable and servable without either.
+CAMPAIGN_LIBRARY_DIRS = {"lore": "lore"}
 # Top URL segments whose files live under content/ on disk (served by translate_path).
 USER_SPACE_URL_ROOTS = frozenset(
     {CAMPAIGNS_DIR} | set(LIBRARY_DIRS.values()) | set(CAMPAIGN_ASSET_DIRS.values()))
+
+
+def library_folder(ref_type):
+    """The folder a ref type's .md files live in, global or campaign-only."""
+    return LIBRARY_DIRS.get(ref_type) or CAMPAIGN_LIBRARY_DIRS.get(ref_type)
+
+
+def is_campaign_only_library(ref_type):
+    """True when this ref type exists only inside a campaign (no global root)."""
+    return ref_type in CAMPAIGN_LIBRARY_DIRS
 
 
 def user_root(base_dir):

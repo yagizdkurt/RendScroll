@@ -86,8 +86,16 @@ const CampaignExporter = (() => {
     if (scenePrefix && scenePrefix !== String(scenes[0].path).replace(/\\/g, "/")) {
       files.push(scenePrefix + "/graph.json");
     }
+    // Every lore page in the campaign, not just the referenced ones: lore is
+    // reference material a scene may never link to, and losing it on export
+    // would lose it entirely.
+    if (refLib && refLib.entries) {
+      refLib.entries("lore").forEach((entry) => {
+        if (entry && entry.path) files.push(String(entry.path).replace(/\\/g, "/"));
+      });
+    }
     return {
-      files,
+      files: [...new Set(files)],
       assetCandidates: result.assetCandidates,
       missingRefs: result.missingRefs,
     };
