@@ -21,6 +21,7 @@ const SCRIPTS = [
   "src/parser/rendscrollParser.js",
   "src/cards/shared/cardDirectives.js",
   "src/cards/transition/transition.js",
+  "src/sceneGraph/graphGeometry.js",
   "src/sceneGraph/graphModel.js",
   "src/sceneGraph/sceneGraph.js",
 ];

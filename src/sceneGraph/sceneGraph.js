@@ -17,18 +17,24 @@
 
 const SceneGraphPanel = (() => {
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const NODE_W = 160;
-  const NODE_H = 56;
-  const CLICK_DRAG_THRESHOLD = 4; // px of pointer travel that turns a click into a drag
-  const ZOOM_MIN = 0.3;
-  const ZOOM_MAX = 2.5;
   const WIDTH_KEY = "rendscroll-scenegraph-width";
-  const EDGE_LABEL_GLYPH_W = 6.4;
-  const EDGE_LABEL_BG_H = 20;
-  const NODE_TITLE_LINE_H = 17;   // px between the two title tspans
-  const NODE_TITLE_MAX_CHARS = 16; // fits NODE_W minus badge at the 14px title size
 
   const M = typeof SceneGraphModel !== "undefined" ? SceneGraphModel : null;
+
+  /* Node/edge measurements and the pure geometry+label math live in
+     sceneGraph/graphGeometry.js (loaded before this file, unit-tested there).
+     Pulled into locals so the call sites below read the same as before — this
+     file owns the state, that one owns the arithmetic. */
+  const G = SceneGraphGeometry;
+  const {
+    NODE_W, NODE_H, CLICK_DRAG_THRESHOLD,
+    EDGE_LABEL_GLYPH_W, EDGE_LABEL_BG_H,
+    NODE_TITLE_LINE_H, NODE_TITLE_MAX_CHARS,
+  } = G;
+  const {
+    rectExitPoint, nodeIntersectsBox, nodeContainsPoint,
+    clampZoom, truncateTitle, wrapTitle, edgeIdentity,
+  } = G;
 
   // --- state -----------------------------------------------------------------
   let panel = null;
@@ -230,42 +236,11 @@ const SceneGraphPanel = (() => {
 
   // --- edge geometry --------------------------------------------------------------
   // Point where the line from this node's center toward (tx,ty) exits its rect.
-  function rectExitPoint(node, tx, ty) {
-    const cx = node.x + NODE_W / 2;
-    const cy = node.y + NODE_H / 2;
-    const dx = tx - cx;
-    const dy = ty - cy;
-    if (!dx && !dy) return { x: cx, y: cy };
-    const sx = dx !== 0 ? (NODE_W / 2) / Math.abs(dx) : Infinity;
-    const sy = dy !== 0 ? (NODE_H / 2) / Math.abs(dy) : Infinity;
-    const s = Math.min(sx, sy);
-    return { x: cx + dx * s, y: cy + dy * s };
-  }
-
+  // Resolve the edge's endpoints and whether the reverse edge is also on screen
+  // (both live in panel state), then hand the arithmetic to graphGeometry.
   function edgePath(edge) {
-    const a = nodeOf(edge.from);
-    const b = nodeOf(edge.to);
-    if (!a || !b) return null;
-    const acx = a.x + NODE_W / 2, acy = a.y + NODE_H / 2;
-    const bcx = b.x + NODE_W / 2, bcy = b.y + NODE_H / 2;
-    const p1 = rectExitPoint(a, bcx, bcy);
-    const p2 = rectExitPoint(b, acx, acy);
-    // Curve sideways when the reverse edge is also displayed, so A->B and B->A
-    // don't overlap into one double-headed line.
     const hasReverse = displayEdges.some((e) => e.from === edge.to && e.to === edge.from);
-    let mx = (p1.x + p2.x) / 2;
-    let my = (p1.y + p2.y) / 2;
-    if (hasReverse) {
-      const dx = p2.x - p1.x, dy = p2.y - p1.y;
-      const len = Math.hypot(dx, dy) || 1;
-      mx += (-dy / len) * 24;
-      my += (dx / len) * 24;
-    }
-    return {
-      d: "M " + p1.x + " " + p1.y + " Q " + mx + " " + my + " " + p2.x + " " + p2.y,
-      labelX: (p1.x + 2 * mx + p2.x) / 4, // quadratic midpoint
-      labelY: (p1.y + 2 * my + p2.y) / 4,
-    };
+    return G.edgePath(nodeOf(edge.from), nodeOf(edge.to), hasReverse);
   }
 
   // --- rendering ---------------------------------------------------------------
@@ -308,47 +283,6 @@ const SceneGraphPanel = (() => {
     }
     pendingConnect = null;
     if (svg) svg.classList.remove("is-connecting");
-  }
-
-  function nodeIntersectsBox(node, box) {
-    return node.x <= box.maxX &&
-      node.x + NODE_W >= box.minX &&
-      node.y <= box.maxY &&
-      node.y + NODE_H >= box.minY;
-  }
-
-  function truncateTitle(text, max) {
-    return text.length > max ? text.slice(0, max - 1) + "…" : text;
-  }
-
-  // Word-wrap a node title onto at most two lines of ~maxChars each,
-  // ellipsizing what doesn't fit. Character counts, not text metrics —
-  // jsdom has no layout and the rebuild loop shouldn't measure anyway.
-  function wrapTitle(text, maxChars) {
-    const words = String(text).trim().split(/\s+/).filter(Boolean);
-    const lines = [];
-    let current = "";
-    let overflow = false;
-    for (const word of words) {
-      const joined = current ? current + " " + word : word;
-      if (joined.length <= maxChars || !current) {
-        current = joined;
-      } else if (lines.length < 1) {
-        lines.push(current);
-        current = word;
-      } else {
-        overflow = true;
-        break;
-      }
-    }
-    if (current) lines.push(current);
-    if (!lines.length) lines.push("");
-    if (overflow) lines[lines.length - 1] += "…";
-    return lines.map((line) => truncateTitle(line, maxChars));
-  }
-
-  function edgeIdentity(edge) {
-    return edge.from + "|" + edge.to;
   }
 
   function isSelectedEdge(edge) {
@@ -1072,8 +1006,7 @@ const SceneGraphPanel = (() => {
   // Hit-test fallback for pointerup targets that aren't the node's DOM (jsdom,
   // or when the pointer is captured): find the node whose rect contains p.
   function nodeGroupAtPoint(p) {
-    const node = graph.nodes.find((n) =>
-      p.x >= n.x && p.x <= n.x + NODE_W && p.y >= n.y && p.y <= n.y + NODE_H);
+    const node = graph.nodes.find((n) => nodeContainsPoint(n, p));
     if (!node) return null;
     const groups = world.querySelectorAll("[data-scene]");
     for (const g of groups) {
@@ -1090,7 +1023,7 @@ const SceneGraphPanel = (() => {
 
   // Scale by factor keeping the canvas point at (mx,my) fixed.
   function zoomAt(factor, mx, my) {
-    const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, view.k * factor));
+    const k = clampZoom(view.k * factor);
     view.tx = mx - ((mx - view.tx) / view.k) * k;
     view.ty = my - ((my - view.ty) / view.k) * k;
     view.k = k;
@@ -1120,8 +1053,8 @@ const SceneGraphPanel = (() => {
     const rect = svg.getBoundingClientRect();
     const vw = rect.width || 600, vh = rect.height || 400;
     const pad = 40;
-    const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN,
-      Math.min((vw - pad) / Math.max(1, maxX - minX), (vh - pad) / Math.max(1, maxY - minY), 1.2)));
+    const k = clampZoom(
+      Math.min((vw - pad) / Math.max(1, maxX - minX), (vh - pad) / Math.max(1, maxY - minY), 1.2));
     view.k = k;
     view.tx = (vw - (maxX - minX) * k) / 2 - minX * k;
     view.ty = (vh - (maxY - minY) * k) / 2 - minY * k;
